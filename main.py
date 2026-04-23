@@ -8,10 +8,13 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. CSS PARA VISUAL CLEAN
+# 2. CSS PARA VISUAL CLEAN COM CORES DA PA (Verde: #478c3b | Amarelo: #f2a933)
 st.markdown("""
     <style>
+    /* Fundo geral */
     .stApp { background-color: #fcfcfc !important; }
+    
+    /* Título principal em Verde PA */
     .main-title {
         color: #478c3b;
         text-align: center;
@@ -19,32 +22,50 @@ st.markdown("""
         font-weight: 700;
         margin-top: -10px;
     }
+    
+    /* Divisor em Amarelo PA */
     .custom-divider {
-        height: 3px;
-        background: linear-gradient(90deg, transparent, #f2a933, transparent);
+        height: 4px;
+        background-color: #f2a933;
         margin-bottom: 30px;
+        border-radius: 2px;
     }
+
+    /* Estilização do campo de busca com borda Verde PA */
     div[data-testid="stVerticalBlock"] > div:has(input) {
         background-color: #ffffff;
         padding: 15px;
         border-radius: 12px;
         box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        border: 1px solid #eeeeee;
+        border: 2px solid #478c3b;
     }
+
+    /* Ajuste de cores da Tabela e Mensagens */
+    .stDataFrame {
+        border-radius: 10px;
+    }
+    
+    /* Customização do texto de sucesso para Verde PA */
+    div.stAlert > div {
+        background-color: #478c3b !important;
+        color: white !important;
+    }
+
     .footer {
         text-align: center;
-        color: #999;
+        color: #666;
         font-size: 11px;
         margin-top: 50px;
+        font-weight: bold;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. CABEÇALHO (Lendo o arquivo local que você subiu no GitHub)
+# 3. CABEÇALHO (Logo local no GitHub)
 c1, c2, c3 = st.columns([1.3, 1, 1.3])
 with c2:
     try:
-        # Aqui ele busca o arquivo 'logo.png' que está na pasta do seu GitHub
+        # Mantendo a chamada para o arquivo 'logo' conforme seu código funcional
         st.image("logo", use_container_width=True)
     except:
         st.error("⚠️ Arquivo 'logo' não encontrado no GitHub.")
@@ -96,14 +117,15 @@ if df is not None:
             ]
             colunas_existentes = [col for col in colunas_visiveis if col in resultado.columns]
             
-            st.markdown(f"**{len(resultado)}** itens encontrados:")
+            # Feedback em verde PA
+            st.success(f"✅ **{len(resultado)}** itens encontrados para '{busca}':")
             st.dataframe(resultado[colunas_existentes], use_container_width=True, hide_index=True)
         else:
-            st.warning(f"Nenhum registro encontrado para '{busca}'.")
+            st.warning(f"⚠️ Nenhum registro encontrado para '{busca}'.")
     else:
         st.markdown("<p style='text-align: center; color: #666;'>Insira um termo acima para iniciar a consulta.</p>", unsafe_allow_html=True)
 else:
     st.error("Erro ao carregar a base de dados.")
 
 # 6. RODAPÉ
-st.markdown("<p class='footer'>PARENTE ANDRADE LTDA<br>Setor de Suprimentos - Dashboard de Apoio Operacional</p>", unsafe_allow_html=True)
+st.markdown(f"<p class='footer'>PARENTE ANDRADE LTDA<br><span style='color: #f2a933;'>Setor de Suprimentos - Dashboard de Apoio Operacional</span></p>", unsafe_allow_html=True)
