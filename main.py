@@ -11,12 +11,7 @@ st.set_page_config(
 # 2. CSS AVANÇADO PARA VISUAL CLEAN
 st.markdown("""
     <style>
-    /* Fundo geral mais claro */
-    .stApp {
-        background-color: #fcfcfc !important;
-    }
-    
-    /* Centralizar e estilizar o título */
+    .stApp { background-color: #fcfcfc !important; }
     .main-title {
         color: #478c3b;
         text-align: center;
@@ -26,15 +21,11 @@ st.markdown("""
         margin-top: -20px;
         margin-bottom: 5px;
     }
-    
-    /* Divisor elegante */
     .custom-divider {
         height: 3px;
         background: linear-gradient(90deg, transparent, #f2a933, transparent);
         margin-bottom: 30px;
     }
-
-    /* Container de Busca Compacto */
     div[data-testid="stVerticalBlock"] > div:has(input) {
         background-color: #ffffff;
         padding: 20px;
@@ -42,15 +33,11 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         border: 1px solid #eeeeee;
     }
-
-    /* Estilização da Tabela */
     .stDataFrame {
         border: none !important;
         box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         border-radius: 10px;
     }
-
-    /* Rodapé discreto */
     .footer {
         text-align: center;
         color: #999;
@@ -60,11 +47,16 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. CABEÇALHO (Logo e Título)
-# Usando colunas para reduzir e centralizar a logo
+# 3. CABEÇALHO (Logo do Google Drive e Título)
+# Função para converter link do Drive em link direto de imagem
+def converter_link_drive(url):
+    id_arquivo = url.split('/')[-2]
+    return f'https://drive.google.com/uc?id={id_arquivo}'
+
 c1, c2, c3 = st.columns([1.5, 1, 1.5])
 with c2:
-    st.image("https://www.parenteandrade.com.br/wp-content/uploads/2021/05/logo-parente-andrade.png")
+    url_logo = "https://drive.google.com/file/d/1KRgJzU5Ewa5I6IcVE6WGe3ekxqbsZzqD/view?usp=sharing"
+    st.image(converter_link_drive(url_logo))
 
 st.markdown("<h1 class='main-title'>Portal de Consulta Suprimentos</h1>", unsafe_allow_html=True)
 st.markdown("<div class='custom-divider'></div>", unsafe_allow_html=True)
@@ -92,7 +84,6 @@ df = carregar_dados()
 
 if df is not None:
     # 5. BUSCA CENTRALIZADA E REDUZIDA
-    # Criando colunas para o campo de busca não ocupar a tela toda
     sc1, sc2, sc3 = st.columns([1, 2, 1])
     with sc2:
         busca = st.text_input(
@@ -124,4 +115,4 @@ else:
     st.error("Erro ao carregar a base de dados.")
 
 # 6. RODAPÉ
-st.markdown("<p class='footer'>PARENTE ANDRADE ENGENHARIA LTDA<br>Setor de Suprimentos - Dashboard de Apoio Operacional</p>", unsafe_allow_html=True)
+st.markdown("<p class='footer'>PARENTE ANDRADE LTDA<br>Setor de Suprimentos - Dashboard de Apoio Operacional</p>", unsafe_allow_html=True)
