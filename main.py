@@ -8,25 +8,68 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. ESTILIZAÇÃO CSS (Cores Oficiais Parente Andrade)
+# 2. CSS AVANÇADO PARA VISUAL CLEAN
 st.markdown("""
     <style>
-    .stApp { background-color: #FFFFFF !important; }
-    .titulo-portal { color: #478c3b; text-align: center; font-family: 'Arial', sans-serif; font-weight: bold; margin-bottom: 0px; }
-    .linha-amarela { height: 4px; background-color: #f2a933; margin-bottom: 25px; border-radius: 2px; }
-    .stTextInput>div>div>input { border: 2px solid #478c3b !important; }
+    /* Fundo geral mais claro */
+    .stApp {
+        background-color: #fcfcfc !important;
+    }
+    
+    /* Centralizar e estilizar o título */
+    .main-title {
+        color: #478c3b;
+        text-align: center;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-weight: 700;
+        letter-spacing: -1px;
+        margin-top: -20px;
+        margin-bottom: 5px;
+    }
+    
+    /* Divisor elegante */
+    .custom-divider {
+        height: 3px;
+        background: linear-gradient(90deg, transparent, #f2a933, transparent);
+        margin-bottom: 30px;
+    }
+
+    /* Container de Busca Compacto */
+    div[data-testid="stVerticalBlock"] > div:has(input) {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        border: 1px solid #eeeeee;
+    }
+
+    /* Estilização da Tabela */
+    .stDataFrame {
+        border: none !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        border-radius: 10px;
+    }
+
+    /* Rodapé discreto */
+    .footer {
+        text-align: center;
+        color: #999;
+        font-size: 11px;
+        margin-top: 50px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. CABEÇALHO COM LOGO
-col1, col2, col3 = st.columns([1, 1, 1])
-with col2:
-    st.image("https://www.parenteandrade.com.br/wp-content/uploads/2021/05/logo-parente-andrade.png", use_container_width=True)
+# 3. CABEÇALHO (Logo e Título)
+# Usando colunas para reduzir e centralizar a logo
+c1, c2, c3 = st.columns([1.5, 1, 1.5])
+with c2:
+    st.image("https://www.parenteandrade.com.br/wp-content/uploads/2021/05/logo-parente-andrade.png")
 
-st.markdown("<h2 class='titulo-portal'>Portal de Consulta - Suprimentos</h2>", unsafe_allow_html=True)
-st.markdown("<div class='linha-amarela'></div>", unsafe_allow_html=True)
+st.markdown("<h1 class='main-title'>Portal de Consulta Suprimentos</h1>", unsafe_allow_html=True)
+st.markdown("<div class='custom-divider'></div>", unsafe_allow_html=True)
 
-# 4. CONFIGURAÇÃO DO GOOGLE SHEETS
+# 4. CARREGAMENTO DE DADOS
 URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1Qgv6YSQ8XGx1RagMfYcTOOT_a_TQ2RoVGNIk7fY4kf0/edit?usp=sharing"
 
 def preparar_url_google(url):
@@ -36,54 +79,49 @@ def preparar_url_google(url):
 def carregar_dados():
     try:
         url_csv = preparar_url_google(URL_PLANILHA)
-        # Lendo como string para preservar qualquer formatação original
         df_raw = pd.read_csv(url_csv, dtype=str)
-        
-        # TRATAMENTO PARA EXIBIÇÃO: Garante que a coluna 'Produto' mostre 10 dígitos com zeros à esquerda
         if 'Produto' in df_raw.columns:
             df_raw['Produto'] = df_raw['Produto'].apply(
                 lambda x: str(x).strip().zfill(10) if pd.notnull(x) and str(x).strip() != "" else x
             )
-            
         return df_raw
-    except Exception:
+    except:
         return None
 
 df = carregar_dados()
 
 if df is not None:
-    # 5. INTERFACE DE BUSCA (Retornada ao modelo anterior)
-    busca = st.text_input("🔍 Pesquisar por SC, Produto, Requisitante ou Centro de Custo (CC):", 
-                         placeholder="Ex: 0123456, Cimento, ou 0000001234...")
+    # 5. BUSCA CENTRALIZADA E REDUZIDA
+    # Criando colunas para o campo de busca não ocupar a tela toda
+    sc1, sc2, sc3 = st.columns([1, 2, 1])
+    with sc2:
+        busca = st.text_input(
+            "", 
+            placeholder="🔍 Ex: 0123456, Cimento, ou 0000001234...",
+            label_visibility="collapsed"
+        )
     
     if busca:
-        # Lógica de pesquisa original (varre todas as colunas)
         mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
         resultado = df[mask]
         
         if not resultado.empty:
-            # Lista de colunas visíveis solicitadas
             colunas_visiveis = [
                 "STATUS", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", 
                 "DT entrega ", "CONDIÇÃO PGO", "N° da SC", "N° PC", "Fornecedor", 
                 "Nome Fornecedor", "CC", "Produto", "Descricao", "UM", "QNT", 
                 " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao"
             ]
-            
             colunas_existentes = [col for col in colunas_visiveis if col in resultado.columns]
             
-            st.success(f"Encontramos {len(resultado)} registro(s).")
-            st.dataframe(
-                resultado[colunas_existentes], 
-                use_container_width=True,
-                hide_index=True
-            )
+            st.markdown(f"**{len(resultado)}** itens encontrados para '{busca}':")
+            st.dataframe(resultado[colunas_existentes], use_container_width=True, hide_index=True)
         else:
             st.warning(f"Nenhum registro encontrado para '{busca}'.")
     else:
-        st.info("👋 Digite acima para consultar o status em tempo real.")
+        st.markdown("<p style='text-align: center; color: #666;'>Insira um termo acima para iniciar a consulta.</p>", unsafe_allow_html=True)
 else:
     st.error("Erro ao carregar a base de dados.")
 
 # 6. RODAPÉ
-st.markdown("<br><br><br><p style='text-align: center; color: #478c3b; font-size: 12px;'>Parente Andrade Engenharia - Suprimentos © 2024</p>", unsafe_allow_html=True)
+st.markdown("<p class='footer'>PARENTE ANDRADE ENGENHARIA LTDA<br>Setor de Suprimentos - Dashboard de Apoio Operacional</p>", unsafe_allow_html=True)
