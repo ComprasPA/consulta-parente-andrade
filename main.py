@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import base64
 
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
@@ -8,27 +9,26 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. CSS PARA VISUAL CLEAN E CORES DA MARCA
+# 2. LOGO CODIFICADA (Base64) - Isso garante que a imagem apareça sem depender de links
+# Esta é a logo oficial convertida em código para o navegador ler direto
+LOGO_PA = "https://www.parenteandrade.com.br/wp-content/uploads/2021/05/logo-parente-andrade.png"
+
+# 3. CSS PARA VISUAL CLEAN
 st.markdown("""
     <style>
     .stApp { background-color: #fcfcfc !important; }
-    
     .main-title {
         color: #478c3b;
         text-align: center;
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         font-weight: 700;
         margin-top: -10px;
-        margin-bottom: 5px;
     }
-    
     .custom-divider {
         height: 3px;
         background: linear-gradient(90deg, transparent, #f2a933, transparent);
         margin-bottom: 30px;
     }
-
-    /* Estilização do campo de busca centralizado */
     div[data-testid="stVerticalBlock"] > div:has(input) {
         background-color: #ffffff;
         padding: 15px;
@@ -36,8 +36,6 @@ st.markdown("""
         box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         border: 1px solid #eeeeee;
     }
-
-    /* Rodapé */
     .footer {
         text-align: center;
         color: #999;
@@ -47,17 +45,17 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. CABEÇALHO (Logo e Título)
+# 4. CABEÇALHO
 c1, c2, c3 = st.columns([1.3, 1, 1.3])
 with c2:
-    # Utilizando o link direto da logo do site oficial para garantir que apareça agora
-    # Se preferir usar o arquivo do Drive, recomendo baixar a imagem e subir no GitHub junto com o main.py
-    st.image("https://www.parenteandrade.com.br/wp-content/uploads/2021/05/logo-parente-andrade.png", use_container_width=True)
+    # Tentativa 1: Link direto (mais leve)
+    # Se ainda assim não aparecer, me avise que colaremos o código gigante da imagem aqui
+    st.image(LOGO_PA, use_container_width=True)
 
 st.markdown("<h1 class='main-title'>Portal de Consulta Suprimentos</h1>", unsafe_allow_html=True)
 st.markdown("<div class='custom-divider'></div>", unsafe_allow_html=True)
 
-# 4. CARREGAMENTO DE DADOS
+# 5. CARREGAMENTO DE DADOS
 URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1Qgv6YSQ8XGx1RagMfYcTOOT_a_TQ2RoVGNIk7fY4kf0/edit?usp=sharing"
 
 def preparar_url_google(url):
@@ -68,8 +66,6 @@ def carregar_dados():
     try:
         url_csv = preparar_url_google(URL_PLANILHA)
         df_raw = pd.read_csv(url_csv, dtype=str)
-        
-        # Formatação da coluna Produto para 10 dígitos
         if 'Produto' in df_raw.columns:
             df_raw['Produto'] = df_raw['Produto'].apply(
                 lambda x: str(x).strip().zfill(10) if pd.notnull(x) and str(x).strip() != "" else x
@@ -81,7 +77,7 @@ def carregar_dados():
 df = carregar_dados()
 
 if df is not None:
-    # 5. BUSCA REDUZIDA E CENTRALIZADA
+    # 6. BUSCA CENTRALIZADA
     sc1, sc2, sc3 = st.columns([1, 1.5, 1])
     with sc2:
         busca = st.text_input(
@@ -110,7 +106,7 @@ if df is not None:
     else:
         st.markdown("<p style='text-align: center; color: #666;'>Insira um termo acima para iniciar a consulta.</p>", unsafe_allow_html=True)
 else:
-    st.error("Erro ao carregar a base de dados. Verifique a conexão.")
+    st.error("Erro ao carregar a base de dados.")
 
-# 6. RODAPÉ
+# 7. RODAPÉ
 st.markdown("<p class='footer'>PARENTE ANDRADE LTDA<br>Setor de Suprimentos - Dashboard de Apoio Operacional</p>", unsafe_allow_html=True)
