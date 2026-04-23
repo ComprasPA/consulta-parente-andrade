@@ -9,7 +9,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. CSS PARA VISUAL CLEAN E OCULTAR MENUS DE EDIÇÃO
+# 2. CSS PARA VISUAL CLEAN E AJUSTE DE CONTRASTE
 st.markdown("""
     <style>
     /* Ocultar menus de edição e rodapé do Streamlit */
@@ -43,6 +43,14 @@ st.markdown("""
         border-radius: 12px;
         box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         border: 2px solid #478c3b;
+    }
+
+    /* --- CORREÇÃO DE CONTRASTE NA CAIXA DE AVISO --- */
+    div.stAlert > div {
+        background-color: #d4edda !important; /* Verde claro de fundo */
+        color: #155724 !important; /* Verde bem escuro para a fonte */
+        border: 1px solid #c3e6cb !important;
+        font-weight: bold;
     }
 
     /* Rodapé Personalizado */
@@ -112,7 +120,8 @@ if df is not None:
             ]
             colunas_existentes = [col for col in colunas_visiveis if col in resultado.columns]
             
-            st.success(f"✅ **{len(resultado)}** itens encontrados para '{busca}':")
+            # A caixa abaixo agora terá fonte Verde Escuro
+            st.success(f"✅ Encontramos {len(resultado)} item(s) para sua busca:")
             st.dataframe(resultado[colunas_existentes], use_container_width=True, hide_index=True)
         else:
             st.warning(f"⚠️ Nenhum registro encontrado para '{busca}'.")
