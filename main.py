@@ -1,30 +1,42 @@
 import streamlit as st
 import pandas as pd
 
-# 1. CONFIGURAÇÃO DA PÁGINA
+# 1. CONFIGURAÇÃO DA PÁGINA (Interface de Produção)
 st.set_page_config(
     page_title="Suprimentos | Parente Andrade",
     page_icon="🏗️",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
-# 2. CSS PARA VISUAL CLEAN COM CORES DA PA (Verde: #478c3b | Amarelo: #f2a933)
+# 2. CSS PARA VISUAL CLEAN E OCULTAR MENUS DE EDIÇÃO
 st.markdown("""
     <style>
+    /* Ocultar menus de edição e rodapé do Streamlit */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stAppDeployButton {display:none;}
+    
+    /* Fundo e Título */
     .stApp { background-color: #fcfcfc !important; }
     .main-title {
         color: #478c3b;
         text-align: center;
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         font-weight: 700;
-        margin-top: -10px;
+        margin-top: -30px;
     }
+    
+    /* Divisor PA */
     .custom-divider {
         height: 4px;
         background-color: #f2a933;
         margin-bottom: 30px;
         border-radius: 2px;
     }
+
+    /* Campo de Busca */
     div[data-testid="stVerticalBlock"] > div:has(input) {
         background-color: #ffffff;
         padding: 15px;
@@ -32,12 +44,9 @@ st.markdown("""
         box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         border: 2px solid #478c3b;
     }
-    .stDataFrame { border-radius: 10px; }
-    div.stAlert > div {
-        background-color: #478c3b !important;
-        color: white !important;
-    }
-    .footer {
+
+    /* Rodapé Personalizado */
+    .footer-custom {
         text-align: center;
         color: #666;
         font-size: 11px;
@@ -47,18 +56,18 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. CABEÇALHO (Logo local no GitHub)
+# 3. CABEÇALHO (Logo)
 c1, c2, c3 = st.columns([1.3, 1, 1.3])
 with c2:
     try:
         st.image("logo", use_container_width=True)
     except:
-        st.error("⚠️ Arquivo 'logo' não encontrado no GitHub.")
+        st.error("⚠️ Erro ao carregar logo.")
 
 st.markdown("<h1 class='main-title'>Portal de Consulta Suprimentos</h1>", unsafe_allow_html=True)
 st.markdown("<div class='custom-divider'></div>", unsafe_allow_html=True)
 
-# 4. CARREGAMENTO DE DADOS (Google Sheets)
+# 4. CARREGAMENTO DE DADOS
 URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1Qgv6YSQ8XGx1RagMfYcTOOT_a_TQ2RoVGNIk7fY4kf0/edit?usp=sharing"
 
 def preparar_url_google(url):
@@ -69,11 +78,7 @@ def carregar_dados():
     try:
         url_csv = preparar_url_google(URL_PLANILHA)
         df_raw = pd.read_csv(url_csv, dtype=str)
-        
-        # --- LIMPEZA DE CÉLULAS VAZIAS ---
-        # Substitui 'None', 'NaN' ou nulos por um espaço vazio ""
         df_raw = df_raw.fillna('')
-        
         if 'Produto' in df_raw.columns:
             df_raw['Produto'] = df_raw['Produto'].apply(
                 lambda x: str(x).strip().zfill(10) if x != '' else x
@@ -112,9 +117,9 @@ if df is not None:
         else:
             st.warning(f"⚠️ Nenhum registro encontrado para '{busca}'.")
     else:
-        st.info("👋 Digite o número da SC ou o final do código do produto para consultar.")
+        st.info("👋 Digite o termo de busca para consultar.")
 else:
     st.error("Erro ao carregar a base de dados.")
 
 # 6. RODAPÉ
-st.markdown(f"<p class='footer'>PARENTE ANDRADE LTDA<br><span style='color: #f2a933;'>Setor de Suprimentos - Dashboard de Apoio Operacional</span></p>", unsafe_allow_html=True)
+st.markdown(f"<p class='footer-custom'>PARENTE ANDRADE LTDA<br><span style='color: #f2a933;'>Setor de Suprimentos - Dashboard de Apoio Operacional</span></p>", unsafe_allow_html=True)
