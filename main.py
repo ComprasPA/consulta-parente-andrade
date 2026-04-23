@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import base64
 
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
@@ -9,11 +8,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. LOGO CODIFICADA (Base64) - Isso garante que a imagem apareça sem depender de links
-# Esta é a logo oficial convertida em código para o navegador ler direto
-LOGO_PA = "https://www.parenteandrade.com.br/wp-content/uploads/2021/05/logo-parente-andrade.png"
-
-# 3. CSS PARA VISUAL CLEAN
+# 2. CSS PARA VISUAL CLEAN
 st.markdown("""
     <style>
     .stApp { background-color: #fcfcfc !important; }
@@ -45,17 +40,19 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO
+# 3. CABEÇALHO (Lendo o arquivo local que você subiu no GitHub)
 c1, c2, c3 = st.columns([1.3, 1, 1.3])
 with c2:
-    # Tentativa 1: Link direto (mais leve)
-    # Se ainda assim não aparecer, me avise que colaremos o código gigante da imagem aqui
-    st.image(LOGO_PA, use_container_width=True)
+    try:
+        # Aqui ele busca o arquivo 'logo.png' que está na pasta do seu GitHub
+        st.image("logo.png", use_container_width=True)
+    except:
+        st.error("⚠️ Arquivo 'logo.png' não encontrado no GitHub.")
 
 st.markdown("<h1 class='main-title'>Portal de Consulta Suprimentos</h1>", unsafe_allow_html=True)
 st.markdown("<div class='custom-divider'></div>", unsafe_allow_html=True)
 
-# 5. CARREGAMENTO DE DADOS
+# 4. CARREGAMENTO DE DADOS (Google Sheets)
 URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1Qgv6YSQ8XGx1RagMfYcTOOT_a_TQ2RoVGNIk7fY4kf0/edit?usp=sharing"
 
 def preparar_url_google(url):
@@ -77,7 +74,7 @@ def carregar_dados():
 df = carregar_dados()
 
 if df is not None:
-    # 6. BUSCA CENTRALIZADA
+    # 5. BUSCA CENTRALIZADA
     sc1, sc2, sc3 = st.columns([1, 1.5, 1])
     with sc2:
         busca = st.text_input(
@@ -108,5 +105,5 @@ if df is not None:
 else:
     st.error("Erro ao carregar a base de dados.")
 
-# 7. RODAPÉ
+# 6. RODAPÉ
 st.markdown("<p class='footer'>PARENTE ANDRADE LTDA<br>Setor de Suprimentos - Dashboard de Apoio Operacional</p>", unsafe_allow_html=True)
