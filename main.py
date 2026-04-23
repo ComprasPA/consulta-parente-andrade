@@ -45,9 +45,9 @@ c1, c2, c3 = st.columns([1.3, 1, 1.3])
 with c2:
     try:
         # Aqui ele busca o arquivo 'logo.png' que está na pasta do seu GitHub
-        st.image("logo.png", use_container_width=True)
+        st.image("logo", use_container_width=True)
     except:
-        st.error("⚠️ Arquivo 'logo.png' não encontrado no GitHub.")
+        st.error("⚠️ Arquivo 'logo' não encontrado no GitHub.")
 
 st.markdown("<h1 class='main-title'>Portal de Consulta Suprimentos</h1>", unsafe_allow_html=True)
 st.markdown("<div class='custom-divider'></div>", unsafe_allow_html=True)
