@@ -11,10 +11,7 @@ st.set_page_config(
 # 2. CSS PARA VISUAL CLEAN COM CORES DA PA (Verde: #478c3b | Amarelo: #f2a933)
 st.markdown("""
     <style>
-    /* Fundo geral */
     .stApp { background-color: #fcfcfc !important; }
-    
-    /* Título principal em Verde PA */
     .main-title {
         color: #478c3b;
         text-align: center;
@@ -22,16 +19,12 @@ st.markdown("""
         font-weight: 700;
         margin-top: -10px;
     }
-    
-    /* Divisor em Amarelo PA */
     .custom-divider {
         height: 4px;
         background-color: #f2a933;
         margin-bottom: 30px;
         border-radius: 2px;
     }
-
-    /* Estilização do campo de busca com borda Verde PA */
     div[data-testid="stVerticalBlock"] > div:has(input) {
         background-color: #ffffff;
         padding: 15px;
@@ -39,18 +32,11 @@ st.markdown("""
         box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         border: 2px solid #478c3b;
     }
-
-    /* Ajuste de cores da Tabela e Mensagens */
-    .stDataFrame {
-        border-radius: 10px;
-    }
-    
-    /* Customização do texto de sucesso para Verde PA */
+    .stDataFrame { border-radius: 10px; }
     div.stAlert > div {
         background-color: #478c3b !important;
         color: white !important;
     }
-
     .footer {
         text-align: center;
         color: #666;
@@ -65,7 +51,6 @@ st.markdown("""
 c1, c2, c3 = st.columns([1.3, 1, 1.3])
 with c2:
     try:
-        # Mantendo a chamada para o arquivo 'logo' conforme seu código funcional
         st.image("logo", use_container_width=True)
     except:
         st.error("⚠️ Arquivo 'logo' não encontrado no GitHub.")
@@ -84,9 +69,14 @@ def carregar_dados():
     try:
         url_csv = preparar_url_google(URL_PLANILHA)
         df_raw = pd.read_csv(url_csv, dtype=str)
+        
+        # --- LIMPEZA DE CÉLULAS VAZIAS ---
+        # Substitui 'None', 'NaN' ou nulos por um espaço vazio ""
+        df_raw = df_raw.fillna('')
+        
         if 'Produto' in df_raw.columns:
             df_raw['Produto'] = df_raw['Produto'].apply(
-                lambda x: str(x).strip().zfill(10) if pd.notnull(x) and str(x).strip() != "" else x
+                lambda x: str(x).strip().zfill(10) if x != '' else x
             )
         return df_raw
     except:
@@ -117,13 +107,12 @@ if df is not None:
             ]
             colunas_existentes = [col for col in colunas_visiveis if col in resultado.columns]
             
-            # Feedback em verde PA
             st.success(f"✅ **{len(resultado)}** itens encontrados para '{busca}':")
             st.dataframe(resultado[colunas_existentes], use_container_width=True, hide_index=True)
         else:
             st.warning(f"⚠️ Nenhum registro encontrado para '{busca}'.")
     else:
-        st.markdown("<p style='text-align: center; color: #666;'>Insira um termo acima para iniciar a consulta.</p>", unsafe_allow_html=True)
+        st.info("👋 Digite o número da SC ou o final do código do produto para consultar.")
 else:
     st.error("Erro ao carregar a base de dados.")
 
