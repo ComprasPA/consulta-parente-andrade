@@ -54,7 +54,7 @@ df = carregar_dados()
 if df is not None:
     # 5. INTERFACE DE BUSCA (Retornada ao modelo anterior)
     busca = st.text_input("🔍 Pesquisar por SC, Produto, Requisitante ou Centro de Custo (CC):", 
-                         placeholder="Ex: 001234, Cimento, Silvio ou 101001...")
+                         placeholder="Ex: 0123456, Cimento, ou 0000001234...")
     
     if busca:
         # Lógica de pesquisa original (varre todas as colunas)
