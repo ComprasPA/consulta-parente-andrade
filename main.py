@@ -27,20 +27,31 @@ try:
     df = carregar_dados()
     
     # 4. CAMPO DE PESQUISA
-    busca = st.text_input("Digite o número da SC, nome do item ou requisitante:", placeholder="Ex: 001234 ou Cimento")
+   # 4. CAMPO DE PESQUISA
+    busca = st.text_input("Digite o número da SC, numero PC ou requisitante:", placeholder="Ex: 001234 ou Cimento")
 
     if busca:
-        # Filtro que percorre todas as colunas da planilha
+        # Filtro que percorre todas as colunas
         mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
         resultado = df[mask]
         
         if not resultado.empty:
             st.success(f"✅ Encontramos {len(resultado)} registro(s).")
-            st.dataframe(resultado, use_container_width=True)
+            
+            # --- SELEÇÃO DE COLUNAS ---
+            # Liste aqui EXATAMENTE os nomes das colunas que você QUER mostrar
+            # Exemplo: colunas_visiveis = ["NUMERO_SC", "ITEM", "STATUS", "PREVISAO"]
+            colunas_visiveis = ["Solicitação", "Item", "Requisitante", "Status", "Previsão"] 
+            
+            # Verificamos se as colunas existem na sua planilha antes de filtrar
+            colunas_existentes = [col for col in colunas_visiveis if col in resultado.columns]
+            
+            # Exibe apenas as colunas selecionadas
+            st.dataframe(resultado[colunas_existentes], use_container_width=True)
+            # --------------------------
+            
         else:
             st.warning("⚠️ Nenhum registro encontrado para este termo.")
-    else:
-        st.info("💡 Insira um termo acima para pesquisar na base de dados em tempo real.")
 
 except Exception as e:
     st.error(f"❌ Erro ao conectar com o Google Sheets: {e}")
