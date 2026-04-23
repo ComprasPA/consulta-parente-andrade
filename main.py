@@ -10,47 +10,56 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. CSS PARA LAYOUT E ESTILO (FONTE ORIGINAL E CORES PA)
+# 2. CSS PARA LAYOUT DE PRODUÇÃO E ESTILO PA
 st.markdown("""
     <style>
-    .block-container { padding-top: 1rem !important; }
-    header {visibility: hidden;}
+    /* Ocultar elementos padrão do Streamlit */
+    #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
+    header {visibility: hidden;}
     .stAppDeployButton {display:none;}
+    .block-container { padding-top: 1rem !important; }
 
+    /* Estilo da Barra de Busca superior */
     div[data-testid="stVerticalBlock"] > div:has(input) {
         background-color: #ffffff;
         padding: 5px 15px !important;
         border-radius: 10px;
-        border: 1px solid #478c3b;
+        border: 2px solid #478c3b;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
 
+    /* Mensagens de Alerta e Sucesso */
     div.stAlert > div {
         background-color: #d4edda !important;
         color: #155724 !important;
         font-weight: bold;
+        border: 1px solid #c3e6cb !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. CABEÇALHO LADO A LADO
+# 3. CABEÇALHO LADO A LADO (Logo e Busca)
 col_logo, col_busca = st.columns([1, 4])
+
 with col_logo:
     try:
-        st.image("logo", width=150)
+        # Tenta carregar a logo local do seu repositório
+        st.image("logo", width=140)
     except:
         st.subheader("PARENTE ANDRADE")
 
 with col_busca:
     busca = st.text_input(
         "", 
-        placeholder="🔍 Pesquisar por SC, Produto, Fornecedor ou CC...",
+        placeholder="🔍 Pesquisar por SC, Produto, Fornecedor ou Centro de Custo...",
         label_visibility="collapsed"
     )
 
+# Divisor horizontal em Amarelo PA
 st.markdown("<div style='height: 3px; background-color: #f2a933; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 4. CARREGAMENTO E FORMATAÇÃO DE DATAS
+# 4. CARREGAMENTO E TRATAMENTO DE DADOS
 URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1Qgv6YSQ8XGx1RagMfYcTOOT_a_TQ2RoVGNIk7fY4kf0/edit?usp=sharing"
 
 def preparar_url_google(url):
@@ -60,65 +69,80 @@ def preparar_url_google(url):
 def carregar_dados():
     try:
         url_csv = preparar_url_google(URL_PLANILHA)
+        # Carrega os dados garantindo que tudo seja lido como texto (string)
         df_raw = pd.read_csv(url_csv, dtype=str)
+        
+        # Limpeza global: Substitui valores nulos por vazio real
         df_raw = df_raw.fillna('')
-        
-        # --- PADRONIZAÇÃO DE DATAS PARA DD/MM/AA ---
+
+        # --- PADRONIZAÇÃO DE DATAS (DD/MM/AA) ---
         colunas_data = ["DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "Data Emissao", "Dt Liberacao"]
-        
         for col in colunas_data:
             if col in df_raw.columns:
-                # Converte para datetime e depois para o formato DD/MM/AA
-                # O errors='coerce' garante que se não for data, ele não trave o código
-                df_raw[col] = pd.to_datetime(df_raw[col], errors='ignore', dayfirst=True)
-                df_raw[col] = df_raw[col].apply(lambda x: x.strftime('%d/%m/%y') if isinstance(x, pd.Timestamp) else x)
+                # Converte para data tratando erros (se não for data, vira NaT)
+                temp_date = pd.to_datetime(df_raw[col], errors='coerce', dayfirst=True)
+                # Formata apenas as datas válidas, o resto mantém como estava ou vazio
+                df_raw[col] = temp_date.dt.strftime('%d/%m/%y').fillna(df_raw[col])
+                # Limpa qualquer resíduo de 'NaT' que possa ter aparecido
+                df_raw[col] = df_raw[col].replace('NaT', '')
 
+        # --- FORMATAÇÃO DO PRODUTO (10 DÍGITOS) ---
         if 'Produto' in df_raw.columns:
             df_raw['Produto'] = df_raw['Produto'].apply(
-                lambda x: str(x).strip().zfill(10) if x != '' else x
+                lambda x: str(x).strip().zfill(10) if (x != '' and str(x).lower() != 'nan') else ''
             )
+        
         return df_raw
-    except:
+    except Exception as e:
+        # Diagnóstico de erro técnico na tela
+        st.error(f"⚠️ Erro ao acessar a base: {e}")
         return None
 
 df = carregar_dados()
 
+# 5. EXIBIÇÃO E FILTROS
 if df is not None:
+    # Configuração das colunas da tabela conforme solicitado
     colunas_visiveis = [
         "STATUS", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", 
         "DT entrega ", "CONDIÇÃO PGO", "N° da SC", "N° PC", "Fornecedor", 
         "Nome Fornecedor", "CC", "Produto", "Descricao", "UM", "QNT", 
         " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao"
     ]
+    # Filtra apenas as colunas que realmente existem na planilha
     colunas_existentes = [col for col in colunas_visiveis if col in df.columns]
 
     if busca:
+        # Pesquisa global em todas as colunas
         mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
         resultado = df[mask][colunas_existentes]
         
         if not resultado.empty:
             c_msg, c_down = st.columns([3, 1])
             with c_msg:
-                st.success(f"✅ {len(resultado)} item(s) encontrado(s)")
+                st.success(f"✅ Encontrado(s) {len(resultado)} registro(s)")
             
             with c_down:
+                # Gerador de arquivo Excel (.xlsx) real
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    resultado.to_excel(writer, index=False, sheet_name='Consulta')
+                    resultado.to_excel(writer, index=False, sheet_name='Consulta_PA')
                 
                 st.download_button(
-                    label="📥 Baixar em Excel",
+                    label="📥 Exportar Excel",
                     data=output.getvalue(),
-                    file_name="Consulta_Suprimentos_PA.xlsx",
+                    file_name="Consulta_Parente_Andrade.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
+            # Exibição da Tabela principal
             st.dataframe(resultado, use_container_width=True, hide_index=True)
         else:
-            st.warning(f"⚠️ Nenhum registro encontrado para '{busca}'.")
+            st.warning(f"🔎 Nenhum resultado para: '{busca}'")
     else:
-        st.info("💡 Digite acima para iniciar a consulta.")
+        st.info("👋 Digite o termo de busca no topo para visualizar os dados.")
 else:
-    st.error("Erro na base de dados.")
+    st.error("❌ Não foi possível carregar as informações. Verifique se a planilha está compartilhada como 'Qualquer pessoa com o link'.")
 
-st.markdown("<p style='text-align: center; color: #666; font-size: 12px; margin-top: 30px;'>PARENTE ANDRADE LTDA</p>", unsafe_allow_html=True)
+# 6. RODAPÉ
+st.markdown("<p style='text-align: center; color: #999; font-size: 12px; margin-top: 50px;'>PARENTE ANDRADE LTDA<br>Setor de Suprimentos - Gestão de Pedidos</p>", unsafe_allow_html=True)
