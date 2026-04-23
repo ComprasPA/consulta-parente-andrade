@@ -1,12 +1,42 @@
 import streamlit as st
 import pandas as pd
 
-# 1. CONFIGURAÇÃO DA PÁGINA
-st.set_page_config(page_title="Portal de Status - Parente Andrade", layout="wide")
+# 1. CONFIGURAÇÃO DA PÁGINA (Identidade Visual)
+st.set_page_config(
+    page_title="Portal de Suprimentos | Parente Andrade",
+    page_icon="🏗️",
+    layout="wide"
+)
 
-# 2. CABEÇALHO E IDENTIDADE
-st.sidebar.image("https://www.parenteandrade.com.br/wp-content/uploads/2021/05/logo-parente-andrade.png", width=150)
-st.title("🔍 Consulta de Solicitações e Pedidos")
+# Estilização CSS para aproximar ao site oficial
+st.markdown("""
+    <style>
+    .main {
+        background-color: #ffffff;
+    }
+    .stTextInput label {
+        color: #1a1a1a !important;
+        font-weight: bold;
+    }
+    .stButton>button {
+        background-color: #4CAF50;
+        color: white;
+    }
+    /* Cor do cabeçalho da tabela */
+    thead tr th {
+        background-color: #f1f1f1 !important;
+        color: #333 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# 2. CABEÇALHO (Logo centralizada e Título)
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    # Usando a logo que você enviou (convertida para link de imagem estável)
+    st.image("https://www.parenteandrade.com.br/wp-content/uploads/2021/05/logo-parente-andrade.png", use_container_width=True)
+
+st.markdown("<h2 style='text-align: center; color: #1a1a1a;'>Consulta de Status - Suprimentos</h2>", unsafe_allow_html=True)
 st.markdown("---")
 
 # 3. CONFIGURAÇÃO DO GOOGLE SHEETS
@@ -23,18 +53,17 @@ def carregar_dados():
 try:
     df = carregar_dados()
     
-    # 4. CAMPO DE PESQUISA
-    busca = st.text_input("Digite o número da SC, nome do item ou requisitante:", placeholder="Ex: 001234 ou Cimento")
-
+    # 4. INTERFACE LIMPA DE BUSCA
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        busca = st.text_input("🔍 O que você deseja consultar?", placeholder="Digite o N° da SC, Produto ou Requisitante...")
+    
     if busca:
-        # Filtro que percorre todas as colunas da planilha
         mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
         resultado = df[mask]
         
         if not resultado.empty:
-            st.success(f"✅ Encontramos {len(resultado)} registro(s).")
-            
-            # --- LISTA DE COLUNAS SOLICITADAS ---
+            # Lista de colunas solicitadas
             colunas_visiveis = [
                 "STATUS", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", 
                 "DT entrega ", "CONDIÇÃO PGO", "N° da SC", "N° PC", "Fornecedor", 
@@ -42,20 +71,27 @@ try:
                 " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao"
             ]
             
-            # Filtra apenas as colunas que realmente existem na planilha para evitar erro
             colunas_existentes = [col for col in colunas_visiveis if col in resultado.columns]
             
-            # Exibe apenas as colunas selecionadas
-            st.dataframe(resultado[colunas_existentes], use_container_width=True)
-            
+            # Exibição da Tabela de forma moderna
+            st.write(f"Exibindo **{len(resultado)}** resultados encontrados:")
+            st.dataframe(
+                resultado[colunas_existentes], 
+                use_container_width=True,
+                hide_index=True
+            )
         else:
-            st.warning("⚠️ Nenhum registro encontrado para este termo.")
+            st.error("⚠️ Nenhum registro encontrado. Verifique o número ou termo digitado.")
     else:
-        st.info("💡 Digite um termo acima para iniciar a busca.")
+        st.info("👋 Bem-vindo ao Portal de Suprimentos. Digite acima para iniciar a consulta em tempo real.")
 
 except Exception as e:
-    st.error(f"❌ Erro ao processar os dados: {e}")
+    st.error(f"Erro ao carregar dados: {e}")
 
-# Rodapé
+# 5. RODAPÉ ESTILIZADO
+st.markdown("<br><br>", unsafe_allow_html=True)
 st.markdown("---")
-st.caption("Sistema de Consulta Interna - Parente Andrade")
+st.markdown(
+    "<p style='text-align: center; color: gray;'>© 2024 Parente Andrade Engenharia - Suprimentos Manaus / Urucu</p>", 
+    unsafe_allow_html=True
+)
