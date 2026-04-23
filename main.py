@@ -10,28 +10,72 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. CSS PARA LAYOUT DE PRODUÇÃO E ESTILO PA
+# 2. CSS PARA CORES VIVAS (IDENTIDADE PA)
 st.markdown("""
     <style>
+    /* Esconder menus padrão */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
     .stAppDeployButton {display:none;}
-    .block-container { padding-top: 1rem !important; }
 
-    div[data-testid="stVerticalBlock"] > div:has(input) {
-        background-color: #ffffff;
-        padding: 5px 15px !important;
-        border-radius: 10px;
-        border: 2px solid #478c3b;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    /* Fundo da Página em Cinza Suave para dar contraste */
+    .stApp {
+        background-color: #f0f2f6;
     }
 
+    /* Container Principal */
+    .block-container { 
+        padding-top: 1.5rem !important; 
+        background-color: #f0f2f6;
+    }
+
+    /* Estilo da Barra de Busca com borda Verde PA */
+    div[data-testid="stVerticalBlock"] > div:has(input) {
+        background-color: #ffffff;
+        padding: 8px 15px !important;
+        border-radius: 12px;
+        border: 2px solid #478c3b;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    /* Customização do Botão de Download (Amarelo PA) */
+    .stDownloadButton button {
+        background-color: #f2a933 !important;
+        color: white !important;
+        border-radius: 8px !important;
+        border: none !important;
+        font-weight: bold !important;
+        width: 100%;
+    }
+    .stDownloadButton button:hover {
+        background-color: #d6952d !important;
+        color: white !important;
+    }
+
+    /* Tabela de Dados com bordas arredondadas */
+    .stDataFrame {
+        background-color: #ffffff;
+        padding: 10px;
+        border-radius: 15px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
+
+    /* Mensagens de Alerta (Verde PA) */
     div.stAlert > div {
-        background-color: #d4edda !important;
-        color: #155724 !important;
+        background-color: #478c3b !important;
+        color: #ffffff !important;
+        border-radius: 10px !important;
+        border: none !important;
+    }
+    
+    /* Texto do rodapé */
+    .footer-text {
+        text-align: center;
+        color: #478c3b;
+        font-size: 13px;
+        margin-top: 50px;
         font-weight: bold;
-        border: 1px solid #c3e6cb !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -41,18 +85,19 @@ col_logo, col_busca = st.columns([1, 4])
 
 with col_logo:
     try:
-        st.image("logo", width=140)
+        st.image("logo", width=160)
     except:
-        st.subheader("PARENTE ANDRADE")
+        st.markdown("<h2 style='color:#478c3b; margin:0;'>PARENTE ANDRADE</h2>", unsafe_allow_html=True)
 
 with col_busca:
     busca = st.text_input(
         "", 
-        placeholder="🔍 Pesquisar por SC, Produto, Fornecedor ou Centro de Custo...",
+        placeholder="🔍 O que você deseja consultar hoje? (SC, Produto, Fornecedor...)",
         label_visibility="collapsed"
     )
 
-st.markdown("<div style='height: 3px; background-color: #f2a933; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+# Divisor Amarelo Vivo
+st.markdown("<div style='height: 5px; background-color: #f2a933; margin-bottom: 25px; border-radius: 5px;'></div>", unsafe_allow_html=True)
 
 # 4. CARREGAMENTO E TRATAMENTO DE DADOS
 URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1Qgv6YSQ8XGx1RagMfYcTOOT_a_TQ2RoVGNIk7fY4kf0/edit?usp=sharing"
@@ -67,27 +112,18 @@ def carregar_dados():
         df_raw = pd.read_csv(url_csv, dtype=str)
         df_raw = df_raw.fillna('')
 
-        # --- PADRONIZAÇÃO DE DATAS (CORREÇÃO DE MÊS/DIA/ANO PARA DIA/MÊS/ANO) ---
+        # Padronização de datas (DD/MM/AA)
         colunas_data = ["DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "Data Emissao", "Dt Liberacao"]
-        
         for col in colunas_data:
             if col in df_raw.columns:
-                # Primeiro, converte assumindo que o dado original pode estar no formato Mês/Dia/Ano (Americano)
-                # O dayfirst=False e o errors='coerce' ajudam a tratar strings estranhas
                 temp_date = pd.to_datetime(df_raw[col], errors='coerce')
-                
-                # Formata para o padrão brasileiro solicitado: DD/MM/AA
-                # O .dt.strftime('%d/%m/%y') gera exatamente "14/04/26"
                 df_raw[col] = temp_date.dt.strftime('%d/%m/%y').fillna(df_raw[col])
-                
-                # Limpa resíduos de conversão falha
                 df_raw[col] = df_raw[col].replace(['NaT', 'nan'], '')
 
         if 'Produto' in df_raw.columns:
             df_raw['Produto'] = df_raw['Produto'].apply(
                 lambda x: str(x).strip().zfill(10) if (x != '' and str(x).lower() != 'nan') else ''
             )
-        
         return df_raw
     except Exception as e:
         st.error(f"⚠️ Erro ao acessar a base: {e}")
@@ -112,7 +148,7 @@ if df is not None:
         if not resultado.empty:
             c_msg, c_down = st.columns([3, 1])
             with c_msg:
-                st.success(f"✅ Encontrado(s) {len(resultado)} registro(s)")
+                st.success(f"📦 Encontramos {len(resultado)} registro(s) para sua busca.")
             
             with c_down:
                 output = BytesIO()
@@ -128,10 +164,11 @@ if df is not None:
 
             st.dataframe(resultado, use_container_width=True, hide_index=True)
         else:
-            st.warning(f"🔎 Nenhum resultado para: '{busca}'")
+            st.warning(f"🔎 Nenhum resultado encontrado para: '{busca}'")
     else:
-        st.info("👋 Digite o termo de busca no topo para visualizar os dados.")
+        st.info("💡 Digite o termo de busca acima para visualizar os dados atualizados.")
 else:
-    st.error("❌ Não foi possível carregar as informações.")
+    st.error("❌ Erro técnico ao carregar a base de dados.")
 
-st.markdown("<p style='text-align: center; color: #999; font-size: 12px; margin-top: 50px;'>PARENTE ANDRADE LTDA<br>Setor de Suprimentos - Gestão de Pedidos</p>", unsafe_allow_html=True)
+# 6. RODAPÉ COM CORES DA MARCA
+st.markdown(f"<p class='footer-text'>PARENTE ANDRADE LTDA<br><span style='color: #f2a933;'>Setor de Suprimentos - Gestão Eficiente</span></p>", unsafe_allow_html=True)
