@@ -10,17 +10,14 @@ st.title("🔍 Consulta de Solicitações e Pedidos")
 st.markdown("---")
 
 # 3. CONFIGURAÇÃO DO GOOGLE SHEETS
-# Link fornecido da planilha
 URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1Qgv6YSQ8XGx1RagMfYcTOOT_a_TQ2RoVGNIk7fY4kf0/edit?usp=sharing"
 
-# Função para converter o link de edição em link de exportação CSV
 def preparar_url_google(url):
     return url.replace('/edit?usp=sharing', '/export?format=csv')
 
-@st.cache_data(ttl=300) # Atualiza a cada 5 minutos
+@st.cache_data(ttl=300)
 def carregar_dados():
     url_csv = preparar_url_google(URL_PLANILHA)
-    # Lendo os dados como CSV do Google Sheets
     return pd.read_csv(url_csv)
 
 try:
@@ -36,16 +33,29 @@ try:
         
         if not resultado.empty:
             st.success(f"✅ Encontramos {len(resultado)} registro(s).")
-            st.dataframe(resultado, use_container_width=True)
+            
+            # --- LISTA DE COLUNAS SOLICITADAS ---
+            colunas_visiveis = [
+                "STATUS", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", 
+                "DT entrega ", "CONDIÇÃO PGO", "N° da SC", "N° PC", "Fornecedor", 
+                "Nome Fornecedor", "CC", "Produto", "Descricao", "UM", "QNT", 
+                " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao"
+            ]
+            
+            # Filtra apenas as colunas que realmente existem na planilha para evitar erro
+            colunas_existentes = [col for col in colunas_visiveis if col in resultado.columns]
+            
+            # Exibe apenas as colunas selecionadas
+            st.dataframe(resultado[colunas_existentes], use_container_width=True)
+            
         else:
             st.warning("⚠️ Nenhum registro encontrado para este termo.")
     else:
-        st.info("💡 Insira um termo acima para pesquisar na base de dados em tempo real.")
+        st.info("💡 Digite um termo acima para iniciar a busca.")
 
 except Exception as e:
-    st.error(f"❌ Erro ao conectar com o Google Sheets: {e}")
-    st.info("Dica: Verifique se a planilha está compartilhada para 'Qualquer pessoa com o link' como Leitor.")
+    st.error(f"❌ Erro ao processar os dados: {e}")
 
-# Rodapé simples
+# Rodapé
 st.markdown("---")
 st.caption("Sistema de Consulta Interna - Parente Andrade")
