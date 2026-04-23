@@ -8,32 +8,36 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. CSS AVANÇADO PARA VISUAL CLEAN
+# 2. CSS PARA VISUAL CLEAN E CORES DA MARCA
 st.markdown("""
     <style>
     .stApp { background-color: #fcfcfc !important; }
+    
     .main-title {
         color: #478c3b;
         text-align: center;
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         font-weight: 700;
-        letter-spacing: -1px;
         margin-top: -10px;
         margin-bottom: 5px;
     }
+    
     .custom-divider {
         height: 3px;
         background: linear-gradient(90deg, transparent, #f2a933, transparent);
         margin-bottom: 30px;
     }
-    /* Estilização do campo de busca */
+
+    /* Estilização do campo de busca centralizado */
     div[data-testid="stVerticalBlock"] > div:has(input) {
         background-color: #ffffff;
         padding: 15px;
         border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         border: 1px solid #eeeeee;
     }
+
+    /* Rodapé */
     .footer {
         text-align: center;
         color: #999;
@@ -43,17 +47,12 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. CABEÇALHO (Nova lógica para Logo do Google Drive)
-def get_drive_image_url(url):
-    # Extrai o ID do arquivo e gera o link de exportação direta
-    file_id = url.split('/')[-2]
-    return f'https://drive.google.com/uc?export=view&id={file_id}'
-
-c1, c2, c3 = st.columns([1.5, 1, 1.5])
+# 3. CABEÇALHO (Logo e Título)
+c1, c2, c3 = st.columns([1.3, 1, 1.3])
 with c2:
-    link_drive = "https://drive.google.com/file/d/1KRgJzU5Ewa5I6IcVE6WGe3ekxqbsZzqD/view?usp=sharing"
-    # O parâmetro width ajuda a controlar o tamanho da logo no topo
-    st.image(get_drive_image_url(link_drive), use_container_width=True)
+    # Utilizando o link direto da logo do site oficial para garantir que apareça agora
+    # Se preferir usar o arquivo do Drive, recomendo baixar a imagem e subir no GitHub junto com o main.py
+    st.image("https://www.parenteandrade.com.br/wp-content/uploads/2021/05/logo-parente-andrade.png", use_container_width=True)
 
 st.markdown("<h1 class='main-title'>Portal de Consulta Suprimentos</h1>", unsafe_allow_html=True)
 st.markdown("<div class='custom-divider'></div>", unsafe_allow_html=True)
@@ -69,6 +68,8 @@ def carregar_dados():
     try:
         url_csv = preparar_url_google(URL_PLANILHA)
         df_raw = pd.read_csv(url_csv, dtype=str)
+        
+        # Formatação da coluna Produto para 10 dígitos
         if 'Produto' in df_raw.columns:
             df_raw['Produto'] = df_raw['Produto'].apply(
                 lambda x: str(x).strip().zfill(10) if pd.notnull(x) and str(x).strip() != "" else x
@@ -80,8 +81,8 @@ def carregar_dados():
 df = carregar_dados()
 
 if df is not None:
-    # 5. BUSCA CENTRALIZADA E REDUZIDA
-    sc1, sc2, sc3 = st.columns([1.2, 1.6, 1.2])
+    # 5. BUSCA REDUZIDA E CENTRALIZADA
+    sc1, sc2, sc3 = st.columns([1, 1.5, 1])
     with sc2:
         busca = st.text_input(
             "", 
@@ -109,7 +110,7 @@ if df is not None:
     else:
         st.markdown("<p style='text-align: center; color: #666;'>Insira um termo acima para iniciar a consulta.</p>", unsafe_allow_html=True)
 else:
-    st.error("Erro ao carregar a base de dados.")
+    st.error("Erro ao carregar a base de dados. Verifique a conexão.")
 
 # 6. RODAPÉ
 st.markdown("<p class='footer'>PARENTE ANDRADE LTDA<br>Setor de Suprimentos - Dashboard de Apoio Operacional</p>", unsafe_allow_html=True)
