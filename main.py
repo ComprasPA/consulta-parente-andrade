@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import base64
 from io import BytesIO
 
 # 1. CONFIGURAÇÃO DA PÁGINA
@@ -10,7 +11,18 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. CSS PARA CORES VIVAS (IDENTIDADE PA)
+# 2. FUNÇÃO PARA CONVERTER IMAGEM LOCAL PARA BASE64 (PARA O CSS)
+@st.cache_data(ttl=600) # Faz cache da logo codificada para economizar processamento
+def get_base64_logo(image_path="logo"):
+    try:
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode()
+    except:
+        return None
+
+base64_logo = get_base64_logo()
+
+# 3. CSS PARA MARCA D'ÁGUA E CORES DA IDENTIDADE PA
 st.markdown("""
     <style>
     /* Esconder menus padrão */
@@ -19,15 +31,26 @@ st.markdown("""
     header {visibility: hidden;}
     .stAppDeployButton {display:none;}
 
-    /* Fundo da Página em Cinza Suave para dar contraste */
+    /* Fundo da Página (Cinza Suave) */
     .stApp {
         background-color: #f0f2f6;
+    }
+
+    /* CONTAINER PRINCIPAL: ADICIONANDO MARCA D'ÁGUA */
+    .stApp > div > div > div > div > section > div {
+        background-image: url("data:image/png;base64,""" + str(base64_logo) + """");
+        background-size: 350px; /* Tamanho da logo no fundo */
+        background-position: center 250px; /* Alinhamento central e vertical */
+        background-repeat: no-repeat;
+        background-attachment: fixed; /* A marca d'água não rola com o scroll */
+        opacity: 0.06; /* BAIXA OPACIDADE PARA NÃO ATRALHAR A LEITURA */
+        z-index: -1; /* Garante que fique atrás de todos os elementos */
     }
 
     /* Container Principal */
     .block-container { 
         padding-top: 1.5rem !important; 
-        background-color: #f0f2f6;
+        background-color: transparent !important; /* Deve ser transparente para mostrar o fundo */
     }
 
     /* Estilo da Barra de Busca com borda Verde PA */
@@ -80,11 +103,12 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. CABEÇALHO LADO A LADO
+# 4. CABEÇALHO LADO A LADO
 col_logo, col_busca = st.columns([1, 4])
 
 with col_logo:
     try:
+        # Mantendo a logo principal visível no topo
         st.image("logo", width=160)
     except:
         st.markdown("<h2 style='color:#478c3b; margin:0;'>PARENTE ANDRADE</h2>", unsafe_allow_html=True)
@@ -99,7 +123,7 @@ with col_busca:
 # Divisor Amarelo Vivo
 st.markdown("<div style='height: 5px; background-color: #f2a933; margin-bottom: 25px; border-radius: 5px;'></div>", unsafe_allow_html=True)
 
-# 4. CARREGAMENTO E TRATAMENTO DE DADOS
+# 5. CARREGAMENTO E TRATAMENTO DE DADOS
 URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1Qgv6YSQ8XGx1RagMfYcTOOT_a_TQ2RoVGNIk7fY4kf0/edit?usp=sharing"
 
 def preparar_url_google(url):
@@ -131,7 +155,7 @@ def carregar_dados():
 
 df = carregar_dados()
 
-# 5. EXIBIÇÃO E FILTROS
+# 6. EXIBIÇÃO E FILTROS
 if df is not None:
     colunas_visiveis = [
         "STATUS", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", 
@@ -170,5 +194,5 @@ if df is not None:
 else:
     st.error("❌ Erro técnico ao carregar a base de dados.")
 
-# 6. RODAPÉ COM CORES DA MARCA
+# 7. RODAPÉ COM CORES DA MARCA
 st.markdown(f"<p class='footer-text'>PARENTE ANDRADE LTDA<br><span style='color: #f2a933;'>Setor de Suprimentos - Gestão Eficiente</span></p>", unsafe_allow_html=True)
