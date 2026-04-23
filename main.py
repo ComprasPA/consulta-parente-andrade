@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from io import BytesIO
 
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
@@ -9,30 +10,23 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. CSS PARA LAYOUT SUPERIOR COMPACTO (FONTE ORIGINAL)
+# 2. CSS PARA LAYOUT SUPERIOR E ESTILO
 st.markdown("""
     <style>
-    /* Remover espaços excessivos do topo */
-    .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 0rem !important;
-    }
-    
-    /* Ocultar menus padrão */
+    .block-container { padding-top: 1rem !important; }
     header {visibility: hidden;}
     footer {visibility: hidden;}
     .stAppDeployButton {display:none;}
 
-    /* Estilo da caixa de busca */
+    /* Busca */
     div[data-testid="stVerticalBlock"] > div:has(input) {
         background-color: #ffffff;
         padding: 5px 15px !important;
         border-radius: 10px;
         border: 1px solid #478c3b;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
 
-    /* Ajuste de contraste das mensagens de alerta */
+    /* Alertas */
     div.stAlert > div {
         background-color: #d4edda !important;
         color: #155724 !important;
@@ -41,28 +35,25 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. CABEÇALHO EM LINHA (Logo à esquerda e Busca ao lado)
+# 3. CABEÇALHO LADO A LADO
 col_logo, col_busca = st.columns([1, 4])
 
 with col_logo:
     try:
-        # Logo em tamanho moderado para alinhar com a busca
         st.image("logo", width=150)
     except:
         st.subheader("PARENTE ANDRADE")
 
 with col_busca:
-    # Campo de busca na parte superior ao lado da logo
     busca = st.text_input(
         "", 
-        placeholder="🔍 Pesquisar por SC, Produto, Requisitante ou Centro de Custo (CC)...",
+        placeholder="🔍 Pesquisar por SC, Produto, Fornecedor ou CC...",
         label_visibility="collapsed"
     )
 
-# Divisor horizontal com a cor da marca
-st.markdown("<div style='height: 3px; background-color: #f2a933; margin-bottom: 20px; border-radius: 2px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height: 3px; background-color: #f2a933; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 4. CARREGAMENTO DE DADOS (Google Sheets)
+# 4. CARREGAMENTO E LIMPEZA
 URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1Qgv6YSQ8XGx1RagMfYcTOOT_a_TQ2RoVGNIk7fY4kf0/edit?usp=sharing"
 
 def preparar_url_google(url):
@@ -73,7 +64,6 @@ def carregar_dados():
     try:
         url_csv = preparar_url_google(URL_PLANILHA)
         df_raw = pd.read_csv(url_csv, dtype=str)
-        # Limpeza de células vazias
         df_raw = df_raw.fillna('')
         
         if 'Produto' in df_raw.columns:
@@ -87,28 +77,44 @@ def carregar_dados():
 df = carregar_dados()
 
 if df is not None:
+    # Definindo a configuração da tabela conforme solicitado
+    colunas_visiveis = [
+        "STATUS", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", 
+        "DT entrega ", "CONDIÇÃO PGO", "N° da SC", "N° PC", "Fornecedor", 
+        "Nome Fornecedor", "CC", "Produto", "Descricao", "UM", "QNT", 
+        " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao"
+    ]
+    colunas_existentes = [col for col in colunas_visiveis if col in df.columns]
+
     if busca:
-        # Filtro global
         mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
-        resultado = df[mask]
+        resultado = df[mask][colunas_existentes]
         
         if not resultado.empty:
-            colunas_visiveis = [
-                "STATUS", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", 
-                "DT entrega ", "CONDIÇÃO PGO", "N° da SC", "N° PC", "Fornecedor", 
-                "Nome Fornecedor", "CC", "Produto", "Descricao", "UM", "QNT", 
-                " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao"
-            ]
-            colunas_existentes = [col for col in colunas_visiveis if col in resultado.columns]
+            # Layout para Mensagem e Botão de Download
+            c_msg, c_down = st.columns([3, 1])
+            with c_msg:
+                st.success(f"✅ {len(resultado)} item(s) encontrado(s)")
             
-            st.success(f"✅ {len(resultado)} item(s) encontrado(s) para sua pesquisa.")
-            st.dataframe(resultado[colunas_existentes], use_container_width=True, hide_index=True)
+            with c_down:
+                # FUNÇÃO PARA GERAR EXCEL REAL (XLSX) - Resolve o erro de uma única célula
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    resultado.to_excel(writer, index=False, sheet_name='Consulta')
+                
+                st.download_button(
+                    label="📥 Baixar em Excel",
+                    data=output.getvalue(),
+                    file_name="Consulta_Suprimentos_PA.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+            st.dataframe(resultado, use_container_width=True, hide_index=True)
         else:
             st.warning(f"⚠️ Nenhum registro encontrado para '{busca}'.")
     else:
-        st.info("💡 Bem-vindo! Digite acima para consultar o status dos pedidos em tempo real.")
+        st.info("💡 Digite acima para iniciar a consulta.")
 else:
-    st.error("Erro ao carregar a base de dados do Google Sheets.")
+    st.error("Erro na base de dados.")
 
-# 5. RODAPÉ
-st.markdown("<p style='text-align: center; color: #666; font-size: 12px; margin-top: 30px;'>PARENTE ANDRADE LTDA<br>Setor de Suprimentos</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #666; font-size: 12px; margin-top: 30px;'>PARENTE ANDRADE LTDA</p>", unsafe_allow_html=True)
