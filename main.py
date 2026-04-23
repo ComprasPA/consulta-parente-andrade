@@ -12,8 +12,7 @@ if senha_acesso != "SUA_SENHA_AQUI":
     st.stop() # Interrompe o script aqui se a senha estiver errada
 
 # LINK DO ONEDRIVE (Substitua pelo link que você gerou no Passo 1)
-URL_ONEDRIVE = <iframe width="402" height="346" frameborder="0" scrolling="no" src="https://parenteandrade.sharepoint.com/sites/PARENTEAM28/_layouts/15/Doc.aspx?sourcedoc={8e48b736-6d77-4387-b3fb-3f77e464dc55}&action=downloadview&wdAllowInteractivity=False&wdHideGridlines=True&wdHideHeaders=True&wdDownloadButton=True&wdInConfigurator=True&wdInConfigurator=True&edaebf=rslc0"></iframe>
-
+URL_ONEDRIVE = "https://parenteandrade.sharepoint.com/sites/PARENTEAM28/_layouts/15/Doc.aspx?sourcedoc={8e48b736-6d77-4387-b3fb-3f77e464dc55}&action=downloadview"
 @st.cache_data(ttl=600) # Atualiza a cada 10 minutos
 def carregar_dados():
     return pd.read_excel(URL_ONEDRIVE)
