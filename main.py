@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. FUNÇÃO PARA CONVERTER IMAGEM LOCAL PARA BASE64 (PARA O CSS)
+# 2. FUNÇÃO PARA CONVERTER IMAGEM LOCAL PARA BASE64
 @st.cache_data(ttl=600)
 def get_base64_logo(image_path="logo"):
     try:
@@ -22,7 +22,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS PARA MARCA D'ÁGUA E CORES DA IDENTIDADE PA
+# 3. CSS PARA DASHBOARD SÓLIDO E MARCA D'ÁGUA
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -30,40 +30,55 @@ st.markdown("""
     header {visibility: hidden;}
     .stAppDeployButton {display:none;}
 
+    /* Fundo da tela principal */
     .stApp { background-color: #f0f2f6; }
 
+    /* Marca d'água */
     .stApp > div > div > div > div > section > div {
         background-image: url("data:image/png;base64,""" + str(base64_logo) + """");
         background-size: 350px;
         background-position: center 250px;
         background-repeat: no-repeat;
         background-attachment: fixed;
-        opacity: 0.06;
+        opacity: 0.05;
         z-index: -1;
     }
 
     .block-container { padding-top: 1.5rem !important; }
 
-    /* Barra de Busca */
+    /* Barra de Busca Superior */
     div[data-testid="stVerticalBlock"] > div:has(input) {
         background-color: #ffffff;
         padding: 8px 15px !important;
         border-radius: 12px;
         border: 2px solid #478c3b;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
     }
 
-    /* Cards do Dashboard */
-    [data-testid="stMetricValue"] { font-size: 24px !important; color: #478c3b; }
-    [data-testid="stMetricLabel"] { font-size: 14px !important; font-weight: bold; }
+    /* --- ESTILO SÓLIDO DO DASHBOARD --- */
     div[data-testid="metric-container"] {
-        background-color: #ffffff;
-        padding: 10px;
-        border-radius: 10px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        border-left: 5px solid #f2a933;
+        background-color: #ffffff !important; /* Fundo branco sólido */
+        padding: 15px !important;
+        border-radius: 12px !important;
+        box-shadow: 0 6px 15px rgba(0,0,0,0.12) !important; /* Sombra mais forte */
+        border-left: 6px solid #478c3b !important; /* Borda lateral Verde PA */
+        border-top: 1px solid #eeeeee !important;
+    }
+    
+    [data-testid="stMetricValue"] { 
+        font-size: 28px !important; 
+        color: #478c3b !important; 
+        font-weight: 800 !important;
+    }
+    
+    [data-testid="stMetricLabel"] { 
+        font-size: 13px !important; 
+        font-weight: bold !important; 
+        color: #333333 !important;
+        text-transform: uppercase;
     }
 
+    /* Botão de Download */
     .stDownloadButton button {
         background-color: #f2a933 !important;
         color: white !important;
@@ -71,10 +86,17 @@ st.markdown("""
         border: none !important;
         font-weight: bold !important;
         width: 100%;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
 
-    .stDataFrame { background-color: #ffffff; border-radius: 15px; }
+    /* Estilo da Tabela */
+    .stDataFrame { 
+        background-color: #ffffff; 
+        border-radius: 15px; 
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
 
+    /* Alertas */
     div.stAlert > div {
         background-color: #478c3b !important;
         color: #ffffff !important;
@@ -94,9 +116,9 @@ with col_logo:
         st.markdown("<h2 style='color:#478c3b; margin:0;'>PARENTE ANDRADE</h2>", unsafe_allow_html=True)
 
 with col_busca:
-    busca = st.text_input("", placeholder="🔍 Filtrar pedidos ou dashboard...", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Filtrar registros ou indicadores abaixo...", label_visibility="collapsed")
 
-st.markdown("<div style='height: 5px; background-color: #f2a933; margin-bottom: 20px; border-radius: 5px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height: 5px; background-color: #f2a933; margin-bottom: 25px; border-radius: 5px;'></div>", unsafe_allow_html=True)
 
 # 5. CARREGAMENTO DE DADOS
 URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1Qgv6YSQ8XGx1RagMfYcTOOT_a_TQ2RoVGNIk7fY4kf0/edit?usp=sharing"
@@ -110,7 +132,6 @@ def carregar_dados():
         url_csv = preparar_url_google(URL_PLANILHA)
         df_raw = pd.read_csv(url_csv, dtype=str).fillna('')
         
-        # Padronização de datas
         colunas_data = ["DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "Data Emissao", "Dt Liberacao"]
         for col in colunas_data:
             if col in df_raw.columns:
@@ -127,26 +148,26 @@ def carregar_dados():
 
 df = carregar_dados()
 
-# 6. DASHBOARD E TABELA
+# 6. DASHBOARD SÓLIDO E TABELA
 if df is not None:
-    # FILTRO GLOBAL (Caso o usuário busque algo)
+    # FILTRO PARA A TABELA (Dashboard continua mostrando total geral)
     df_display = df.copy()
     if busca:
         mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
         df_display = df[mask]
 
-    # CRIANDO OS CARDS DO DASHBOARD (Baseado na coluna STATUS)
-    st.markdown("### 📊 Resumo de Operações")
+    # DASHBOARD COM CORES SÓLIDAS
+    st.markdown("### 📊 RESUMO DE OPERAÇÕES")
     c1, c2, c3, c4, c5 = st.columns(5)
     
-    # Contagem de Status (Ajuste os nomes entre aspas se estiverem diferentes na sua planilha)
-    c1.metric("Pend. Recebimento", len(df[df['STATUS'].str.contains('PENDENTE', case=False, na=False)]))
-    c2.metric("Pagos", len(df[df['STATUS'].str.contains('PAGO', case=False, na=False)]))
-    c3.metric("Enviado Fornecedor", len(df[df['STATUS'].str.contains('ENVIADO FORNECEDOR', case=False, na=False)]))
-    c4.metric("Recebidos", len(df[df['STATUS'].str.contains('RECEBIDO', case=False, na=False)]))
-    c5.metric("Env. Financeiro", len(df[df['STATUS'].str.contains('FINANCEIRO', case=False, na=False)]))
+    # Contagem dinâmica baseada nos termos da sua planilha
+    c1.metric("PEND. RECEBIMENTO", len(df[df['STATUS'].str.contains('PENDENTE', case=False, na=False)]))
+    c2.metric("PAGOS", len(df[df['STATUS'].str.contains('PAGO', case=False, na=False)]))
+    c3.metric("ENV. FORNECEDOR", len(df[df['STATUS'].str.contains('ENVIADO FORNECEDOR', case=False, na=False)]))
+    c4.metric("RECEBIDOS", len(df[df['STATUS'].str.contains('RECEBIDO', case=False, na=False)]))
+    c5.metric("ENV. FINANCEIRO", len(df[df['STATUS'].str.contains('FINANCEIRO', case=False, na=False)]))
 
-    st.markdown("---")
+    st.markdown("<br>", unsafe_allow_html=True)
 
     # EXIBIÇÃO DA TABELA
     colunas_visiveis = [
@@ -159,16 +180,16 @@ if df is not None:
 
     c_msg, c_down = st.columns([3, 1])
     with c_msg:
-        st.success(f"📋 Exibindo {len(df_display)} registros")
+        st.success(f"📋 LISTAGEM: {len(df_display)} REGISTROS ENCONTRADOS")
     with c_down:
         output = BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df_display[colunas_existentes].to_excel(writer, index=False)
-        st.download_button("📥 Baixar Planilha", output.getvalue(), "Consulta_PA.xlsx")
+        st.download_button("📥 BAIXAR PLANILHA", output.getvalue(), "Consulta_Suprimentos_PA.xlsx")
 
     st.dataframe(df_display[colunas_existentes], use_container_width=True, hide_index=True)
 
 else:
-    st.error("❌ Erro ao carregar base.")
+    st.error("❌ Erro ao carregar base de dados.")
 
-st.markdown(f"<p class='footer-text'>PARENTE ANDRADE LTDA<br><span style='color: #f2a933;'>Suprimentos</span></p>", unsafe_allow_html=True)
+st.markdown(f"<p class='footer-text'>PARENTE ANDRADE LTDA<br><span style='color: #f2a933;'>SETOR DE SUPRIMENTOS</span></p>", unsafe_allow_html=True)
