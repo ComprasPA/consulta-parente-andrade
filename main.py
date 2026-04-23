@@ -18,7 +18,7 @@ st.markdown("""
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         font-weight: 700;
         letter-spacing: -1px;
-        margin-top: -20px;
+        margin-top: -10px;
         margin-bottom: 5px;
     }
     .custom-divider {
@@ -26,17 +26,13 @@ st.markdown("""
         background: linear-gradient(90deg, transparent, #f2a933, transparent);
         margin-bottom: 30px;
     }
+    /* Estilização do campo de busca */
     div[data-testid="stVerticalBlock"] > div:has(input) {
         background-color: #ffffff;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         border: 1px solid #eeeeee;
-    }
-    .stDataFrame {
-        border: none !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        border-radius: 10px;
     }
     .footer {
         text-align: center;
@@ -47,16 +43,17 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. CABEÇALHO (Logo do Google Drive e Título)
-# Função para converter link do Drive em link direto de imagem
-def converter_link_drive(url):
-    id_arquivo = url.split('/')[-2]
-    return f'https://drive.google.com/uc?id={id_arquivo}'
+# 3. CABEÇALHO (Nova lógica para Logo do Google Drive)
+def get_drive_image_url(url):
+    # Extrai o ID do arquivo e gera o link de exportação direta
+    file_id = url.split('/')[-2]
+    return f'https://drive.google.com/uc?export=view&id={file_id}'
 
 c1, c2, c3 = st.columns([1.5, 1, 1.5])
 with c2:
-    url_logo = "https://drive.google.com/file/d/1KRgJzU5Ewa5I6IcVE6WGe3ekxqbsZzqD/view?usp=sharing"
-    st.image(converter_link_drive(url_logo))
+    link_drive = "https://drive.google.com/file/d/1KRgJzU5Ewa5I6IcVE6WGe3ekxqbsZzqD/view?usp=sharing"
+    # O parâmetro width ajuda a controlar o tamanho da logo no topo
+    st.image(get_drive_image_url(link_drive), use_container_width=True)
 
 st.markdown("<h1 class='main-title'>Portal de Consulta Suprimentos</h1>", unsafe_allow_html=True)
 st.markdown("<div class='custom-divider'></div>", unsafe_allow_html=True)
@@ -84,7 +81,7 @@ df = carregar_dados()
 
 if df is not None:
     # 5. BUSCA CENTRALIZADA E REDUZIDA
-    sc1, sc2, sc3 = st.columns([1, 2, 1])
+    sc1, sc2, sc3 = st.columns([1.2, 1.6, 1.2])
     with sc2:
         busca = st.text_input(
             "", 
@@ -105,7 +102,7 @@ if df is not None:
             ]
             colunas_existentes = [col for col in colunas_visiveis if col in resultado.columns]
             
-            st.markdown(f"**{len(resultado)}** itens encontrados para '{busca}':")
+            st.markdown(f"**{len(resultado)}** itens encontrados:")
             st.dataframe(resultado[colunas_existentes], use_container_width=True, hide_index=True)
         else:
             st.warning(f"Nenhum registro encontrado para '{busca}'.")
