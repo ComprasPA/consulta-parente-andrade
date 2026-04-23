@@ -104,4 +104,21 @@ if df is not None:
             with c_down:
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    resultado.to_excel
+                    resultado.to_excel(writer, index=False, sheet_name='Consulta')
+                
+                st.download_button(
+                    label="📥 Baixar em Excel",
+                    data=output.getvalue(),
+                    file_name="Consulta_Suprimentos_PA.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+            st.dataframe(resultado, use_container_width=True, hide_index=True)
+        else:
+            st.warning(f"⚠️ Nenhum registro encontrado para '{busca}'.")
+    else:
+        st.info("💡 Digite acima para iniciar a consulta.")
+else:
+    st.error("Erro na base de dados.")
+
+st.markdown("<p style='text-align: center; color: #666; font-size: 12px; margin-top: 30px;'>PARENTE ANDRADE LTDA</p>", unsafe_allow_html=True)
