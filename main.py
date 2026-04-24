@@ -117,10 +117,10 @@ if df is not None:
         mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
         df_display = df[mask]
 
-    # ORDEM ATUALIZADA: SCM APÓS STATUS
+    # LISTA COMPLETA DE COLUNAS PARA EXIBIÇÃO
     col_v = [
         "STATUS", 
-        "N° da SC SCM", # Coluna SCM agora aqui
+        "N° da SC SCM", 
         "N° da SC", 
         "N° PC", 
         "CC", 
@@ -140,22 +140,24 @@ if df is not None:
         "DT entrega "
     ]
     
-    cols = [c for c in col_v if c in df_display.columns]
+    # Filtra apenas as colunas que realmente existem no DataFrame para evitar erro
+    cols_existentes = [c for c in col_v if c in df_display.columns]
 
     c_msg, c_down = st.columns([3, 1])
     with c_msg:
-        st.info(f"💡 {len(df_display)} registros carregados. Coluna SCM vinculada com sucesso.")
+        st.info(f"💡 {len(df_display)} registros encontrados. Utilize a barra de rolagem para ver todas as colunas.")
     
     with c_down:
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as writer:
-            df_display[cols].to_excel(writer, index=False, sheet_name='Consulta')
+            df_display[cols_existentes].to_excel(writer, index=False, sheet_name='Consulta')
             worksheet = writer.sheets['Consulta']
-            for i, col in enumerate(cols):
+            for i, col in enumerate(cols_existentes):
                 column_len = max(df_display[col].astype(str).str.len().max(), len(col)) + 2
                 worksheet.set_column(i, i, column_len)
-        st.download_button("📥 BAIXAR EXCEL AJUSTADO", out.getvalue(), "Consulta_PA_Suprimentos.xlsx")
+        st.download_button("📥 BAIXAR EXCEL COMPLETO", out.getvalue(), "Consulta_PA_Suprimentos.xlsx")
 
-    st.dataframe(df_display[cols], use_container_width=True, hide_index=True)
+    # Força a exibição de todas as colunas identificadas
+    st.dataframe(df_display[cols_existentes], use_container_width=True, hide_index=True)
 
 st.markdown("<p class='footer-text'>PARENTE ANDRADE LTDA | Setor de Suprimentos</p>", unsafe_allow_html=True)
