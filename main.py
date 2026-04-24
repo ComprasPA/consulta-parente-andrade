@@ -29,10 +29,7 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
     .stAppDeployButton {display:none;}
-    
     .stApp { background-color: #f0f2f6; }
-
-    /* Marca d'água no fundo */
     .stApp > div > div > div > div > section > div {
         background-image: url("data:image/png;base64,""" + str(base64_logo) + """");
         background-size: 350px;
@@ -42,10 +39,7 @@ st.markdown("""
         opacity: 0.05;
         z-index: -1;
     }
-
     .block-container { padding-top: 1rem !important; }
-
-    /* Barra de Busca */
     div[data-testid="stVerticalBlock"] > div:has(input) {
         background-color: #ffffff;
         padding: 8px 15px !important;
@@ -53,15 +47,11 @@ st.markdown("""
         border: 2px solid #478c3b;
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
-
-    /* Botão de Download Amarelo PA */
     .stDownloadButton button {
         background-color: #f2a933 !important;
         color: white !important;
         font-weight: bold !important;
-        border: none !important;
     }
-
     .footer-text { text-align: center; color: #478c3b; font-size: 12px; margin-top: 40px; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
@@ -77,39 +67,52 @@ with col_busca:
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 5. CARREGAMENTO DE DADOS
-URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/edit?usp=sharing"
-
-def preparar_url_google(url):
-    if "/edit" in url:
-        return url.split("/edit")[0] + "/export?format=csv"
-    return url
+# 5. CARREGAMENTO E LÓGICA DE VÍNCULO (PROCV)
+URL_BASE = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP"
 
 @st.cache_data(ttl=300)
-def carregar_dados():
+def carregar_e_vincular_dados():
     try:
-        url_csv = preparar_url_google(URL_PLANILHA)
-        df_raw = pd.read_csv(url_csv, dtype=str).fillna('')
-        
-        # AJUSTE: COMPLETAR CÓDIGO DO PRODUTO COM ZEROS (10 DÍGITOS)
-        if 'Produto' in df_raw.columns:
-            df_raw['Produto'] = df_raw['Produto'].astype(str).str.zfill(10)
-        
-        # Formatação de Datas para o padrão brasileiro DD/MM/AA
+        # Carregar aba principal: Protheus SC (2)
+        url_protheus = f"{URL_BASE}/gviz/tq?tqx=out:csv&sheet=Protheus+SC+(2)"
+        df_protheus = pd.read_csv(url_protheus, dtype=str).fillna('')
+
+        # Carregar aba de referência: SCM
+        url_scm = f"{URL_BASE}/gviz/tq?tqx=out:csv&sheet=SCM"
+        df_scm = pd.read_csv(url_scm, dtype=str).fillna('')
+
+        # 1. Ajuste do Código do Produto (10 dígitos)
+        if 'Produto' in df_protheus.columns:
+            df_protheus['Produto'] = df_protheus['Produto'].astype(str).str.zfill(10)
+
+        # 2. Lógica PROCV (Merge): Vincula 'N° da SC SCM' usando 'Cod SC. SCM' como chave
+        if 'Cod SC. SCM' in df_protheus.columns and 'N° da SC SCM' in df_scm.columns:
+            # Selecionamos apenas as colunas necessárias da aba SCM para o vínculo
+            df_scm_ref = df_scm[['N° da SC SCM']].drop_duplicates()
+            # Criamos a coluna de vínculo (chave) na referência se for diferente, 
+            # aqui assumimos que 'N° da SC SCM' é a chave que bate com 'Cod SC. SCM'
+            df_protheus = df_protheus.merge(
+                df_scm[['N° da SC SCM']], 
+                left_on='Cod SC. SCM', 
+                right_on='N° da SC SCM', 
+                how='left'
+            )
+
+        # Formatação de Datas
         col_datas = ["DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "Data Emissao", "Dt Liberacao"]
         for col in col_datas:
-            if col in df_raw.columns:
-                temp = pd.to_datetime(df_raw[col], errors='coerce')
-                df_raw[col] = temp.dt.strftime('%d/%m/%y').fillna(df_raw[col]).replace(['NaT', 'nan'], '')
+            if col in df_protheus.columns:
+                temp = pd.to_datetime(df_protheus[col], errors='coerce')
+                df_protheus[col] = temp.dt.strftime('%d/%m/%y').fillna(df_protheus[col]).replace(['NaT', 'nan'], '')
         
-        return df_raw
+        return df_protheus
     except Exception as e:
-        st.error(f"Erro ao carregar a planilha: {e}")
+        st.error(f"Erro ao processar vínculo de planilhas: {e}")
         return None
 
-df = carregar_dados()
+df = carregar_e_vincular_dados()
 
-# 6. EXIBIÇÃO DOS DADOS
+# 6. EXIBIÇÃO
 if df is not None:
     df_display = df.copy()
     
@@ -117,37 +120,29 @@ if df is not None:
         mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
         df_display = df[mask]
 
-    # ORDEM DEFINIDA PELO USUÁRIO
+    # Ordem das colunas incluindo a nova coluna vinculada
     col_v = [
-        "N° da SC", "N° PC", "CC", "Nome Fornecedor", "Produto", 
+        "STATUS", "Cod SC. SCM", "N° da SC", "N° PC", "N° da SC SCM", "CC", "Nome Fornecedor", "Produto", 
         "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", 
         "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", 
-        "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "STATUS"
+        "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "
     ]
     
     cols = [c for c in col_v if c in df_display.columns]
 
     c_msg, c_down = st.columns([3, 1])
     with c_msg:
-        if busca:
-            st.success(f"✅ {len(df_display)} registros encontrados.")
-        else:
-            st.info(f"💡 Total de {len(df_display)} registros carregados.")
+        st.info(f"💡 Base Protheus SC (2) vinculada com SCM. Total: {len(df_display)} registros.")
     
     with c_down:
-        # Lógica para gerar Excel com Auto-Ajuste de Colunas
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as writer:
             df_display[cols].to_excel(writer, index=False, sheet_name='Consulta')
-            workbook = writer.book
             worksheet = writer.sheets['Consulta']
-            
             for i, col in enumerate(cols):
-                column_len = df_display[col].astype(str).str.len().max()
-                column_len = max(column_len, len(col)) + 2
+                column_len = max(df_display[col].astype(str).str.len().max(), len(col)) + 2
                 worksheet.set_column(i, i, column_len)
-                
-        st.download_button("📥 BAIXAR EXCEL AJUSTADO", out.getvalue(), "Consulta_PA_Suprimentos.xlsx")
+        st.download_button("📥 BAIXAR EXCEL ATUALIZADO", out.getvalue(), "Consulta_PA_Protheus.xlsx")
 
     st.dataframe(df_display[cols], use_container_width=True, hide_index=True)
 
