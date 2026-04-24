@@ -77,7 +77,7 @@ with col_busca:
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 5. CARREGAMENTO DE DADOS (Link da Planilha Principal)
+# 5. CARREGAMENTO DE DADOS
 URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/edit?usp=sharing"
 
 def preparar_url_google(url):
@@ -91,7 +91,11 @@ def carregar_dados():
         url_csv = preparar_url_google(URL_PLANILHA)
         df_raw = pd.read_csv(url_csv, dtype=str).fillna('')
         
-        # Ajuste de Datas
+        # --- AJUSTE: CÓDIGO DO PRODUTO COM 10 DÍGITOS (ZEROS À ESQUERDA) ---
+        if 'Produto' in df_raw.columns:
+            df_raw['Produto'] = df_raw['Produto'].astype(str).str.zfill(10)
+        
+        # Formatação de Datas
         col_datas = ["DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "Data Emissao", "Dt Liberacao"]
         for col in col_datas:
             if col in df_raw.columns:
@@ -113,7 +117,7 @@ if df is not None:
         mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
         df_display = df[mask]
 
-    # Ordem Original Estável
+    # Ordem de colunas mantida conforme estado estável anterior
     col_v = [
         "STATUS", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", 
         "DT Prev de Entrega", "DT entrega ", "N° da SC", "N° PC", 
@@ -125,7 +129,10 @@ if df is not None:
 
     c_msg, c_down = st.columns([3, 1])
     with c_msg:
-        st.success(f"✅ Sistema Restaurado. {len(df_display)} registros carregados.")
+        if busca:
+            st.success(f"✅ {len(df_display)} registros encontrados.")
+        else:
+            st.info(f"💡 {len(df_display)} registros carregados.")
     
     with c_down:
         out = BytesIO()
