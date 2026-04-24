@@ -105,7 +105,7 @@ def carregar_dados():
 
 df = carregar_dados()
 
-# 6. EXIBIÇÃO DOS DADOS
+# 6. EXIBIÇÃO DOS DADOS COM A NOVA ORDEM SOLICITADA
 if df is not None:
     df_display = df.copy()
     
@@ -113,19 +113,13 @@ if df is not None:
         mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
         df_display = df[mask]
 
-    # Ordem das colunas restaurada
+    # ORDEM DEFINIDA PELO USUÁRIO
     col_v = [
         "STATUS", 
-        "DT Envio", 
-        "CONDIÇÃO PGO", 
-        "DT Pgo (AVISTA)", 
-        "DT Prev de Entrega", 
-        "DT entrega ", 
         "N° da SC", 
         "N° PC", 
-        "Fornecedor", 
-        "Nome Fornecedor", 
         "CC", 
+        "Nome Fornecedor", 
         "Produto", 
         "Descricao", 
         "UM", 
@@ -133,7 +127,12 @@ if df is not None:
         " Prc Unitario", 
         " Vlr.Total", 
         "Data Emissao", 
-        "Dt Liberacao"
+        "Dt Liberacao",
+        "DT Envio", 
+        "CONDIÇÃO PGO", 
+        "DT Pgo (AVISTA)", 
+        "DT Prev de Entrega", 
+        "DT entrega "
     ]
     
     cols = [c for c in col_v if c in df_display.columns]
