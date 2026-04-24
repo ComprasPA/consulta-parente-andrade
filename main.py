@@ -91,9 +91,12 @@ def carregar_dados():
         url_csv = preparar_url_google(URL_PLANILHA)
         df_raw = pd.read_csv(url_csv, dtype=str).fillna('')
         
-        # Ajuste: Código do Produto com 10 dígitos (zeros à esquerda)
+        # --- AJUSTES DE PADRONIZAÇÃO (ZEROS À ESQUERDA) ---
         if 'Produto' in df_raw.columns:
             df_raw['Produto'] = df_raw['Produto'].astype(str).str.zfill(10)
+        
+        if 'N° da SC' in df_raw.columns:
+            df_raw['N° da SC'] = df_raw['N° da SC'].astype(str).str.zfill(7)
         
         # Formatação de Datas
         col_datas = ["DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "Data Emissao", "Dt Liberacao"]
@@ -109,7 +112,7 @@ def carregar_dados():
 
 df = carregar_dados()
 
-# 6. EXIBIÇÃO DOS DADOS COM A NOVA ORDEM SOLICITADA
+# 6. EXIBIÇÃO DOS DADOS
 if df is not None:
     df_display = df.copy()
     
@@ -117,26 +120,12 @@ if df is not None:
         mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
         df_display = df[mask]
 
-    # Nova Ordem das Colunas conforme solicitado
+    # Ordem das colunas solicitada
     col_v = [
-        "STATUS", 
-        "N° da SC", 
-        "N° PC", 
-        "CC", 
-        "Nome Fornecedor", 
-        "Produto", 
-        "Descricao", 
-        "UM", 
-        "QNT", 
-        " Prc Unitario", 
-        " Vlr.Total", 
-        "Data Emissao", 
-        "Dt Liberacao", 
-        "DT Envio", 
-        "CONDIÇÃO PGO", 
-        "DT Pgo (AVISTA)", 
-        "DT Prev de Entrega", 
-        "DT entrega "
+        "STATUS", "N° da SC", "N° PC", "CC", "Nome Fornecedor", "Produto", 
+        "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", 
+        "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", 
+        "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "
     ]
     
     cols = [c for c in col_v if c in df_display.columns]
