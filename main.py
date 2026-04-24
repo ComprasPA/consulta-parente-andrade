@@ -105,7 +105,7 @@ def carregar_dados():
 
 df = carregar_dados()
 
-# 6. EXIBIÇÃO DOS DADOS COM A NOVA ORDEM SOLICITADA
+# 6. EXIBIÇÃO DOS DADOS COM AUTO-AJUSTE
 if df is not None:
     df_display = df.copy()
     
@@ -115,24 +115,10 @@ if df is not None:
 
     # ORDEM DEFINIDA PELO USUÁRIO
     col_v = [
-        "STATUS", 
-        "N° da SC", 
-        "N° PC", 
-        "CC", 
-        "Nome Fornecedor", 
-        "Produto", 
-        "Descricao", 
-        "UM", 
-        "QNT", 
-        " Prc Unitario", 
-        " Vlr.Total", 
-        "Data Emissao", 
-        "Dt Liberacao",
-        "DT Envio", 
-        "CONDIÇÃO PGO", 
-        "DT Pgo (AVISTA)", 
-        "DT Prev de Entrega", 
-        "DT entrega "
+        "STATUS", "N° da SC", "N° PC", "CC", "Nome Fornecedor", "Produto", 
+        "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", 
+        "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", 
+        "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "
     ]
     
     cols = [c for c in col_v if c in df_display.columns]
@@ -145,11 +131,22 @@ if df is not None:
             st.info(f"💡 Total de {len(df_display)} registros carregados.")
     
     with c_down:
+        # Lógica para gerar Excel com Auto-Ajuste de Colunas
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as writer:
-            df_display[cols].to_excel(writer, index=False)
-        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Consulta_PA_Suprimentos.xlsx")
+            df_display[cols].to_excel(writer, index=False, sheet_name='Consulta')
+            workbook = writer.book
+            worksheet = writer.sheets['Consulta']
+            
+            # Itera sobre as colunas e define a largura com base no conteúdo
+            for i, col in enumerate(cols):
+                column_len = df_display[col].astype(str).str.len().max()
+                column_len = max(column_len, len(col)) + 2  # Adiciona margem
+                worksheet.set_column(i, i, column_len)
+                
+        st.download_button("📥 BAIXAR EXCEL AJUSTADO", out.getvalue(), "Consulta_PA_Suprimentos.xlsx")
 
+    # Exibição no Streamlit (o use_container_width=True ajusta visualmente as colunas)
     st.dataframe(df_display[cols], use_container_width=True, hide_index=True)
 
 st.markdown("<p class='footer-text'>PARENTE ANDRADE LTDA | Setor de Suprimentos</p>", unsafe_allow_html=True)
