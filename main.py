@@ -45,6 +45,11 @@ st.markdown("""
 
     .block-container { padding-top: 1rem !important; }
 
+    /* Forçar cabeçalhos da tabela em CAIXA ALTA via CSS */
+    th {
+        text-transform: uppercase !important;
+    }
+
     /* Barra de Busca */
     div[data-testid="stVerticalBlock"] > div:has(input) {
         background-color: #ffffff;
@@ -60,9 +65,10 @@ st.markdown("""
         color: white !important;
         font-weight: bold !important;
         border: none !important;
+        text-transform: uppercase;
     }
 
-    .footer-text { text-align: center; color: #478c3b; font-size: 12px; margin-top: 40px; font-weight: bold; }
+    .footer-text { text-align: center; color: #478c3b; font-size: 12px; margin-top: 40px; font-weight: bold; text-transform: uppercase; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -73,16 +79,14 @@ with col_logo:
     except: st.subheader("PARENTE ANDRADE")
 
 with col_busca:
-    busca = st.text_input("", placeholder="🔍 O que você deseja consultar? (SC, Produto, Fornecedor, CC...)", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 PESQUISAR (SC, PRODUTO, FORNECEDOR, CC...)", label_visibility="collapsed")
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 5. CARREGAMENTO DE DADOS (NOVO LINK ATUALIZADO)
-# Link ID: 1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP
+# 5. CARREGAMENTO DE DADOS
 URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/edit?usp=sharing"
 
 def preparar_url_google(url):
-    # Converte o link de edição para o link de exportação CSV
     if "/edit" in url:
         return url.split("/edit")[0] + "/export?format=csv"
     return url
@@ -93,16 +97,19 @@ def carregar_dados():
         url_csv = preparar_url_google(URL_PLANILHA)
         df_raw = pd.read_csv(url_csv, dtype=str).fillna('')
         
-        # Formatação de Datas para o padrão brasileiro DD/MM/AA
-        col_datas = ["DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "Data Emissao", "Dt Liberacao"]
+        # TRANSFORMAR TODOS OS DADOS EM CAIXA ALTA
+        df_raw = df_raw.apply(lambda x: x.str.upper())
+        
+        # Formatação de Datas
+        col_datas = ["DT ENVIO", "DT PGO (AVISTA)", "DT PREV DE ENTREGA", "DT ENTREGA ", "DATA EMISSAO", "DT LIBERACAO"]
         for col in col_datas:
             if col in df_raw.columns:
                 temp = pd.to_datetime(df_raw[col], errors='coerce')
-                df_raw[col] = temp.dt.strftime('%d/%m/%y').fillna(df_raw[col]).replace(['NaT', 'nan'], '')
+                df_raw[col] = temp.dt.strftime('%d/%m/%y').fillna(df_raw[col]).replace(['NAT', 'NAN'], '')
         
         return df_raw
     except Exception as e:
-        st.error(f"Erro ao carregar a nova planilha: {e}")
+        st.error(f"ERRO AO CARREGAR A PLANILHA: {e}")
         return None
 
 df = carregar_dados()
@@ -112,26 +119,47 @@ if df is not None:
     df_display = df.copy()
     
     if busca:
-        mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
+        mask = df.apply(lambda row: row.astype(str).str.contains(busca.upper(), case=False).any(), axis=1)
         df_display = df[mask]
 
-    # Colunas visíveis na tabela
-    col_v = ["STATUS", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "CONDIÇÃO PGO", "N° da SC", "N° PC", "Fornecedor", "Nome Fornecedor", "CC", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao"]
+    # Lista de colunas em CAIXA ALTA
+    col_v = [
+        "STATUS", 
+        "DT ENVIO", 
+        "CONDIÇÃO PGO", 
+        "DT PGO (AVISTA)", 
+        "DT PREV DE ENTREGA", 
+        "DT ENTREGA ", 
+        "N° DA SC", 
+        "N° PC", 
+        "FORNECEDOR", 
+        "NOME FORNECEDOR", 
+        "CC", 
+        "PRODUTO", 
+        "DESCRICAO", 
+        "UM", 
+        "QNT", 
+        " PRC UNITARIO", 
+        " VLR.TOTAL", 
+        "DATA EMISSAO", 
+        "DT LIBERACAO"
+    ]
+    
     cols = [c for c in col_v if c in df_display.columns]
 
     c_msg, c_down = st.columns([3, 1])
     with c_msg:
         if busca:
-            st.success(f"✅ {len(df_display)} registros encontrados para sua pesquisa.")
+            st.success(f"✅ {len(df_display)} REGISTROS ENCONTRADOS.")
         else:
-            st.info(f"💡 Total de {len(df_display)} registros carregados da planilha.")
+            st.info(f"💡 TOTAL DE {len(df_display)} REGISTROS CARREGADOS.")
     
     with c_down:
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as writer:
             df_display[cols].to_excel(writer, index=False)
-        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Consulta_PA_Atualizada.xlsx")
+        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "CONSULTA_PA_SUPRIMENTOS.xlsx")
 
     st.dataframe(df_display[cols], use_container_width=True, hide_index=True)
 
-st.markdown("<p class='footer-text'>PARENTE ANDRADE LTDA | Setor de Suprimentos</p>", unsafe_allow_html=True)
+st.markdown("<p class='footer-text'>PARENTE ANDRADE LTDA | SETOR DE SUPRIMENTOS</p>", unsafe_allow_html=True)
