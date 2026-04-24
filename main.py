@@ -77,12 +77,15 @@ with col_busca:
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 5. CARREGAMENTO DE DADOS (NOVO ENDEREÇO ATUALIZADO)
-URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/edit?usp=drive_link"
+# 5. CARREGAMENTO DE DADOS (NOVO LINK ATUALIZADO)
+# Link ID: 1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP
+URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/edit?usp=sharing"
 
 def preparar_url_google(url):
-    # Ajuste para garantir a exportação correta do arquivo
-    return url.replace('/edit?usp=drive_link', '/export?format=csv')
+    # Converte o link de edição para o link de exportação CSV
+    if "/edit" in url:
+        return url.split("/edit")[0] + "/export?format=csv"
+    return url
 
 @st.cache_data(ttl=300)
 def carregar_dados():
@@ -90,7 +93,7 @@ def carregar_dados():
         url_csv = preparar_url_google(URL_PLANILHA)
         df_raw = pd.read_csv(url_csv, dtype=str).fillna('')
         
-        # Formatação de Datas para DD/MM/AA
+        # Formatação de Datas para o padrão brasileiro DD/MM/AA
         col_datas = ["DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "Data Emissao", "Dt Liberacao"]
         for col in col_datas:
             if col in df_raw.columns:
@@ -99,12 +102,12 @@ def carregar_dados():
         
         return df_raw
     except Exception as e:
-        st.error(f"Erro ao carregar a nova planilha: {e}. Verifique se o link está compartilhado como 'Qualquer pessoa com o link'.")
+        st.error(f"Erro ao carregar a nova planilha: {e}")
         return None
 
 df = carregar_dados()
 
-# 6. EXIBIÇÃO
+# 6. EXIBIÇÃO DOS DADOS
 if df is not None:
     df_display = df.copy()
     
@@ -112,15 +115,16 @@ if df is not None:
         mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
         df_display = df[mask]
 
+    # Colunas visíveis na tabela
     col_v = ["STATUS", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "CONDIÇÃO PGO", "N° da SC", "N° PC", "Fornecedor", "Nome Fornecedor", "CC", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao"]
     cols = [c for c in col_v if c in df_display.columns]
 
     c_msg, c_down = st.columns([3, 1])
     with c_msg:
         if busca:
-            st.success(f"✅ {len(df_display)} registros encontrados.")
+            st.success(f"✅ {len(df_display)} registros encontrados para sua pesquisa.")
         else:
-            st.info(f"💡 Total de {len(df_display)} registros carregados da nova planilha.")
+            st.info(f"💡 Total de {len(df_display)} registros carregados da planilha.")
     
     with c_down:
         out = BytesIO()
