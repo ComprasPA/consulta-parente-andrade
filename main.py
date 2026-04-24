@@ -25,7 +25,6 @@ base64_logo = get_base64_logo()
 # 3. CSS PARA INTERFACE CLEAN E MARCA D'ÁGUA
 st.markdown("""
     <style>
-    /* Ocultar menus de edição */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
@@ -33,7 +32,7 @@ st.markdown("""
     
     .stApp { background-color: #f0f2f6; }
 
-    /* Marca d'água discreta no fundo */
+    /* Marca d'água no fundo */
     .stApp > div > div > div > div > section > div {
         background-image: url("data:image/png;base64,""" + str(base64_logo) + """");
         background-size: 350px;
@@ -46,7 +45,7 @@ st.markdown("""
 
     .block-container { padding-top: 1rem !important; }
 
-    /* Barra de Busca com identidade PA */
+    /* Barra de Busca */
     div[data-testid="stVerticalBlock"] > div:has(input) {
         background-color: #ffffff;
         padding: 8px 15px !important;
@@ -55,7 +54,7 @@ st.markdown("""
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
 
-    /* Botão de Download Amarelo */
+    /* Botão de Download Amarelo PA */
     .stDownloadButton button {
         background-color: #f2a933 !important;
         color: white !important;
@@ -67,7 +66,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO LADO A LADO
+# 4. CABEÇALHO
 col_logo, col_busca = st.columns([1, 4])
 with col_logo:
     try: st.image("logo", width=150)
@@ -78,11 +77,12 @@ with col_busca:
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 5. CARREGAMENTO DE DADOS
-URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1Qgv6YSQ8XGx1RagMfYcTOOT_a_TQ2RoVGNIk7fY4kf0/edit?usp=sharing"
+# 5. CARREGAMENTO DE DADOS (NOVO ENDEREÇO ATUALIZADO)
+URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/edit?usp=drive_link"
 
 def preparar_url_google(url):
-    return url.replace('/edit?usp=sharing', '/export?format=csv')
+    # Ajuste para garantir a exportação correta do arquivo
+    return url.replace('/edit?usp=drive_link', '/export?format=csv')
 
 @st.cache_data(ttl=300)
 def carregar_dados():
@@ -99,12 +99,12 @@ def carregar_dados():
         
         return df_raw
     except Exception as e:
-        st.error(f"Erro ao carregar base: {e}")
+        st.error(f"Erro ao carregar a nova planilha: {e}. Verifique se o link está compartilhado como 'Qualquer pessoa com o link'.")
         return None
 
 df = carregar_dados()
 
-# 6. LISTAGEM DE DADOS (SEM DASHBOARD)
+# 6. EXIBIÇÃO
 if df is not None:
     df_display = df.copy()
     
@@ -112,25 +112,22 @@ if df is not None:
         mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
         df_display = df[mask]
 
-    # Definição das colunas da tabela
     col_v = ["STATUS", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "CONDIÇÃO PGO", "N° da SC", "N° PC", "Fornecedor", "Nome Fornecedor", "CC", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao"]
     cols = [c for c in col_v if c in df_display.columns]
 
-    # Área de Ações (Mensagem e Download)
     c_msg, c_down = st.columns([3, 1])
     with c_msg:
         if busca:
-            st.success(f"✅ {len(df_display)} registros encontrados para sua pesquisa.")
+            st.success(f"✅ {len(df_display)} registros encontrados.")
         else:
-            st.info(f"💡 Total de {len(df_display)} registros na base. Use a busca acima para filtrar.")
+            st.info(f"💡 Total de {len(df_display)} registros carregados da nova planilha.")
     
     with c_down:
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as writer:
             df_display[cols].to_excel(writer, index=False)
-        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Consulta_PA.xlsx")
+        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Consulta_PA_Atualizada.xlsx")
 
-    # Exibição da Tabela em tela cheia
     st.dataframe(df_display[cols], use_container_width=True, hide_index=True)
 
 st.markdown("<p class='footer-text'>PARENTE ANDRADE LTDA | Setor de Suprimentos</p>", unsafe_allow_html=True)
