@@ -1,148 +1,83 @@
 import streamlit as st
 import pandas as pd
-import base64
-from io import BytesIO
+import gspread
+from google.oauth2.service_account import Credentials
 
 # 1. CONFIGURAÇÃO DA PÁGINA
-st.set_page_config(
-    page_title="Suprimentos | Parente Andrade",
-    page_icon="🏗️",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+st.set_page_config(page_title="Suprimentos | Parente Andrade", layout="wide")
 
-# 2. FUNÇÃO LOGO BASE64 PARA MARCA D'ÁGUA
-@st.cache_data(ttl=600)
-def get_base64_logo(image_path="logo"):
-    try:
-        with open(image_path, "rb") as image_file:
-            return base64.b64encode(image_file.read()).decode()
-    except:
-        return None
+# 2. FUNÇÃO PARA CONECTAR AO GOOGLE SHEETS (ESCRITA)
+def conectar_google_sheets():
+    scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    # Puxa as credenciais que você salvou nos Secrets
+    creds_dict = st.secrets["gcp_service_account"]
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+    client = gspread.authorize(creds)
+    # Abre a planilha pelo ID (extraído da sua URL)
+    return client.open_by_key("1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP")
 
-base64_logo = get_base64_logo()
-
-# 3. CSS PARA INTERFACE CLEAN E MARCA D'ÁGUA
-st.markdown("""
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    .stAppDeployButton {display:none;}
+# 3. CARREGAMENTO DE DADOS
+@st.cache_data(ttl=60)
+def carregar_dados_gsheets():
+    sh = conectar_google_sheets()
+    worksheet = sh.get_worksheet(0) # Pega a primeira aba
+    data = worksheet.get_all_records()
+    df = pd.DataFrame(data)
     
-    .stApp { background-color: #f0f2f6; }
-
-    /* Marca d'água no fundo */
-    .stApp > div > div > div > div > section > div {
-        background-image: url("data:image/png;base64,""" + str(base64_logo) + """");
-        background-size: 350px;
-        background-position: center 250px;
-        background-repeat: no-repeat;
-        background-attachment: fixed;
-        opacity: 0.05;
-        z-index: -1;
-    }
-
-    .block-container { padding-top: 1rem !important; }
-
-    /* Barra de Busca */
-    div[data-testid="stVerticalBlock"] > div:has(input) {
-        background-color: #ffffff;
-        padding: 8px 15px !important;
-        border-radius: 10px;
-        border: 2px solid #478c3b;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-
-    /* Botão de Download Amarelo PA */
-    .stDownloadButton button {
-        background-color: #f2a933 !important;
-        color: white !important;
-        font-weight: bold !important;
-        border: none !important;
-    }
-
-    .footer-text { text-align: center; color: #478c3b; font-size: 12px; margin-top: 40px; font-weight: bold; }
-    </style>
-    """, unsafe_allow_html=True)
-
-# 4. CABEÇALHO
-col_logo, col_busca = st.columns([1, 4])
-with col_logo:
-    try: st.image("logo", width=150)
-    except: st.subheader("PARENTE ANDRADE")
-
-with col_busca:
-    busca = st.text_input("", placeholder="🔍 O que você deseja consultar? (SC, Produto, Fornecedor, CC...)", label_visibility="collapsed")
-
-st.markdown("<div style='height: 4px; background-color: #f2a933; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
-
-# 5. CARREGAMENTO DE DADOS
-URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/edit?usp=sharing"
-
-def preparar_url_google(url):
-    if "/edit" in url:
-        return url.split("/edit")[0] + "/export?format=csv"
-    return url
-
-@st.cache_data(ttl=300)
-def carregar_dados():
-    try:
-        url_csv = preparar_url_google(URL_PLANILHA)
-        df_raw = pd.read_csv(url_csv, dtype=str).fillna('')
+    # Padronização de códigos (Zeros à esquerda)
+    if 'Produto' in df.columns:
+        df['Produto'] = df['Produto'].astype(str).str.zfill(10)
+    if 'N° da SC' in df.columns:
+        df['N° da SC'] = df['N° da SC'].astype(str).str.zfill(7)
         
-        # --- AJUSTES DE PADRONIZAÇÃO (ZEROS À ESQUERDA) ---
-        if 'Produto' in df_raw.columns:
-            df_raw['Produto'] = df_raw['Produto'].astype(str).str.zfill(10)
-        
-        if 'N° da SC' in df_raw.columns:
-            df_raw['N° da SC'] = df_raw['N° da SC'].astype(str).str.zfill(7)
-        
-        # Formatação de Datas
-        col_datas = ["DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "Data Emissao", "Dt Liberacao"]
-        for col in col_datas:
-            if col in df_raw.columns:
-                temp = pd.to_datetime(df_raw[col], errors='coerce')
-                df_raw[col] = temp.dt.strftime('%d/%m/%y').fillna(df_raw[col]).replace(['NaT', 'nan'], '')
-        
-        return df_raw
-    except Exception as e:
-        st.error(f"Erro ao carregar a planilha: {e}")
-        return None
+    return df
 
-df = carregar_dados()
+# 4. INTERFACE
+st.subheader("🏗️ Gestão de Suprimentos - Parente Andrade")
+busca = st.text_input("🔍 Pesquisar...")
 
-# 6. EXIBIÇÃO DOS DADOS
-if df is not None:
-    df_display = df.copy()
-    
-    if busca:
-        mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
-        df_display = df[mask]
+df = carregar_dados_gsheets()
 
-    # Ordem das colunas solicitada
+if not df.empty:
+    # Ordem das colunas conforme solicitado
     col_v = [
         "STATUS", "N° da SC", "N° PC", "CC", "Nome Fornecedor", "Produto", 
         "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", 
         "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", 
         "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "
     ]
+    cols = [c for c in col_v if c in df.columns]
     
-    cols = [c for c in col_v if c in df_display.columns]
+    df_display = df[cols].copy()
+    if busca:
+        mask = df_display.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
+        df_display = df_display[mask]
 
-    c_msg, c_down = st.columns([3, 1])
-    with c_msg:
-        if busca:
-            st.success(f"✅ {len(df_display)} registros encontrados.")
-        else:
-            st.info(f"💡 {len(df_display)} registros carregados.")
-    
-    with c_down:
-        out = BytesIO()
-        with pd.ExcelWriter(out, engine='xlsxwriter') as writer:
-            df_display[cols].to_excel(writer, index=False)
-        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Consulta_PA_Suprimentos.xlsx")
+    # EDITOR DE DADOS
+    st.info("💡 Altere as datas abaixo e clique em 'GRAVAR NA PLANILHA' para salvar.")
+    df_editado = st.data_editor(
+        df_display,
+        use_container_width=True,
+        hide_index=True,
+        disabled=[c for c in cols if c not in ["DT Pgo (AVISTA)", "DT entrega "]]
+    )
 
-    st.dataframe(df_display[cols], use_container_width=True, hide_index=True)
-
-st.markdown("<p class='footer-text'>PARENTE ANDRADE LTDA | Setor de Suprimentos</p>", unsafe_allow_html=True)
+    # BOTÃO DE SALVAR
+    if st.button("💾 GRAVAR NA PLANILHA"):
+        try:
+            sh = conectar_google_sheets()
+            worksheet = sh.get_worksheet(0)
+            
+            # Atualiza a planilha original com os novos dados editados
+            # Nota: Esta abordagem subscreve os dados editados na aba
+            df_final = df.copy()
+            df_final.update(df_editado)
+            
+            # Converte de volta para lista e envia
+            dados_para_salvar = [df_final.columns.values.tolist()] + df_final.values.tolist()
+            worksheet.update('A1', dados_para_salvar)
+            
+            st.success("✅ Datas atualizadas com sucesso na Planilha Mãe!")
+            st.cache_data.clear() # Limpa o cache para mostrar o dado novo
+        except Exception as e:
+            st.error(f"Erro ao salvar: {e}")
