@@ -87,12 +87,9 @@ def carregar_e_vincular_dados():
 
         # 2. Lógica PROCV (Merge): Vincula 'N° da SC SCM' usando 'Cod SC. SCM' como chave
         if 'Cod SC. SCM' in df_protheus.columns and 'N° da SC SCM' in df_scm.columns:
-            # Selecionamos apenas as colunas necessárias da aba SCM para o vínculo
             df_scm_ref = df_scm[['N° da SC SCM']].drop_duplicates()
-            # Criamos a coluna de vínculo (chave) na referência se for diferente, 
-            # aqui assumimos que 'N° da SC SCM' é a chave que bate com 'Cod SC. SCM'
             df_protheus = df_protheus.merge(
-                df_scm[['N° da SC SCM']], 
+                df_scm_ref, 
                 left_on='Cod SC. SCM', 
                 right_on='N° da SC SCM', 
                 how='left'
@@ -120,19 +117,34 @@ if df is not None:
         mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
         df_display = df[mask]
 
-    # Ordem das colunas incluindo a nova coluna vinculada
+    # ORDEM ATUALIZADA: SCM APÓS STATUS
     col_v = [
-        "STATUS", "Cod SC. SCM", "N° da SC", "N° PC", "N° da SC SCM", "CC", "Nome Fornecedor", "Produto", 
-        "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", 
-        "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", 
-        "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "
+        "STATUS", 
+        "N° da SC SCM", # Coluna SCM agora aqui
+        "N° da SC", 
+        "N° PC", 
+        "CC", 
+        "Nome Fornecedor", 
+        "Produto", 
+        "Descricao", 
+        "UM", 
+        "QNT", 
+        " Prc Unitario", 
+        " Vlr.Total", 
+        "Data Emissao", 
+        "Dt Liberacao",
+        "DT Envio", 
+        "CONDIÇÃO PGO", 
+        "DT Pgo (AVISTA)", 
+        "DT Prev de Entrega", 
+        "DT entrega "
     ]
     
     cols = [c for c in col_v if c in df_display.columns]
 
     c_msg, c_down = st.columns([3, 1])
     with c_msg:
-        st.info(f"💡 Base Protheus SC (2) vinculada com SCM. Total: {len(df_display)} registros.")
+        st.info(f"💡 {len(df_display)} registros carregados. Coluna SCM vinculada com sucesso.")
     
     with c_down:
         out = BytesIO()
@@ -142,7 +154,7 @@ if df is not None:
             for i, col in enumerate(cols):
                 column_len = max(df_display[col].astype(str).str.len().max(), len(col)) + 2
                 worksheet.set_column(i, i, column_len)
-        st.download_button("📥 BAIXAR EXCEL ATUALIZADO", out.getvalue(), "Consulta_PA_Protheus.xlsx")
+        st.download_button("📥 BAIXAR EXCEL AJUSTADO", out.getvalue(), "Consulta_PA_Suprimentos.xlsx")
 
     st.dataframe(df_display[cols], use_container_width=True, hide_index=True)
 
