@@ -119,10 +119,10 @@ if df is not None:
 
     # ORDEM DEFINIDA PELO USUÁRIO
     col_v = [
-        "STATUS", "N° da SC", "N° PC", "CC", "Nome Fornecedor", "Produto", 
+        "N° da SC", "N° PC", "CC", "Nome Fornecedor", "Produto", 
         "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", 
         "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", 
-        "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "
+        "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "STATUS"
     ]
     
     cols = [c for c in col_v if c in df_display.columns]
