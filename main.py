@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. FUNÇÃO LOGO BASE64 PARA MARCA D'ÁGUA
+# 2. FUNÇÃO LOGO BASE64
 @st.cache_data(ttl=600)
 def get_base64_logo(image_path="logo"):
     try:
@@ -22,7 +22,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS PARA INTERFACE CLEAN E MARCA D'ÁGUA
+# 3. CSS
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -45,14 +45,12 @@ st.markdown("""
         padding: 8px 15px !important;
         border-radius: 10px;
         border: 2px solid #478c3b;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
     .stDownloadButton button {
         background-color: #f2a933 !important;
         color: white !important;
         font-weight: bold !important;
     }
-    .footer-text { text-align: center; color: #478c3b; font-size: 12px; margin-top: 40px; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -63,101 +61,84 @@ with col_logo:
     except: st.subheader("PARENTE ANDRADE")
 
 with col_busca:
-    busca = st.text_input("", placeholder="🔍 O que você deseja consultar? (SC, Produto, Fornecedor, CC...)", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Pesquisar em todas as colunas...", label_visibility="collapsed")
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 5. CARREGAMENTO E LÓGICA DE VÍNCULO (PROCV)
+# 5. CARREGAMENTO E VÍNCULO (PROCV)
 URL_BASE = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP"
 
 @st.cache_data(ttl=300)
-def carregar_e_vincular_dados():
+def carregar_dados_completos():
     try:
-        # Carregar aba principal: Protheus SC (2)
+        # Carregar Protheus SC (2)
         url_protheus = f"{URL_BASE}/gviz/tq?tqx=out:csv&sheet=Protheus+SC+(2)"
-        df_protheus = pd.read_csv(url_protheus, dtype=str).fillna('')
-
-        # Carregar aba de referência: SCM
-        url_scm = f"{URL_BASE}/gviz/tq?tqx=out:csv&sheet=SCM"
-        df_scm = pd.read_csv(url_scm, dtype=str).fillna('')
-
-        # 1. Ajuste do Código do Produto (10 dígitos)
-        if 'Produto' in df_protheus.columns:
-            df_protheus['Produto'] = df_protheus['Produto'].astype(str).str.zfill(10)
-
-        # 2. Lógica PROCV (Merge): Vincula 'N° da SC SCM' usando 'Cod SC. SCM' como chave
-        if 'Cod SC. SCM' in df_protheus.columns and 'N° da SC SCM' in df_scm.columns:
-            df_scm_ref = df_scm[['N° da SC SCM']].drop_duplicates()
-            df_protheus = df_protheus.merge(
-                df_scm_ref, 
-                left_on='Cod SC. SCM', 
-                right_on='N° da SC SCM', 
-                how='left'
-            )
-
-        # Formatação de Datas
-        col_datas = ["DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "Data Emissao", "Dt Liberacao"]
-        for col in col_datas:
-            if col in df_protheus.columns:
-                temp = pd.to_datetime(df_protheus[col], errors='coerce')
-                df_protheus[col] = temp.dt.strftime('%d/%m/%y').fillna(df_protheus[col]).replace(['NaT', 'nan'], '')
+        df_p = pd.read_csv(url_protheus, dtype=str)
         
-        return df_protheus
+        # Limpar nomes das colunas (remover espaços invisíveis no início/fim)
+        df_p.columns = df_p.columns.str.strip()
+        df_p = df_p.fillna('')
+
+        # Carregar SCM
+        url_scm = f"{URL_BASE}/gviz/tq?tqx=out:csv&sheet=SCM"
+        df_s = pd.read_csv(url_scm, dtype=str)
+        df_s.columns = df_s.columns.str.strip()
+        df_s = df_s.fillna('')
+
+        # Vínculo SCM (PROCV)
+        if 'Cod SC. SCM' in df_p.columns and 'N° da SC SCM' in df_s.columns:
+            df_s_ref = df_s[['N° da SC SCM']].drop_duplicates()
+            df_p = df_p.merge(df_s_ref, left_on='Cod SC. SCM', right_on='N° da SC SCM', how='left')
+
+        # Formatação de Datas (tentando encontrar colunas mesmo com nomes variados)
+        for col in df_p.columns:
+            if "DT" in col or "Data" in col or "Dt" in col:
+                temp = pd.to_datetime(df_p[col], errors='coerce')
+                df_p[col] = temp.dt.strftime('%d/%m/%y').fillna(df_p[col]).replace(['NaT', 'nan'], '')
+
+        if 'Produto' in df_p.columns:
+            df_p['Produto'] = df_p['Produto'].astype(str).str.zfill(10)
+        
+        return df_p
     except Exception as e:
-        st.error(f"Erro ao processar vínculo de planilhas: {e}")
+        st.error(f"Erro técnico: {e}")
         return None
 
-df = carregar_e_vincular_dados()
+df = carregar_dados_completos()
 
-# 6. EXIBIÇÃO
 if df is not None:
+    # FILTRAGEM
     df_display = df.copy()
-    
     if busca:
         mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
         df_display = df[mask]
 
-    # LISTA COMPLETA DE COLUNAS PARA EXIBIÇÃO
-    col_v = [
-        "STATUS", 
-        "N° da SC SCM", 
-        "N° da SC", 
-        "N° PC", 
-        "CC", 
-        "Nome Fornecedor", 
-        "Produto", 
-        "Descricao", 
-        "UM", 
-        "QNT", 
-        " Prc Unitario", 
-        " Vlr.Total", 
-        "Data Emissao", 
-        "Dt Liberacao",
-        "DT Envio", 
-        "CONDIÇÃO PGO", 
-        "DT Pgo (AVISTA)", 
-        "DT Prev de Entrega", 
-        "DT entrega "
+    # DEFINIÇÃO DE ORDEM PRIORITÁRIA (Ajustado conforme seu pedido)
+    ordem_desejada = [
+        "STATUS", "N° da SC SCM", "N° da SC", "N° PC", "CC", "Nome Fornecedor", 
+        "Produto", "Descricao", "UM", "QNT", "Prc Unitario", "Vlr.Total", 
+        "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", 
+        "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega"
     ]
     
-    # Filtra apenas as colunas que realmente existem no DataFrame para evitar erro
-    cols_existentes = [c for c in col_v if c in df_display.columns]
+    # Criar lista final de colunas: 
+    # 1. Primeiro as da ordem que ele encontrar
+    # 2. Depois qualquer outra que sobrar na planilha e não estiver na lista
+    cols_finais = [c for c in ordem_desejada if c in df_display.columns]
+    cols_restantes = [c for c in df_display.columns if c not in cols_finais]
+    cols_totais = cols_finais + cols_restantes
 
     c_msg, c_down = st.columns([3, 1])
     with c_msg:
-        st.info(f"💡 {len(df_display)} registros encontrados. Utilize a barra de rolagem para ver todas as colunas.")
+        st.info(f"📋 {len(df_display)} registros encontrados. Arraste a tabela para o lado para ver todas as colunas.")
     
     with c_down:
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as writer:
-            df_display[cols_existentes].to_excel(writer, index=False, sheet_name='Consulta')
-            worksheet = writer.sheets['Consulta']
-            for i, col in enumerate(cols_existentes):
-                column_len = max(df_display[col].astype(str).str.len().max(), len(col)) + 2
-                worksheet.set_column(i, i, column_len)
-        st.download_button("📥 BAIXAR EXCEL COMPLETO", out.getvalue(), "Consulta_PA_Suprimentos.xlsx")
+            df_display[cols_totais].to_excel(writer, index=False, sheet_name='Dados')
+        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Suprimentos_PA.xlsx")
 
-    # Força a exibição de todas as colunas identificadas
-    st.dataframe(df_display[cols_existentes], use_container_width=True, hide_index=True)
+    # EXIBIÇÃO FORÇADA DE TODAS AS COLUNAS
+    st.dataframe(df_display[cols_totais], use_container_width=True, hide_index=True)
 
-st.markdown("<p class='footer-text'>PARENTE ANDRADE LTDA | Setor de Suprimentos</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; font-weight:bold; color:#478c3b;'>PARENTE ANDRADE LTDA</p>", unsafe_allow_html=True)
