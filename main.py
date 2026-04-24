@@ -91,6 +91,10 @@ def carregar_dados():
         url_csv = preparar_url_google(URL_PLANILHA)
         df_raw = pd.read_csv(url_csv, dtype=str).fillna('')
         
+        # AJUSTE: COMPLETAR CÓDIGO DO PRODUTO COM ZEROS (10 DÍGITOS)
+        if 'Produto' in df_raw.columns:
+            df_raw['Produto'] = df_raw['Produto'].astype(str).str.zfill(10)
+        
         # Formatação de Datas para o padrão brasileiro DD/MM/AA
         col_datas = ["DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "Data Emissao", "Dt Liberacao"]
         for col in col_datas:
@@ -105,7 +109,7 @@ def carregar_dados():
 
 df = carregar_dados()
 
-# 6. EXIBIÇÃO DOS DADOS COM AUTO-AJUSTE
+# 6. EXIBIÇÃO DOS DADOS
 if df is not None:
     df_display = df.copy()
     
@@ -138,15 +142,13 @@ if df is not None:
             workbook = writer.book
             worksheet = writer.sheets['Consulta']
             
-            # Itera sobre as colunas e define a largura com base no conteúdo
             for i, col in enumerate(cols):
                 column_len = df_display[col].astype(str).str.len().max()
-                column_len = max(column_len, len(col)) + 2  # Adiciona margem
+                column_len = max(column_len, len(col)) + 2
                 worksheet.set_column(i, i, column_len)
                 
         st.download_button("📥 BAIXAR EXCEL AJUSTADO", out.getvalue(), "Consulta_PA_Suprimentos.xlsx")
 
-    # Exibição no Streamlit (o use_container_width=True ajusta visualmente as colunas)
     st.dataframe(df_display[cols], use_container_width=True, hide_index=True)
 
 st.markdown("<p class='footer-text'>PARENTE ANDRADE LTDA | Setor de Suprimentos</p>", unsafe_allow_html=True)
