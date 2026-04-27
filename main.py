@@ -21,7 +21,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS PARA ALINHAMENTO MILIMÉTRICO
+# 3. CSS PARA ALINHAMENTO MILIMÉTRICO (AJUSTADO PARA JUSTIFICAR A BUSCA)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
@@ -45,13 +45,14 @@ st.markdown(f"""
         white-space: nowrap;
     }}
 
-    /* Estilização da Barra de Busca para não ocupar espaço excessivo */
+    /* Estilização da Barra de Busca - Aumentada para justificar */
     div[data-testid="stVerticalBlock"] > div:has(input) {{
         background-color: #ffffff; 
         padding: 0px 10px !important; 
         border-radius: 8px; 
         border: 2px solid #478c3b;
         margin-top: 0px !important;
+        width: 100% !important; /* Garante que ocupe toda a coluna */
     }}
 
     .stDownloadButton button {{ 
@@ -70,9 +71,8 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO EM LINHA ÚNICA (PROPORÇÕES AJUSTADAS)
-# Coluna 1: Logo | Coluna 2: Título | Coluna 3: Busca
-col_logo, col_titulo, col_busca = st.columns([1.2, 5, 2.3])
+# 4. CABEÇALHO EM LINHA ÚNICA (PROPORÇÕES AJUSTADAS PARA DAR MAIS ESPAÇO À BUSCA)
+col_logo, col_titulo, col_busca = st.columns([1.2, 4.5, 3.3])
 
 with col_logo:
     if base64_logo: 
@@ -84,8 +84,7 @@ with col_titulo:
     st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
 
 with col_busca:
-    # Removi qualquer espaçamento extra (st.write) aqui para manter o alinhamento
-    busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Buscar por SC, Cotação, Produto ou Fornecedor...", label_visibility="collapsed")
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 10px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
@@ -115,7 +114,6 @@ def carregar_e_vincular_bases():
         df_sc = pd.DataFrame()
         if aba_sc:
             df_sc = tratar_dados(pd.read_excel(excel, sheet_name=aba_sc, dtype=str).fillna(''))
-            # PROCV da Cotação para a base de Pedidos
             link_pc, link_sc = "N° da SC", "Numero da SC"
             if link_pc in df_pc.columns and link_sc in df_sc.columns:
                 map_cot = df_sc.set_index(link_sc)["Num. Cotacao"].to_dict()
