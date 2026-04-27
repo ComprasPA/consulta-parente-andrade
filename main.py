@@ -5,7 +5,7 @@ from io import BytesIO
 
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
-    page_title="Suprimentos | Parente Andrade",
+    page_title="Portal Gestão de Compras | Parente Andrade",
     page_icon="🏗️",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -22,7 +22,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS PARA MARCA D'ÁGUA E INTERFACE
+# 3. CSS PARA INTERFACE, TÍTULO E LOGO
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}}
@@ -30,11 +30,26 @@ st.markdown(f"""
     header {{visibility: hidden;}}
     .stApp {{ background-color: #f0f2f6; }}
     
+    /* Marca d'água */
     .stApp > div > div > div > div > section > div {{
         background-image: url("data:image/png;base64,{base64_logo if base64_logo else ''}");
         background-size: 350px; background-position: center 250px;
         background-repeat: no-repeat; background-attachment: fixed; opacity: 0.05;
         z-index: -1;
+    }}
+
+    /* Ajuste para a logo não ser cortada e espaçamento do cabeçalho */
+    .block-container {{ 
+        padding-top: 2rem !important; 
+        padding-bottom: 1rem !important;
+    }}
+
+    /* Estilo do Título Principal */
+    .main-title {{
+        color: #478c3b;
+        font-size: 28px;
+        font-weight: bold;
+        margin-bottom: 5px;
     }}
 
     /* Barra de Busca Compacta */
@@ -55,19 +70,20 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO
-col_logo, col_busca = st.columns([1, 3])
+# 4. CABEÇALHO (LOGO E TÍTULO)
+col_logo, col_titulo = st.columns([1, 4])
 with col_logo:
     if base64_logo:
-        st.image("logo", width=150)
+        # Uso de HTML para garantir que a imagem não seja cortada pelo container
+        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:160px; height:auto;">', unsafe_allow_html=True)
     else:
-        st.subheader("PARENTE ANDRADE")
+        st.subheader("PA")
 
-with col_busca:
-    st.write("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-    busca = st.text_input("", placeholder="🔍 O que você deseja consultar?", label_visibility="collapsed")
+with col_titulo:
+    st.markdown('<p class="main-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
+    busca = st.text_input("", placeholder="🔍 O que deseja consultar? (SC, Cotação, Pedido...)", label_visibility="collapsed")
 
-st.markdown("<div style='height: 4px; background-color: #f2a933; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 10px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
 # 5. CARREGAMENTO DE DADOS (XLSX)
 URL_XLSX = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
@@ -104,12 +120,12 @@ def carregar_dados():
         
         return df_follow
     except Exception as e:
-        st.error(f"Erro ao carregar planilha: {e}")
+        st.error(f"Erro ao carregar dados: {e}")
         return None
 
 df = carregar_dados()
 
-# 6. EXIBIÇÃO
+# 6. EXIBIÇÃO E DOWNLOAD
 if df is not None:
     df_disp = df.copy()
     if busca:
@@ -129,14 +145,13 @@ if df is not None:
     # Botão de Download e Contador
     c1, c2 = st.columns([3, 1])
     with c1:
-        st.info(f"✅ {len(df_disp)} registros encontrados.")
+        st.write(f"🟢 **{len(df_disp)}** registros encontrados.")
     with c2:
         output = BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as wr:
             df_disp[cols_finais].to_excel(wr, index=False)
-        st.download_button("📥 BAIXAR EXCEL", output.getvalue(), "FollowUp_PA.xlsx")
+        st.download_button("📥 BAIXAR EXCEL", output.getvalue(), "GestaoCompras_PA.xlsx")
 
-    # Tabela com as colunas na nova ordem
     st.dataframe(df_disp[cols_finais], use_container_width=True, hide_index=True)
 
-st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold;'>Parente Andrade | Suprimentos</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
