@@ -57,7 +57,7 @@ with c1:
 with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
 with c3:
-    busca = st.text_input("", placeholder="🔍 Buscar (SCM, CC, Produto, Fornecedor...)", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Buscar (SCM, CC, Produto, SC...)", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 0px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
@@ -89,34 +89,36 @@ def carregar_e_vincular_bases():
             link_pc, link_sc = "N° da SC", "Numero da SC"
             
             if link_pc in df_pc.columns and link_sc in df_sc.columns:
-                # Mapeia Num. Cotacao e SCM da aba SC
                 df_mapeamento = df_sc.set_index(link_sc)
+                # Vincula Cotação e SCM internamente para a busca
                 map_cot = df_mapeamento["Num. Cotacao"].to_dict() if "Num. Cotacao" in df_mapeamento.columns else {}
                 map_scm = df_mapeamento["SCM"].to_dict() if "SCM" in df_mapeamento.columns else {}
                 
-                # Vincula na aba PC
                 df_pc['Num. Cotacao'] = df_pc.apply(lambda r: map_cot.get(r[link_pc], r.get('Num. Cotacao', '')), axis=1)
-                df_pc['SCM'] = df_pc.apply(lambda r: map_scm.get(r[link_pc], r.get('SCM', '')), axis=1)
+                # Criamos a coluna SCM no DF apenas para consulta, mas não exibimos no COLUNAS_PADRAO
+                df_pc['SCM_INTERNO'] = df_pc.apply(lambda r: map_scm.get(r[link_pc], ''), axis=1)
                 
         return df_pc, df_sc
     except: return pd.DataFrame(), pd.DataFrame()
 
 df_pc, df_sc = carregar_e_vincular_bases()
 
-# Adicionado SCM à lista de colunas padrão
-COLUNAS_PADRAO = ["STATUS", "SCM", "N° da SC", "Num. Cotacao", "N° PC", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
+# SCM removido da exibição visual conforme solicitado
+COLUNAS_PADRAO = ["STATUS", "N° da SC", "Num. Cotacao", "N° PC", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
 
-# 6. LÓGICA DE BUSCA REPARADA
+# 6. LÓGICA DE BUSCA
 if busca:
     termo = busca.lower().strip()
     
     def filtrar_inteligente(df, t):
+        # A busca agora inclui automaticamente a coluna SCM_INTERNO se ela existir
+        mask = df.apply(lambda row: row.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)
+        
+        # Especialização para Centro de Custo (CC)
         if t.isdigit() and "CC" in df.columns:
-            mask = df["CC"].str.contains(t, na=False)
-            if not mask.any():
-                mask = df.apply(lambda row: row.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)
-        else:
-            mask = df.apply(lambda row: row.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)
+            mask_cc = df["CC"].str.contains(t, na=False)
+            if mask_cc.any(): mask = mask_cc
+            
         return df[mask].copy()
 
     df_res = filtrar_inteligente(df_pc, termo)
@@ -128,10 +130,13 @@ if busca:
         df_res = df_res.rename(columns={"Numero da SC": "N° da SC", "Numero Pedido": "N° PC"})
 
     if not df_res.empty:
+        # Garante colunas para exibição
         for col in COLUNAS_PADRAO:
             if col not in df_res.columns: df_res[col] = ""
+        
         df_final = df_res[COLUNAS_PADRAO]
         st.markdown(f'<div class="status-box">🟢 {origem} - {len(df_res)} registros</div>', unsafe_allow_html=True)
+        
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_final.to_excel(wr, index=False)
         st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Portal_PA.xlsx")
@@ -139,6 +144,6 @@ if busca:
     else:
         st.warning(f"Nenhum registro encontrado para: '{busca}'")
 else:
-    st.info("💡 Digite um termo (SCM, Centro de Custo, Produto, Fornecedor ou SC) para pesquisar.")
+    st.info("💡 Digite um termo (SCM, CC, Produto, Fornecedor ou SC) para pesquisar.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
