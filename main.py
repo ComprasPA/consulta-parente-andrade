@@ -27,70 +27,40 @@ st.markdown(f"""
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     .stApp {{ background-color: #f0f2f6; }}
     .portal-title {{ 
-        color: #000000 !important; 
-        font-size: 40px !important; 
-        font-weight: bold !important; 
-        text-align: center !important; 
-        margin: 0;
+        color: #000000 !important; font-size: 40px !important; 
+        font-weight: bold !important; text-align: center !important; margin: 0;
     }}
     div[data-testid="stVerticalBlock"] > div:has(input) {{
         background-color: #ffffff; padding: 2px 10px !important; 
         border-radius: 8px; border: 2px solid #478c3b;
     }}
     .stDownloadButton button {{ 
-        background-color: #f2a933 !important; 
-        color: white !important; 
-        font-weight: bold !important; 
+        background-color: #f2a933 !important; color: white !important; font-weight: bold !important; 
     }}
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CARREGAMENTO DE DADOS COM CACHE DE ALTA PERFORMANCE
-@st.cache_data(ttl=600, show_spinner="Sincronizando base de dados...")
-def carregar_dados_portal():
-    # Usamos o formato XLSX por ser mais estável para múltiplas abas
+# 4. CARREGAMENTO DAS ABAS EM CACHE (Separadas para velocidade)
+@st.cache_data(ttl=600, show_spinner="Sincronizando bases...")
+def carregar_bases():
     URL_XLSX = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
-    
     try:
-        # Carrega o arquivo inteiro para a memória
         excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
-        abas = excel.sheet_names
+        # Aba 1 - Prioridade (PC)
+        df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
         
-        # Carrega Aba 1 (Follow Up)
-        df_main = pd.read_excel(excel, sheet_name=abas[0], dtype=str).fillna('')
-        
-        # Carrega Aba 2 (Protheus SC) - Busca por nome parcial para evitar erro 400
-        aba_sc = next((s for s in abas if "SC" in s.upper() or "PROTHEUS" in s.upper() and s != abas[0]), None)
-        
-        if aba_sc:
-            df_sc = pd.read_excel(excel, sheet_name=aba_sc, dtype=str).fillna('')
+        # Aba 2 - Secundária (SC)
+        df_sc = pd.DataFrame()
+        aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
+        if aba_sc_nome:
+            df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('')
             
-            # Normalização de N° SC (7 dígitos)
-            if 'N° da SC' in df_main.columns:
-                df_main['N° da SC'] = df_main['N° da SC'].astype(str).str.zfill(7)
-            
-            col_sc_2 = next((c for c in df_sc.columns if "NUMERO" in c.upper() and "SC" in c.upper() or "SOLICIT" in c.upper()), None)
-            
-            if col_sc_2:
-                df_sc[col_sc_2] = df_sc[col_sc_2].astype(str).str.zfill(7)
-                # Traz apenas a Cotação para não pesar
-                cot_col = next((c for c in df_sc.columns if "COTACAO" in c.upper() or "COTAÇÃO" in c.upper()), None)
-                if cot_col:
-                    # PROCV (Merge)
-                    df_main = pd.merge(df_main, df_sc[[col_sc_2, cot_col]], 
-                                      left_on='N° da SC', right_on=col_sc_2, 
-                                      how='left').fillna('')
-
-        # Limpeza de strings para busca não falhar com espaços vazios
-        for col in df_main.columns:
-            df_main[col] = df_main[col].astype(str).str.strip()
-            
-        return df_main
+        return df_pc, df_sc
     except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
-        return pd.DataFrame()
+        st.error(f"Erro ao carregar bases: {e}")
+        return pd.DataFrame(), pd.DataFrame()
 
-# 5. CABEÇALHO (LOGO | TÍTULO | BUSCA)
+# 5. CABEÇALHO
 col_logo, col_titulo, col_busca = st.columns([1, 4, 1.5])
 with col_logo:
     if base64_logo: st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:140px;">', unsafe_allow_html=True)
@@ -98,22 +68,30 @@ with col_titulo:
     st.markdown('<div class="portal-title">Portal Gestão de Compras Parente Andrade</div>', unsafe_allow_html=True)
 with col_busca:
     st.write("<div style='height: 15px;'></div>", unsafe_allow_html=True)
-    busca = st.text_input("", placeholder="🔍 Digite e pressione Enter...", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 O que deseja consultar?", label_visibility="collapsed")
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 15px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 6. LÓGICA DE BUSCA
-df_base = carregar_dados_portal()
+# 6. LÓGICA DE BUSCA HIERÁRQUICA
+df_pc, df_sc = carregar_bases()
 
-if busca and not df_base.empty:
+if busca:
     termo = busca.lower().strip()
     
-    # Busca "Deep Search": varre todas as colunas da base integrada
-    mask = df_base.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
-    df_res = df_base[mask]
+    # --- CAMADA 1: Busca na Guia Protheus PC ---
+    mask_pc = df_pc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
+    df_res = df_pc[mask_pc]
+    origem = "Protheus PC"
 
+    # --- CAMADA 2: Se não localizar na PC, busca na Guia Protheus SC ---
+    if df_res.empty and not df_sc.empty:
+        mask_sc = df_sc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
+        df_res = df_sc[mask_sc]
+        origem = "Protheus SC"
+
+    # --- EXIBIÇÃO DOS RESULTADOS ---
     if not df_res.empty:
-        # Colunas na ordem solicitada com STATUS por último
+        # Padronização de colunas para exibição (Priorizando as existentes)
         col_v = [
             "N° da SC", "Num. Cotacao", "Código Cotação", "N° PC", "CC", 
             "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", 
@@ -124,17 +102,17 @@ if busca and not df_base.empty:
         cols_finais = [c for c in col_v if c in df_res.columns]
 
         c1, c2 = st.columns([3, 1])
-        with c1: st.write(f"🟢 **{len(df_res)}** registros encontrados.")
+        with c1: st.write(f"🟢 Encontrado em: **{origem}** ({len(df_res)} registros)")
         with c2:
             out = BytesIO()
             with pd.ExcelWriter(out, engine='xlsxwriter') as wr:
                 df_res[cols_finais].to_excel(wr, index=False)
-            st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Portal_PA.xlsx")
+            st.download_button("📥 BAIXAR EXCEL", out.getvalue(), f"Busca_{origem}.xlsx")
 
         st.dataframe(df_res[cols_finais], use_container_width=True, hide_index=True)
     else:
-        st.warning(f"Nenhuma informação encontrada para: '{busca}'")
-elif not busca:
-    st.info("💡 Bem-vindo! Digite qualquer termo (SC, Cotação, Produto ou Fornecedor) para pesquisar.")
+        st.warning(f"Nenhuma informação localizada em ambas as guias para: '{busca}'")
+else:
+    st.info("💡 Digite um termo para iniciar a busca prioritária (PC -> SC).")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
