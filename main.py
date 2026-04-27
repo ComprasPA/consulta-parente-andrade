@@ -21,7 +21,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS PARA ALINHAMENTO MILIMÉTRICO E RETÂNGULO DO TÍTULO
+# 3. CSS PARA INTEGRAÇÃO E ALINHAMENTO
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
@@ -32,35 +32,45 @@ st.markdown(f"""
         display: flex !important;
     }}
 
-    /* Estilização do Retângulo que cerca o Título */
+    /* Retângulo do Título */
     .portal-title-container {{
-        background-color: #ffffff; /* Fundo sólido para o retângulo */
-        border: 2px solid #478c3b; /* Borda verde acompanhando a identidade */
+        background-color: #ffffff;
+        border: 2px solid #478c3b;
         border-radius: 12px;
-        padding: 10px 30px;
-        display: inline-block;
-        width: 100%;
+        padding: 10px 20px;
+        text-align: center;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
     }}
 
     .portal-title {{ 
         color: #000000 !important; 
-        font-size: 40px !important; 
+        font-size: 38px !important; 
         font-weight: bold !important; 
-        text-align: center !important; 
         margin: 0 !important;
-        padding: 0 !important;
         line-height: 1.1;
         white-space: nowrap;
     }}
 
-    /* Barra de Busca (Retornada ao Padrão) */
-    div[data-testid="stVerticalBlock"] > div:has(input) {{
-        background-color: #ffffff; 
-        padding: 0px 10px !important; 
-        border-radius: 8px; 
+    /* Retângulo Unificado para Logo e Busca */
+    .search-logo-container {{
+        background-color: #ffffff;
         border: 2px solid #478c3b;
-        margin-top: 0px !important;
+        border-radius: 12px;
+        padding: 5px 15px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 15px;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+    }}
+
+    /* Ajuste da Barra de Busca dentro do container */
+    div[data-testid="stVerticalBlock"] > div:has(input) {{
+        border: none !important; /* Remove a borda padrão para não duplicar */
+        background-color: transparent !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        flex-grow: 1;
     }}
 
     .stDownloadButton button {{ 
@@ -71,34 +81,31 @@ st.markdown(f"""
         background-color: #478c3b; color: white; padding: 12px 20px;
         border-radius: 10px; font-weight: bold; font-size: 18px;
     }}
-
-    @media (max-width: 1200px) {{
-        .portal-title {{ font-size: 30px !important; }}
-    }}
     </style>
     """, unsafe_allow_html=True)
 
 # 4. CABEÇALHO EM LINHA ÚNICA
-col_logo, col_titulo, col_busca = st.columns([1.2, 5, 2.3])
-
-with col_logo:
-    if base64_logo: 
-        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:140px; vertical-align: middle;">', unsafe_allow_html=True)
-    else:
-        st.write("### PA")
+col_titulo, col_integrada = st.columns([1.8, 2.2])
 
 with col_titulo:
-    # Título envolto pelo retângulo (container) solicitado
     st.markdown('''
         <div class="portal-title-container">
             <p class="portal-title">Portal Gestão de Compras Parente Andrade</p>
         </div>
     ''', unsafe_allow_html=True)
 
-with col_busca:
-    busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
+with col_integrada:
+    # Container unificado: Busca à esquerda e Logo à direita (como solicitado)
+    st.markdown('<div class="search-logo-container">', unsafe_allow_html=True)
+    c_input, c_img = st.columns([3, 1])
+    with c_input:
+        busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
+    with c_img:
+        if base64_logo:
+            st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:110px; vertical-align: middle; float: right;">', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 10px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 15px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
 # 5. TRATAMENTO DE DADOS
 def tratar_dados(df):
@@ -164,4 +171,4 @@ if busca:
 else:
     st.info("💡 Digite um termo acima para pesquisar.")
 
-st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Suprimentos</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
