@@ -21,16 +21,26 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS PARA ALINHAMENTO MILIMÉTRICO (AJUSTADO PARA JUSTIFICAR A BUSCA)
+# 3. CSS PARA ALINHAMENTO MILIMÉTRICO E RETÂNGULO DO TÍTULO
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     .stApp {{ background-color: #f0f2f6; }}
     
-    /* Força o alinhamento vertical de todos os elementos no topo da página */
     [data-testid="stHorizontalBlock"] {{
         align-items: center !important;
         display: flex !important;
+    }}
+
+    /* Estilização do Retângulo que cerca o Título */
+    .portal-title-container {{
+        background-color: #ffffff; /* Fundo sólido para o retângulo */
+        border: 2px solid #478c3b; /* Borda verde acompanhando a identidade */
+        border-radius: 12px;
+        padding: 10px 30px;
+        display: inline-block;
+        width: 100%;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
     }}
 
     .portal-title {{ 
@@ -41,18 +51,16 @@ st.markdown(f"""
         margin: 0 !important;
         padding: 0 !important;
         line-height: 1.1;
-        width: 100%;
         white-space: nowrap;
     }}
 
-    /* Estilização da Barra de Busca - Aumentada para justificar */
+    /* Barra de Busca (Retornada ao Padrão) */
     div[data-testid="stVerticalBlock"] > div:has(input) {{
         background-color: #ffffff; 
         padding: 0px 10px !important; 
         border-radius: 8px; 
         border: 2px solid #478c3b;
         margin-top: 0px !important;
-        width: 100% !important; /* Garante que ocupe toda a coluna */
     }}
 
     .stDownloadButton button {{ 
@@ -64,15 +72,14 @@ st.markdown(f"""
         border-radius: 10px; font-weight: bold; font-size: 18px;
     }}
 
-    /* Ajuste para que o título não fique "espremido" */
     @media (max-width: 1200px) {{
         .portal-title {{ font-size: 30px !important; }}
     }}
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO EM LINHA ÚNICA (PROPORÇÕES AJUSTADAS PARA DAR MAIS ESPAÇO À BUSCA)
-col_logo, col_titulo, col_busca = st.columns([1.2, 4.5, 3.3])
+# 4. CABEÇALHO EM LINHA ÚNICA
+col_logo, col_titulo, col_busca = st.columns([1.2, 5, 2.3])
 
 with col_logo:
     if base64_logo: 
@@ -81,14 +88,19 @@ with col_logo:
         st.write("### PA")
 
 with col_titulo:
-    st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
+    # Título envolto pelo retângulo (container) solicitado
+    st.markdown('''
+        <div class="portal-title-container">
+            <p class="portal-title">Portal Gestão de Compras Parente Andrade</p>
+        </div>
+    ''', unsafe_allow_html=True)
 
 with col_busca:
-    busca = st.text_input("", placeholder="🔍 Buscar por SC, Cotação, Produto ou Fornecedor...", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 10px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
-# 5. TRATAMENTO DE DADOS (INTEGRAÇÃO E PRODUTO)
+# 5. TRATAMENTO DE DADOS
 def tratar_dados(df):
     cols_dt = ["Data Emissao", "Dt Liberacao", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
     for col in cols_dt:
