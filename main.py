@@ -21,7 +21,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS PADRÃO
+# 3. CSS (DESIGN PADRÃO CONGELADO)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
@@ -52,8 +52,8 @@ with c3:
     busca = st.text_input("", placeholder="🔍 Digite SC, SCM, Produto ou Fornecedor...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. MOTOR DE CONSOLIDAÇÃO REFORÇADO
-def normalizar(val):
+# 5. MOTOR DE CONSOLIDAÇÃO BLINDADO
+def normalizar_valor(val):
     if pd.isna(val) or str(val).lower() in ['nan', 'none', '']: return ""
     return str(val).split('.')[0].strip().lstrip('0')
 
@@ -62,40 +62,51 @@ def carregar_dados():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
-        df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
-        aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
-        df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
-
-        # Normalização das chaves para vínculo
-        df_pc['CHAVE'] = df_pc['N° da SC'].apply(normalizar)
-        df_sc['CHAVE'] = df_sc['Numero da SC'].apply(normalizar)
-
-        # Cruzamento SC -> PC (Trazer Cotação e SCM)
-        sc_map = df_sc[['CHAVE', 'Num. Cotacao', 'SCM']].drop_duplicates('CHAVE')
-        df_pc = df_pc.merge(sc_map, on='CHAVE', how='left', suffixes=('', '_from_sc'))
         
-        # Preenchimento forçado na aba PC
-        for col in ['Num. Cotacao', 'SCM']:
-            col_extra = f"{col}_from_sc"
-            if col_extra in df_pc.columns:
-                df_pc[col] = df_pc[col].replace('', pd.NA).fillna(df_pc[col_extra]).fillna('')
+        # Carrega e limpa nomes de colunas da aba PC
+        df_pc = pd.read_excel(excel, sheet_name=0, dtype=str)
+        df_pc.columns = [str(c).strip() for c in df_pc.columns]
+        df_pc = df_pc.fillna('')
 
-        # Cruzamento PC -> SC (Trazer Status, N° PC, Fornecedor e CC)
-        pc_map = df_pc[['CHAVE', 'STATUS', 'N° PC', 'Nome Fornecedor', 'CC', 'Data Emissao', 'DT entrega ']].drop_duplicates('CHAVE')
-        df_sc = df_sc.merge(pc_map, on='CHAVE', how='left', suffixes=('', '_from_pc'))
+        # Localiza e limpa nomes de colunas da aba SC
+        aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
+        if aba_sc_nome:
+            df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str)
+            df_sc.columns = [str(c).strip() for c in df_sc.columns]
+            df_sc = df_sc.fillna('')
+        else:
+            df_sc = pd.DataFrame()
 
-        # Preenchimento forçado na aba SC
-        cols_sc = ['STATUS', 'N° PC', 'Nome Fornecedor', 'CC', 'Data Emissao', 'DT entrega ']
-        for col in cols_sc:
-            col_extra = f"{col}_from_pc"
-            if col_extra in df_sc.columns:
-                df_sc[col] = df_sc[col].replace('', pd.NA).fillna(df_sc[col_extra]).fillna('')
+        # Identificação dinâmica das colunas de vínculo (evita erro de digitação)
+        col_sc_pc = next((c for c in df_pc.columns if "SC" in c.upper() and "N" in c.upper()), "N° da SC")
+        col_sc_sc = next((c for c in df_sc.columns if "SC" in c.upper() and "NUMERO" in c.upper()), "Numero da SC")
 
-        # Padronização final de colunas
-        df_sc = df_sc.rename(columns={"Numero da SC": "N° da SC"})
+        # Criação da CHAVE de cruzamento (PROCV)
+        df_pc['CHAVE'] = df_pc[col_sc_pc].apply(normalizar_valor)
+        if not df_sc.empty:
+            df_sc['CHAVE'] = df_sc[col_sc_sc].apply(normalizar_valor)
+
+            # Cruzamento SC -> PC (Puxar Cotação e SCM)
+            sc_map = df_sc[['CHAVE', 'Num. Cotacao', 'SCM']].drop_duplicates('CHAVE')
+            df_pc = df_pc.merge(sc_map, on='CHAVE', how='left', suffixes=('', '_sc'))
+            
+            # Cruzamento PC -> SC (Puxar Pedido, Status, Fornecedor e CC)
+            pc_map = df_pc[['CHAVE', 'STATUS', 'N° PC', 'Nome Fornecedor', 'CC', 'Data Emissao', 'DT entrega ']].drop_duplicates('CHAVE')
+            df_sc = df_sc.merge(pc_map, on='CHAVE', how='left', suffixes=('', '_pc'))
+
+            # Forçar preenchimento de lacunas em ambas as abas
+            for df in [df_pc, df_sc]:
+                for col in ['Num. Cotacao', 'SCM', 'STATUS', 'N° PC', 'Nome Fornecedor', 'CC']:
+                    col_extra = f"{col}_sc" if f"{col}_sc" in df.columns else f"{col}_pc"
+                    if col_extra in df.columns:
+                        df[col] = df[col].replace('', pd.NA).fillna(df[col_extra]).fillna('')
+
+        # Padroniza nomes para exibição uniforme
+        df_sc = df_sc.rename(columns={col_sc_sc: "N° da SC"})
         return df_pc, df_sc
+
     except Exception as e:
-        st.error(f"Erro no processamento: {e}")
+        st.error(f"Erro no processamento das colunas: {e}")
         return pd.DataFrame(), pd.DataFrame()
 
 df_pc, df_sc = carregar_dados()
@@ -106,23 +117,23 @@ COLUNAS_PADRAO = ["STATUS", "N° da SC", "Num. Cotacao", "N° PC", "CC", "Nome F
 if busca:
     t = busca.lower().strip()
     
-    # Busca nas duas tabelas agora enriquecidas
+    # Filtra em ambas as bases enriquecidas
     res_pc = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
     res_sc = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
 
-    # Concatenar e remover duplicatas baseadas na chave e no produto
+    # Unifica resultados e remove duplicatas
     df_res = pd.concat([res_pc, res_sc], ignore_index=True)
     if not df_res.empty:
         df_res = df_res.drop_duplicates(subset=['CHAVE', 'Produto', 'QNT'])
 
     if not df_res.empty:
-        # Garante as colunas padrão
         for col in COLUNAS_PADRAO:
             if col not in df_res.columns: df_res[col] = ""
             
         df_final = df_res[COLUNAS_PADRAO].fillna('')
-        st.markdown(f'<div class="status-box">🟢 {len(df_res)} registros encontrados e vinculados</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="status-box">🟢 {len(df_res)} registros localizados e vinculados</div>', unsafe_allow_html=True)
         
+        # Download
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_final.to_excel(wr, index=False)
         st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Portal_Compras_PA.xlsx")
@@ -131,4 +142,4 @@ if busca:
     else:
         st.warning(f"Nenhum registro encontrado para: {busca}")
 else:
-    st.info("💡 Pesquise por SC, SCM, CC ou Fornecedor. Os dados vazios são preenchidos cruzando as abas PC e SC.")
+    st.info("💡 Pesquise por SC, SCM, CC ou Fornecedor. O sistema preenche as lacunas automaticamente cruzando as abas.")
