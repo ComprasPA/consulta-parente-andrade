@@ -22,7 +22,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS PARA INTERFACE, TÍTULO E LOGO
+# 3. CSS PARA INTERFACE E CABEÇALHO
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}}
@@ -38,27 +38,26 @@ st.markdown(f"""
         z-index: -1;
     }}
 
-    /* Ajuste para a logo não ser cortada e espaçamento do cabeçalho */
     .block-container {{ 
-        padding-top: 2rem !important; 
-        padding-bottom: 1rem !important;
+        padding-top: 1.5rem !important; 
     }}
 
-    /* Estilo do Título Principal */
-    .main-title {{
-        color: #478c3b;
-        font-size: 28px;
+    /* Estilo do Título solicitado: Preto, Fonte 40, Centralizado */
+    .portal-title {{
+        color: #000000;
+        font-size: 40px;
         font-weight: bold;
-        margin-bottom: 5px;
+        text-align: center;
+        margin: 0;
+        line-height: 1.2;
     }}
 
-    /* Barra de Busca Compacta */
+    /* Estilização da Barra de Busca à direita */
     div[data-testid="stVerticalBlock"] > div:has(input) {{
         background-color: #ffffff;
-        padding: 5px 15px !important;
-        border-radius: 10px;
+        padding: 2px 10px !important;
+        border-radius: 8px;
         border: 2px solid #478c3b;
-        max-width: 500px;
     }}
 
     .stDownloadButton button {{
@@ -70,22 +69,23 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO (LOGO E TÍTULO)
-col_logo, col_titulo = st.columns([1, 4])
+# 4. CABEÇALHO (LOGO ESQUERDA | TÍTULO CENTRO | BUSCA DIREITA)
+col_logo, col_titulo, col_busca = st.columns([1, 3, 1.5])
+
 with col_logo:
     if base64_logo:
-        # Uso de HTML para garantir que a imagem não seja cortada pelo container
-        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:160px; height:auto;">', unsafe_allow_html=True)
-    else:
-        st.subheader("PA")
+        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:140px; height:auto;">', unsafe_allow_html=True)
 
 with col_titulo:
-    st.markdown('<p class="main-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
-    busca = st.text_input("", placeholder="🔍 O que deseja consultar? (SC, Cotação, Pedido...)", label_visibility="collapsed")
+    st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
 
-st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 10px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+with col_busca:
+    st.write("<div style='height: 12px;'></div>", unsafe_allow_html=True) # Alinhamento vertical
+    busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
 
-# 5. CARREGAMENTO DE DADOS (XLSX)
+st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 15px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+
+# 5. CARREGAMENTO DE DADOS
 URL_XLSX = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
 
 @st.cache_data(ttl=300)
@@ -107,11 +107,9 @@ def carregar_dados():
             if sc_col_2 in df_sc.columns:
                 df_sc[sc_col_2] = df_sc[sc_col_2].astype(str).str.zfill(7)
                 cot_col = 'Num. Cotacao' if 'Num. Cotacao' in df_sc.columns else 'Código Cotação'
-                
-                df_follow = pd.merge(df_follow, df_sc[[sc_col_2, cot_col]], 
-                                    left_on='N° da SC', right_on=sc_col_2, 
-                                    how='left').fillna('')
+                df_follow = pd.merge(df_follow, df_sc[[sc_col_2, cot_col]], left_on='N° da SC', right_on=sc_col_2, how='left').fillna('')
         
+        # Formatação de Datas
         cols_dt = ["DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "Data Emissao", "Dt Liberacao"]
         for c in cols_dt:
             if c in df_follow.columns:
@@ -132,7 +130,6 @@ if df is not None:
         mask = df_disp.apply(lambda r: r.astype(str).str.contains(busca, case=False).any(), axis=1)
         df_disp = df_disp[mask]
 
-    # ORDEM DAS COLUNAS: STATUS POR ÚLTIMO
     col_v = [
         "N° da SC", "Num. Cotacao", "Código Cotação", "N° PC", "CC", 
         "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", 
@@ -142,7 +139,6 @@ if df is not None:
     ]
     cols_finais = [c for c in col_v if c in df_disp.columns]
 
-    # Botão de Download e Contador
     c1, c2 = st.columns([3, 1])
     with c1:
         st.write(f"🟢 **{len(df_disp)}** registros encontrados.")
