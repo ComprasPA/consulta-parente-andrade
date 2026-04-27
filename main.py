@@ -21,17 +21,20 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS AJUSTADO (REMOÇÃO TOTAL DE BLOCOS EXTRAS)
+# 3. CSS AJUSTADO (REMOÇÃO TOTAL DE BORDAS FANTASMAS)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     .stApp {{ background-color: #f0f2f6; }}
     
-    /* Remove qualquer borda ou espaçamento automático do Streamlit no topo */
-    [data-testid="stHeader"] {{ background: rgba(0,0,0,0); }}
-    [data-testid="stVerticalBlock"] > div:first-child {{ padding-top: 0px !important; }}
+    /* Remove bordas de qualquer bloco horizontal/coluna do Streamlit */
+    div[data-testid="column"], div[data-testid="stHorizontalBlock"] {{
+        border: none !important;
+        box-shadow: none !important;
+        background-color: transparent !important;
+    }}
 
-    /* Moldura Principal do Cabeçalho - Única caixa permitida */
+    /* Moldura Principal do Cabeçalho - A ÚNICA QUE DEVE APARECER */
     .header-wrapper {{
         border: 2px solid #478c3b;
         border-radius: 10px;
@@ -40,7 +43,7 @@ st.markdown(f"""
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-top: 5px;
+        margin-top: 10px;
         margin-bottom: 20px;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
     }}
@@ -55,12 +58,12 @@ st.markdown(f"""
         white-space: nowrap;
     }}
 
-    /* Barra de Busca Limpa */
+    /* Barra de Busca - Sem bordas extras além da sua própria */
     div[data-testid="stVerticalBlock"] > div:has(input) {{
         background-color: #ffffff; 
         padding: 0px 10px !important; 
         border-radius: 8px; 
-        border: 2px solid #478c3b;
+        border: 2px solid #478c3b !important;
         margin: 0 !important;
     }}
 
