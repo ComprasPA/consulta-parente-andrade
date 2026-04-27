@@ -21,7 +21,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS (DESIGN PADRÃO CONGELADO)
+# 3. CSS PADRÃO
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
@@ -30,16 +30,14 @@ st.markdown(f"""
         border: 2px solid #478c3b; border-radius: 10px; padding: 15px 25px;
         background-color: #ffffff; display: flex; align-items: center;
         justify-content: space-between; margin-top: 10px; margin-bottom: 20px;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
     }}
-    .portal-title {{ 
-        color: #000000 !important; font-size: 40px !important; font-weight: bold !important; 
-        text-align: center !important; margin: 0 !important;
-    }}
+    .portal-title {{ color: #000000 !important; font-size: 40px !important; font-weight: bold !important; margin: 0 !important; }}
     div[data-testid="stVerticalBlock"] > div:has(input) {{
         background-color: #ffffff; padding: 0px 10px !important; 
         border-radius: 8px; border: 2px solid #478c3b !important;
     }}
-    .status-box {{ background-color: #478c3b; color: white; padding: 12px 20px; border-radius: 10px; font-weight: bold; }}
+    .status-box {{ background-color: #478c3b; color: white; padding: 12px 20px; border-radius: 10px; font-weight: bold; font-size: 18px; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -51,110 +49,91 @@ with c1:
 with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
 with c3:
-    busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Digite SC, SCM, Produto ou Fornecedor...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. TRATAMENTO E VÍNCULO (CORREÇÃO DO PROCV)
-def limpar_id(texto):
-    """Limpa IDs para garantir que a comparação funcione (remove .0, espaços e nulos)"""
-    if pd.isna(texto) or str(texto).lower() in ['nan', 'none', '']: return ""
-    return str(texto).split('.')[0].strip()
-
-def tratar_datas(df):
-    cols_dt = ["Data Emissao", "Dt Liberacao", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
-    for col in cols_dt:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%y').fillna('').replace(['NaT', 'nan'], '')
-    return df
+# 5. MOTOR DE CONSOLIDAÇÃO (PROCV REFORMULADO E NORMALIZADO)
+def normalizar_id(val):
+    """Remove zeros à esquerda, decimais e espaços para garantir o vínculo"""
+    if pd.isna(val) or str(val).lower() in ['nan', 'none', '']: return ""
+    # Remove .0, tira espaços e remove zeros à esquerda (ex: 000123 -> 123)
+    return str(val).split('.')[0].strip().lstrip('0')
 
 @st.cache_data(ttl=600)
-def carregar_dados_consolidados():
+def carregar_e_consolidar():
     URL_XLSX = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
-        
-        # Carregar Aba PC (Pedidos)
         df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
-        df_pc = tratar_datas(df_pc)
-        
-        # Carregar Aba SC (Solicitações)
         aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
         df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
-        df_sc = tratar_datas(df_sc)
 
-        # Padronização de Colunas Chave para o Vínculo
-        link_pc = "N° da SC"
-        link_sc = "Numero da SC"
+        # Criação de chaves normatizadas para o vínculo
+        df_pc['LINK_NORMAL'] = df_pc['N° da SC'].apply(normalizar_id)
+        df_sc['LINK_NORMAL'] = df_sc['Numero da SC'].apply(normalizar_id)
 
-        if link_pc in df_pc.columns and link_sc in df_sc.columns:
-            # Criar IDs limpos para comparação
-            df_pc['ID_LINK'] = df_pc[link_pc].apply(limpar_id)
-            df_sc['ID_LINK'] = df_sc[link_sc].apply(limpar_id)
+        # 1. Cruzamento SC -> PC (Trazer Cotação e SCM para os Pedidos)
+        # Removemos duplicatas da chave para não gerar linhas extras no merge
+        sc_vlookup = df_sc[['LINK_NORMAL', 'Num. Cotacao', 'SCM']].drop_duplicates('LINK_NORMAL')
+        df_pc = df_pc.merge(sc_vlookup, on='LINK_NORMAL', how='left', suffixes=('', '_extra'))
+        
+        # Preenche se estiver vazio
+        if 'Num. Cotacao_extra' in df_pc.columns:
+            df_pc['Num. Cotacao'] = df_pc['Num. Cotacao'].replace('', pd.NA).fillna(df_pc['Num. Cotacao_extra']).fillna('')
+        if 'SCM' in df_pc.columns:
+            df_pc['SCM'] = df_pc['SCM'].replace('', pd.NA).fillna(df_pc.get('SCM_extra', '')).fillna('')
 
-            # --- PROCV: Trazer dados da SC para a PC ---
-            sc_info = df_sc.drop_duplicates('ID_LINK').set_index('ID_LINK')
-            map_cot = sc_info['Num. Cotacao'].to_dict() if 'Num. Cotacao' in sc_info.columns else {}
-            map_scm = sc_info['SCM'].to_dict() if 'SCM' in sc_info.columns else {}
-            
-            df_pc['Num. Cotacao'] = df_pc.apply(lambda r: map_cot.get(r['ID_LINK'], r.get('Num. Cotacao', '')), axis=1)
-            df_pc['SCM_BUSCA'] = df_pc['ID_LINK'].map(map_scm)
+        # 2. Cruzamento PC -> SC (Trazer Status, N° PC e Datas para as Solicitações)
+        pc_vlookup = df_pc[['LINK_NORMAL', 'STATUS', 'N° PC', 'Data Emissao', 'DT entrega ', 'Nome Fornecedor', 'CC']].drop_duplicates('LINK_NORMAL')
+        df_sc = df_sc.merge(pc_vlookup, on='LINK_NORMAL', how='left', suffixes=('', '_extra'))
 
-            # --- PROCV: Trazer dados da PC para a SC ---
-            pc_info = df_pc.drop_duplicates('ID_LINK').set_index('ID_LINK')
-            # Colunas que a SC deve "sugar" da PC para não ficar em branco
-            cols_vinc = ["STATUS", "N° PC", "Data Emissao", "DT entrega ", "Nome Fornecedor", "CC"]
-            
-            for col in cols_vinc:
-                if col in pc_info.columns:
-                    map_pc = pc_info[col].to_dict()
-                    # Preenche apenas se a SC estiver vazia naquelas colunas
-                    df_sc[col] = df_sc.apply(
-                        lambda r: map_pc.get(r['ID_LINK'], r.get(col, '')) if not str(r.get(col, '')).strip() else r.get(col),
-                        axis=1
-                    )
-            
-            # Ajuste de nomes de colunas para exibição uniforme
-            if "Numero da SC" in df_sc.columns: df_sc = df_sc.rename(columns={"Numero da SC": "N° da SC"})
-            if "Numero Pedido" in df_sc.columns: df_sc = df_sc.rename(columns={"Numero Pedido": "N° PC"})
+        # Preenchimento forçado de lacunas na SC
+        cols_preencher = ['STATUS', 'N° PC', 'Data Emissao', 'DT entrega ', 'Nome Fornecedor', 'CC']
+        for col in cols_preencher:
+            col_extra = f"{col}_extra"
+            if col_extra in df_sc.columns:
+                df_sc[col] = df_sc[col].replace('', pd.NA).fillna(df_sc[col_extra]).fillna('')
 
+        # Padroniza nomes para exibição
+        df_sc = df_sc.rename(columns={"Numero da SC": "N° da SC", "Numero Pedido": "N° PC"})
+        
         return df_pc, df_sc
-    except: return pd.DataFrame(), pd.DataFrame()
+    except Exception as e:
+        st.error(f"Erro na integração: {e}")
+        return pd.DataFrame(), pd.DataFrame()
 
-df_pc, df_sc = carregar_dados_consolidados()
+df_pc, df_sc = carregar_e_consolidar()
 
 COLUNAS_PADRAO = ["STATUS", "N° da SC", "Num. Cotacao", "N° PC", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
 
 # 6. BUSCA E EXIBIÇÃO
 if busca:
-    termo = busca.lower().strip()
+    t = busca.lower().strip()
     
-    def filtrar(df):
-        return df[df.apply(lambda r: r.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)].copy()
+    # Filtra em ambas as bases já vinculadas
+    res_pc = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
+    res_sc = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
 
-    # Prioridade 1: Buscar na base de Pedidos (PC) já vinculada
-    df_res = filtrar(df_pc)
-    origem = "Pedidos (PC)"
-
-    # Prioridade 2: Se não achou no Pedido, busca na Solicitação (SC)
-    if df_res.empty and not df_sc.empty:
-        df_res = filtrar(df_sc)
-        origem = "Solicitações (SC)"
+    # Une os resultados. Se for a mesma SC/Produto/QNT, o drop_duplicates mantém apenas uma linha
+    df_res = pd.concat([res_pc, res_sc], ignore_index=True)
+    if 'LINK_NORMAL' in df_res.columns:
+        df_res = df_res.drop_duplicates(subset=['LINK_NORMAL', 'Produto', 'QNT'])
 
     if not df_res.empty:
-        # Garante que todas as colunas do padrão existam
         for col in COLUNAS_PADRAO:
             if col not in df_res.columns: df_res[col] = ""
             
         df_final = df_res[COLUNAS_PADRAO].fillna('')
-        st.markdown(f'<div class="status-box">🟢 Localizado em: {origem} ({len(df_res)} itens)</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="status-box">🟢 {len(df_res)} registros localizados e vinculados</div>', unsafe_allow_html=True)
         
-        # Download Excel
+        # Download
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_final.to_excel(wr, index=False)
-        st.download_button("📥 BAIXAR RESULTADO", out.getvalue(), "Busca_Portal.xlsx")
+        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Portal_ParenteAndrade.xlsx")
         
         st.dataframe(df_final, use_container_width=True, hide_index=True)
     else:
-        st.warning(f"Nenhum dado encontrado para: {busca}")
+        st.warning(f"Nenhum resultado para: {busca}")
 else:
-    st.info("💡 Digite SC, SCM, Fornecedor ou Produto para pesquisar.")
+    st.info("💡 Digite um termo para pesquisar. O sistema cruza os dados entre Pedidos e Solicitações automaticamente.")
+    
