@@ -21,7 +21,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS (MOLDURA ÚNICA E LIMPA)
+# 3. CSS (DESIGN LIMPO E MOLDURA ÚNICA)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
@@ -58,8 +58,6 @@ st.markdown(f"""
 
     .stDownloadButton button {{ background-color: #f2a933 !important; color: white !important; font-weight: bold !important; }}
     .status-box {{ background-color: #478c3b; color: white; padding: 12px 20px; border-radius: 10px; font-weight: bold; font-size: 18px; }}
-
-    @media (max-width: 1200px) {{ .portal-title {{ font-size: 30px !important; }} }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -74,55 +72,56 @@ with c3:
     busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 0px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
-
-# 5. TRATAMENTO E INTEGRAÇÃO (FOCO NO SCM)
-def tratar_basico(df):
+# 5. TRATAMENTO E VÍNCULO (BUSCA FLEXÍVEL DE COLUNAS)
+def preparar_dataframe(df):
+    # Limpa nomes das colunas (remove espaços e garante string)
+    df.columns = [str(c).strip() for c in df.columns]
     for col in df.columns:
         df[col] = df[col].astype(str).str.split('.').str[0].str.strip().replace(['nan', 'NaT', 'None'], '')
     return df
 
 @st.cache_data(ttl=600)
-def carregar_dados():
+def carregar_e_vincular():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
-        df_pc = tratar_basico(pd.read_excel(excel, sheet_name=0, dtype=str).fillna(''))
+        df_pc = preparar_dataframe(pd.read_excel(excel, sheet_name=0, dtype=str).fillna(''))
         
-        aba_sc_name = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
+        # Procura a aba SC
+        nome_aba_sc = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
         df_sc = pd.DataFrame()
-        
-        if aba_sc_name:
-            df_sc = tratar_basico(pd.read_excel(excel, sheet_name=aba_sc_name, dtype=str).fillna(''))
-            
-            # Identificação das colunas de vínculo
-            # Na PC geralmente é 'N° da SC'. Na aba SC, pode ser 'Numero da SC' ou 'Solicitação'
-            col_link_pc = "N° da SC" if "N° da SC" in df_pc.columns else "Numero da SC"
-            col_link_sc = "Numero da SC" if "Numero da SC" in df_sc.columns else "Solicitação"
-            
-            # Coluna que de fato contém o código SCM (ex: SCM001234)
-            # Se não houver coluna 'SCM', usamos a própria coluna de Solicitação da aba SC
-            col_dado_scm = "SCM" if "SCM" in df_sc.columns else col_link_sc
 
-            if col_link_pc in df_pc.columns and col_link_sc in df_sc.columns:
-                # Criar dicionário de mapeamento
-                mapa_scm = df_sc.drop_duplicates(subset=[col_link_sc]).set_index(col_link_sc)[col_dado_scm].to_dict()
-                mapa_cot = df_sc.drop_duplicates(subset=[col_link_sc]).set_index(col_link_sc).get("Num. Cotacao", pd.Series(dtype=str)).to_dict()
+        if nome_aba_sc:
+            df_sc = preparar_dataframe(pd.read_excel(excel, sheet_name=nome_aba_sc, dtype=str).fillna(''))
+            
+            # Localização dinâmica das colunas de ligação (Chave SC)
+            col_chave_pc = next((c for c in df_pc.columns if "SC" in c.upper() or "SOLICIT" in c.upper()), None)
+            col_chave_sc = next((c for c in df_sc.columns if "SC" in c.upper() or "SOLICIT" in c.upper()), None)
+            
+            # Localização dinâmica da coluna de valor SCM
+            col_valor_scm = next((c for c in df_sc.columns if "SCM" in c.upper()), col_chave_sc)
 
-                # Injetar os dados na PC
-                df_pc['SCM'] = df_pc[col_link_pc].map(mapa_scm).fillna('')
-                # Se a cotação estiver vazia na PC, busca na SC
-                df_pc['Num. Cotacao'] = df_pc.apply(
-                    lambda r: mapa_cot.get(r[col_link_pc], r.get('Num. Cotacao', '')) 
-                    if not r.get('Num. Cotacao') else r.get('Num. Cotacao'), axis=1
-                )
-        
+            if col_chave_pc and col_chave_sc:
+                # Criar dicionário de mapeamento (PROCV)
+                mapa_scm = df_sc.drop_duplicates(subset=[col_chave_sc]).set_index(col_chave_sc)[col_valor_scm].to_dict()
+                
+                # Injetar SCM na aba PC
+                df_pc['SCM'] = df_pc[col_chave_pc].map(mapa_scm).fillna('')
+                
+                # Injetar Cotação (se existir na SC)
+                col_cot = next((c for c in df_sc.columns if "COT" in c.upper()), None)
+                if col_cot:
+                    mapa_cot = df_sc.drop_duplicates(subset=[col_chave_sc]).set_index(col_chave_sc)[col_cot].to_dict()
+                    df_pc['Num. Cotacao'] = df_pc.apply(
+                        lambda r: mapa_cot.get(r[col_chave_pc], r.get('Num. Cotacao', '')) 
+                        if not str(r.get('Num. Cotacao', '')).strip() else r.get('Num. Cotacao'), axis=1
+                    )
         return df_pc, df_sc
     except Exception as e:
-        st.error(f"Erro ao vincular SCM: {e}")
-        return pd.DataFrame(), pd.DataFrame()
+        # Se der erro, retorna o PC puro para não travar a tela
+        return df_pc if 'df_pc' in locals() else pd.DataFrame(), pd.DataFrame()
 
-df_pc, df_sc = carregar_dados()
+df_pc, df_sc = carregar_e_vincular()
 
 COLUNAS_PADRAO = [
     "STATUS", "SCM", "N° da SC", "Num. Cotacao", "N° PC", "CC", "Nome Fornecedor", 
@@ -131,31 +130,26 @@ COLUNAS_PADRAO = [
     "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "
 ]
 
-# 6. BUSCA E EXIBIÇÃO
+# 6. FILTRO E EXIBIÇÃO
 if busca:
-    termo = busca.lower()
+    termo = busca.lower().strip()
     df_res = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(termo).any(), axis=1)].copy()
-    origem = "Protheus PC (Vinculado)"
-
+    
     if df_res.empty and not df_sc.empty:
         df_res = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(termo).any(), axis=1)].copy()
-        origem = "Protheus SC"
-        # Ajuste de nomes para exibição caso a busca venha da aba SC
-        if "Solicitação" in df_res.columns: df_res['SCM'] = df_res['Solicitação']
-        if "Numero da SC" in df_res.columns: df_res['N° da SC'] = df_res['Numero da SC']
+        # Ajusta nomes para o padrão visual quando vem da aba SC
+        col_sc_local = next((c for c in df_res.columns if "SC" in c.upper() or "SOLICIT" in c.upper()), "SCM")
+        df_res['SCM'] = df_res.get(next((c for c in df_res.columns if "SCM" in c.upper()), col_sc_local), "")
+        df_res['N° da SC'] = df_res.get(col_sc_local, "")
 
     if not df_res.empty:
-        for c in COLUNAS_PADRAO:
-            if c not in df_res.columns: df_res[c] = ""
+        # Garante que as colunas existam
+        for col in COLUNAS_PADRAO:
+            if col not in df_res.columns: df_res[col] = ""
         
-        df_final = df_res[COLUNAS_PADRAO]
-        st.markdown(f'<div class="status-box">🟢 {origem} - {len(df_final)} registros</div>', unsafe_allow_html=True)
-        
-        out = BytesIO()
-        with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_final.to_excel(wr, index=False)
-        st.download_button("📥 BAIXAR RESULTADOS", out.getvalue(), "Portal_PA_SCM.xlsx")
-        st.dataframe(df_final, use_container_width=True, hide_index=True)
+        st.markdown(f'<div class="status-box">🟢 Registros encontrados: {len(df_res)}</div>', unsafe_allow_html=True)
+        st.dataframe(df_res[COLUNAS_PADRAO], use_container_width=True, hide_index=True)
 else:
-    st.info("💡 Digite o Fornecedor, SC ou SCM para pesquisar.")
+    st.info("💡 Pesquise por Fornecedor, SC ou SCM.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Suprimentos</p>", unsafe_allow_html=True)
