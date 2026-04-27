@@ -21,12 +21,20 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS (DESIGN LIMPO)
+# 3. CSS AJUSTADO (REMOÇÃO TOTAL DE BORDAS FANTASMAS)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     .stApp {{ background-color: #f0f2f6; }}
     
+    /* Remove bordas de qualquer bloco horizontal/coluna do Streamlit */
+    div[data-testid="column"], div[data-testid="stHorizontalBlock"] {{
+        border: none !important;
+        box-shadow: none !important;
+        background-color: transparent !important;
+    }}
+
+    /* Moldura Principal do Cabeçalho - A ÚNICA QUE DEVE APARECER */
     .header-wrapper {{
         border: 2px solid #478c3b;
         border-radius: 10px;
@@ -37,106 +45,109 @@ st.markdown(f"""
         justify-content: space-between;
         margin-top: 10px;
         margin-bottom: 20px;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
     }}
 
     .portal-title {{ 
-        color: #000000 !important; font-size: 40px !important; font-weight: bold !important; 
-        text-align: center !important; margin: 0 !important; line-height: 1.1; white-space: nowrap;
+        color: #000000 !important; 
+        font-size: 40px !important; 
+        font-weight: bold !important; 
+        text-align: center !important; 
+        margin: 0 !important;
+        line-height: 1.1;
+        white-space: nowrap;
     }}
 
+    /* Barra de Busca - Sem bordas extras além da sua própria */
     div[data-testid="stVerticalBlock"] > div:has(input) {{
-        background-color: #ffffff; padding: 0px 10px !important; 
-        border-radius: 8px; border: 2px solid #478c3b !important; margin: 0 !important;
+        background-color: #ffffff; 
+        padding: 0px 10px !important; 
+        border-radius: 8px; 
+        border: 2px solid #478c3b !important;
+        margin: 0 !important;
     }}
 
     .stDownloadButton button {{ background-color: #f2a933 !important; color: white !important; font-weight: bold !important; }}
     .status-box {{ background-color: #478c3b; color: white; padding: 12px 20px; border-radius: 10px; font-weight: bold; font-size: 18px; }}
+
+    @media (max-width: 1200px) {{ .portal-title {{ font-size: 30px !important; }} }}
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO
+# 4. CABEÇALHO DENTRO DA MOLDURA ÚNICA
 st.markdown('<div class="header-wrapper">', unsafe_allow_html=True)
 c1, c2, c3 = st.columns([1.2, 5, 2.3])
+
 with c1:
-    if base64_logo: st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:140px;">', unsafe_allow_html=True)
+    if base64_logo: 
+        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:140px; vertical-align: middle;">', unsafe_allow_html=True)
+
 with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
+
 with c3:
     busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. TRATAMENTO E VÍNCULO (LIMPEZA TOTAL DE COLUNAS)
-def preparar_dados(df):
-    # Transforma nomes de colunas em MAIÚSCULAS e remove espaços
-    df.columns = [str(c).strip().upper() for c in df.columns]
+st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 0px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+
+# 5. TRATAMENTO DE DADOS (BASE CONGELADA)
+def tratar_dados(df):
+    cols_dt = ["Data Emissao", "Dt Liberacao", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
+    for col in cols_dt:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%y').fillna(df[col]).replace(['NaT', 'nan'], '')
+    if "Produto" in df.columns:
+        df["Produto"] = df["Produto"].astype(str).str.split('.').str[0].str.strip().str.zfill(10).replace('0000000nan', '')
     for col in df.columns:
-        df[col] = df[col].astype(str).str.split('.').str[0].str.strip().replace(['nan', 'NaT', 'None'], '')
+        if any(x in col.upper() for x in ["NUMERO", "N°", "SC", "PC", "PEDIDO", "COTACAO"]):
+            df[col] = df[col].astype(str).str.split('.').str[0].str.strip().replace('nan', '')
     return df
 
 @st.cache_data(ttl=600)
-def carregar_e_vincular():
-    URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
+def carregar_e_vincular_bases():
+    URL_XLSX = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
-        excel = pd.ExcelFile(URL, engine='openpyxl')
-        # Carrega aba de Pedidos (PC)
-        df_pc = preparar_dados(pd.read_excel(excel, sheet_name=0, dtype=str).fillna(''))
-        
-        # Procura a aba SC (Solicitações)
-        nome_aba_sc = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
+        excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
+        df_pc = tratar_dados(pd.read_excel(excel, sheet_name=0, dtype=str).fillna(''))
+        aba_sc = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
         df_sc = pd.DataFrame()
-
-        if nome_aba_sc:
-            df_sc = preparar_dados(pd.read_excel(excel, sheet_name=nome_aba_sc, dtype=str).fillna(''))
-            
-            # Encontra as colunas de ligação (Chaves) de forma flexível (em maiúsculas)
-            col_chave_pc = next((c for c in df_pc.columns if "SC" in c or "SOLICIT" in c), None)
-            col_chave_sc = next((c for c in df_sc.columns if "SC" in c or "SOLICIT" in c), None)
-            
-            # Valor SCM
-            col_val_scm = next((c for c in df_sc.columns if "SCM" in c), col_chave_sc)
-
-            if col_chave_pc and col_chave_sc:
-                # Cria mapa de SCM
-                mapa_scm = df_sc.drop_duplicates(subset=[col_chave_sc]).set_index(col_chave_sc)[col_val_scm].to_dict()
-                df_pc['SCM_VINC'] = df_pc[col_chave_pc].map(mapa_scm).fillna('')
-                
-                # Mapa de Cotação
-                col_cot_sc = next((c for c in df_sc.columns if "COT" in c), None)
-                if col_cot_sc:
-                    mapa_cot = df_sc.drop_duplicates(subset=[col_chave_sc]).set_index(col_chave_sc)[col_cot_sc].to_dict()
-                    # Coluna de cotação na PC
-                    col_cot_pc = next((c for c in df_pc.columns if "COT" in c), "NUM. COTACAO")
-                    df_pc[col_cot_pc] = df_pc.apply(
-                        lambda r: mapa_cot.get(r[col_chave_pc], r.get(col_cot_pc, '')) 
-                        if not str(r.get(col_cot_pc, '')).strip() else r.get(col_cot_pc), axis=1
-                    )
+        if aba_sc:
+            df_sc = tratar_dados(pd.read_excel(excel, sheet_name=aba_sc, dtype=str).fillna(''))
+            link_pc, link_sc = "N° da SC", "Numero da SC"
+            if link_pc in df_pc.columns and link_sc in df_sc.columns:
+                map_cot = df_sc.set_index(link_sc)["Num. Cotacao"].to_dict()
+                df_pc['Num. Cotacao'] = df_pc.apply(lambda r: map_cot.get(r[link_pc], r.get('Num. Cotacao', '')), axis=1)
         return df_pc, df_sc
-    except Exception as e:
-        return pd.DataFrame(), pd.DataFrame()
+    except: return pd.DataFrame(), pd.DataFrame()
 
-df_pc, df_sc = carregar_e_vincular()
+df_pc, df_sc = carregar_e_vincular_bases()
 
-# MAPEAMENTO PARA EXIBIÇÃO AMIGÁVEL
-COLUNAS_PADRAO = [
-    "STATUS", "SCM_VINC", "N° DA SC", "NUM. COTACAO", "N° PC", "CC", "NOME FORNECEDOR", 
-    "PRODUTO", "DESCRICAO", "UM", "QNT", " PRC UNITARIO", " VLR.TOTAL", 
-    "DATA EMISSAO", "DT LIBERACAO", "DT ENVIO", "CONDICAO PGO", 
-    "DT PGO (AVISTA)", "DT PREV DE ENTREGA", "DT ENTREGA "
-]
+COLUNAS_PADRAO = ["STATUS", "N° da SC", "Num. Cotacao", "N° PC", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
 
-# 6. EXIBIÇÃO
+# 6. BUSCA E EXIBIÇÃO
 if busca:
-    termo = busca.upper().strip()
-    df_res = df_pc[df_pc.apply(lambda r: r.astype(str).str.upper().str.contains(termo).any(), axis=1)].copy()
-    
+    termo = busca.lower().strip()
+    mask_pc = df_pc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
+    df_res = df_pc[mask_pc].copy()
+    origem = "Protheus PC (Vinculado)"
+
+    if df_res.empty and not df_sc.empty:
+        mask_sc = df_sc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
+        df_res = df_sc[mask_sc].copy()
+        origem = "Protheus SC"
+        df_res = df_res.rename(columns={"Numero da SC": "N° da SC", "Numero Pedido": "N° PC"})
+
     if not df_res.empty:
-        # Renomeia colunas para o padrão de visualização
-        df_res = df_res.rename(columns={"SCM_VINC": "SCM"})
-        # Garante que as colunas existam
         for col in COLUNAS_PADRAO:
-            c_upper = col.upper()
-            if c_upper not in df_res.columns: df_res[c_upper] = ""
-        
-        st.dataframe(df_res[[c.upper() for c in COLUNAS_PADRAO if c != "SCM_VINC"] + ["SCM"]], use_container_width=True, hide_index=True)
+            if col not in df_res.columns: df_res[col] = ""
+        df_final = df_res[COLUNAS_PADRAO]
+        st.markdown(f'<div class="status-box">🟢 {origem} - {len(df_res)} registros</div>', unsafe_allow_html=True)
+        out = BytesIO()
+        with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_final.to_excel(wr, index=False)
+        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Portal_PA.xlsx")
+        st.dataframe(df_final, use_container_width=True, hide_index=True)
 else:
-    st.info("💡 Digite um termo para pesquisar.")
+    st.info("💡 Digite um termo acima para pesquisar.")
+
+st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Suprimentos</p>", unsafe_allow_html=True)
