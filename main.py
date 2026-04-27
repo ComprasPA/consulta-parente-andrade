@@ -21,22 +21,23 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS PARA CRIAR A CAIXA GRANDE (MOLDURA VERMELHA DA IMAGEM)
+# 3. CSS AJUSTADO (MOLDURA ÚNICA E LIMPA)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     .stApp {{ background-color: #f0f2f6; }}
     
-    /* Moldura Principal (Equivalente à caixa vermelha da sua imagem) */
+    /* Moldura Principal do Cabeçalho */
     .header-wrapper {{
         border: 2px solid #478c3b;
         border-radius: 10px;
-        padding: 10px 20px;
+        padding: 15px 25px;
         background-color: #ffffff;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 20px;
+        margin-top: 10px;
+        margin-bottom: 25px;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
     }}
 
@@ -48,18 +49,16 @@ st.markdown(f"""
         margin: 0 !important;
         padding: 0 !important;
         line-height: 1.1;
-        flex-grow: 1; /* Faz o título ocupar o centro */
         white-space: nowrap;
     }}
 
-    /* Estilização da Barra de Busca dentro da moldura */
+    /* Estilização da Barra de Busca integrada */
     div[data-testid="stVerticalBlock"] > div:has(input) {{
         background-color: #ffffff; 
         padding: 0px 10px !important; 
         border-radius: 8px; 
         border: 2px solid #478c3b;
-        margin-top: 0px !important;
-        min-width: 250px;
+        margin: 0 !important;
     }}
 
     .stDownloadButton button {{ 
@@ -77,8 +76,7 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO DENTRO DA MOLDURA ÚNICA
-# Usamos colunas dentro de um container customizado para simular a caixa vermelha
+# 4. CABEÇALHO DENTRO DA MOLDURA
 st.markdown('<div class="header-wrapper">', unsafe_allow_html=True)
 col_logo, col_titulo, col_busca = st.columns([1.2, 5, 2.3])
 
@@ -95,9 +93,10 @@ with col_busca:
     busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: -10px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+# Linha de separação visual após a moldura
+st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: -15px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
-# 5. TRATAMENTO DE DADOS (BASE CONGELADA)
+# 5. TRATAMENTO DE DADOS (CÓDIGO PADRÃO)
 def tratar_dados(df):
     cols_dt = ["Data Emissao", "Dt Liberacao", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
     for col in cols_dt:
