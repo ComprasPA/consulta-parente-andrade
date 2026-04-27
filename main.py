@@ -49,84 +49,81 @@ with c1:
 with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
 with c3:
-    busca = st.text_input("", placeholder="🔍 Buscar SC ou Pedido...", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Digite Numero da SC ou Pedido...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. MOTOR DE BUSCA COM SOBERANIA (PC > SC)
+# 5. MOTOR DE BUSCA COM PRIORIDADE SEQUENCIAL (PC > SC)
 def normalizar(val):
     if pd.isna(val) or str(val).lower() in ['nan', 'none', '']: return ""
     return str(val).split('.')[0].strip().lstrip('0')
 
 @st.cache_data(ttl=600)
-def carregar_dados_hierarquicos():
+def carregar_bases():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
-        
-        # 1. Carregar Planilha SOBERANA (PC)
+        # Carrega PC
         df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
-        # Criar chave única para identificar o item (SC + Produto)
-        df_pc['CHAVE_UNICA'] = df_pc['Numero da SC'].apply(normalizar) + "_" + df_pc['Produto'].apply(normalizar)
-
-        # 2. Carregar Planilha de APOIO (SC)
+        # Carrega SC
         aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
         df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
         df_sc.columns = [str(c).strip() for c in df_sc.columns]
-        df_sc['CHAVE_UNICA'] = df_sc['Numero da SC'].apply(normalizar) + "_" + df_sc['Produto'].apply(normalizar)
+        return df_pc, df_sc
+    except:
+        return pd.DataFrame(), pd.DataFrame()
 
-        # 3. FILTRAR ITENS: Pegar na SC apenas o que NÃO tem pedido na PC
-        itens_sem_pedido = df_sc[~df_sc['CHAVE_UNICA'].isin(df_pc['CHAVE_UNICA'])].copy()
-        
-        # Atribuir status para itens que ainda estão na fase de SC
-        def status_pendente(row):
-            cot = str(row.get('Num. Cotacao', '')).strip()
-            return "EM COTAÇÃO" if cot != "" and cot.lower() != "nan" else "SC ABERTA"
-        
-        if not itens_sem_pedido.empty:
-            itens_sem_pedido['STATUS'] = itens_sem_pedido.apply(status_pendente, axis=1)
+df_pc, df_sc = carregar_bases()
 
-        # 4. UNIR AS BASES: PC (Soberana com Fornecedor) + Itens da SC (Aguardando pedido)
-        df_final = pd.concat([df_pc, itens_sem_pedido], ignore_index=True)
+COL_PAINEL = ["STATUS", "Numero da SC", "Numero Pedido", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega"]
 
-        # 5. Formatação de Datas para o padrão dd/mm/yy
+# 6. LÓGICA DE EXIBIÇÃO POR PRIORIDADE
+if busca:
+    t = busca.lower().strip()
+    
+    # BUSCA 1: Tenta localizar na planilha soberana (PC)
+    res_pc = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
+    
+    if not res_pc.empty:
+        # Se achou na PC, mostra APENAS os dados da PC (Soberania)
+        df_final = res_pc.copy()
+        origem = "Planilha de Pedidos (PC)"
+    else:
+        # BUSCA 2: Se não achou nada na PC, tenta localizar na SC
+        res_sc = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
+        if not res_sc.empty:
+            df_final = res_sc.copy()
+            # Inteligência de Status para itens que só existem na SC
+            def status_sc(row):
+                cot = str(row.get('Num. Cotacao', '')).strip()
+                return "EM COTAÇÃO" if cot != "" and cot.lower() != "nan" else "SC ABERTA"
+            df_final['STATUS'] = df_final.apply(status_sc, axis=1)
+            origem = "Planilha de Solicitações (SC)"
+        else:
+            df_final = pd.DataFrame()
+
+    if not df_final.empty:
+        # Formatação de Datas
         for col in df_final.columns:
             if any(d in col.upper() for d in ["DATA", "DT "]):
                 df_final[col] = pd.to_datetime(df_final[col], errors='coerce').dt.strftime('%d/%m/%y').fillna('')
-
-        return df_final.fillna('')
-    except Exception as e:
-        st.error(f"Erro ao processar soberania das planilhas: {e}")
-        return pd.DataFrame()
-
-df_portal = carregar_dados_hierarquicos()
-
-# Ordem das colunas conforme sua necessidade
-COL_FINAL = ["STATUS", "Numero da SC", "Numero Pedido", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega"]
-
-# 6. EXIBIÇÃO DOS RESULTADOS
-if busca:
-    t = busca.lower().strip()
-    # Busca focada em SC e PC (Soberania PC > SC)
-    df_res = df_portal[df_portal.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
-    
-    if not df_res.empty:
-        # Garante que colunas faltantes fiquem vazias e remove duplicados de processamento
-        for c in COL_FINAL:
-            if c not in df_res.columns: df_res[c] = ""
-            
-        df_exibir = df_res[COL_FINAL].drop_duplicates()
         
-        st.markdown(f'<div class="status-box">🟢 {len(df_exibir)} itens localizados (Hierarquia PC > SC)</div>', unsafe_allow_html=True)
+        # Garantir colunas do painel
+        for c in COL_PAINEL:
+            if c not in df_final.columns: df_final[c] = ""
+        
+        df_exibir = df_final[COL_PAINEL].drop_duplicates()
+        
+        st.markdown(f'<div class="status-box">🟢 Exibindo dados de: {origem}</div>', unsafe_allow_html=True)
         
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_exibir.to_excel(wr, index=False)
-        st.download_button("📥 BAIXAR RELATÓRIO", out.getvalue(), "Portal_Gestao_Parente.xlsx")
+        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Portal_Compras_PA.xlsx")
         
         st.dataframe(df_exibir, use_container_width=True, hide_index=True)
     else:
         st.warning(f"Nenhum registro encontrado para: {busca}")
 else:
-    st.info("💡 Digite o número da SC ou Pedido. O sistema prioriza dados da aba PC e complementa com a SC se não houver pedido.")
+    st.info("💡 Digite o termo de busca. O sistema pesquisa primeiro na aba PC e, caso não encontre, busca na aba SC.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
