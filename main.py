@@ -49,78 +49,60 @@ with c1:
 with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
 with c3:
-    busca = st.text_input("", placeholder="🔍 Digite Numero da SC ou Pedido...", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Buscar na Planilha de Pedidos (PC)...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. CARREGAMENTO DAS BASES
+# 5. CARREGAMENTO EXCLUSIVO DA ABA PC
 @st.cache_data(ttl=600)
-def carregar_bases():
+def carregar_aba_pc_exclusiva():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
-        excel = pd.ExcelFile(URL, engine='openpyxl')
-        # PC: Soberana (Aba 0)
-        df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
-        df_pc.columns = [str(c).strip() for c in df_pc.columns]
+        # Carrega apenas a primeira aba (Aba 0 - Pedidos PC)
+        df = pd.read_excel(URL, sheet_name=0, dtype=str).fillna('')
+        # Limpa espaços nos nomes das colunas
+        df.columns = [str(c).strip() for c in df.columns]
         
-        # SC: Apoio
-        aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
-        df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
-        df_sc.columns = [str(c).strip() for c in df_sc.columns]
+        # Formatação de Datas dd/mm/yy imediata
+        for col in df.columns:
+            if any(d in col.upper() for d in ["DATA", "DT "]):
+                df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%y').fillna('')
         
-        return df_pc, df_sc
-    except:
-        return pd.DataFrame(), pd.DataFrame()
+        return df
+    except Exception as e:
+        st.error(f"Erro ao carregar a aba de Pedidos: {e}")
+        return pd.DataFrame()
 
-df_pc, df_sc = carregar_bases()
+df_pc = carregar_aba_pc_exclusiva()
 
+# Colunas oficiais do painel
 COL_ORDEM = ["STATUS", "Numero da SC", "Numero Pedido", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega"]
 
-# 6. LÓGICA DE BUSCA COM PRIORIDADE DE EXIBIÇÃO PC
+# 6. LÓGICA DE BUSCA EXCLUSIVA
 if busca:
     t = busca.lower().strip()
     
-    # 1. Filtra em ambas de forma independente
-    res_pc = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
-    res_sc = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
+    # Filtra apenas na base de Pedidos
+    df_res = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
 
-    # 2. DECISÃO DE EXIBIÇÃO: Prioridade Total para a PC
-    if not res_pc.empty:
-        # Se achou na PC, ignoramos a SC para garantir que apareça Fornecedor e Datas
-        df_final = res_pc.copy()
-        origem_msg = "Base de Pedidos (PC)"
-    elif not res_sc.empty:
-        # Só entra aqui se NÃO houver nada na PC
-        df_final = res_sc.copy()
-        def status_inteligente(row):
-            cot = str(row.get('Num. Cotacao', '')).strip()
-            return "EM COTAÇÃO" if cot != "" and cot.lower() != "nan" else "SC ABERTA"
-        df_final['STATUS'] = df_final.apply(status_inteligente, axis=1)
-        origem_msg = "Base de Solicitações (SC)"
-    else:
-        df_final = pd.DataFrame()
-
-    if not df_final.empty:
-        # Formatação de Datas
-        for col in df_final.columns:
-            if any(d in col.upper() for d in ["DATA", "DT "]):
-                df_final[col] = pd.to_datetime(df_final[col], errors='coerce').dt.strftime('%d/%m/%y').fillna('')
-        
-        # Garantia de Colunas
+    if not df_res.empty:
+        # Garantia de Colunas do Painel
         for c in COL_ORDEM:
-            if c not in df_final.columns: df_final[c] = ""
+            if c not in df_res.columns: df_res[c] = ""
         
-        df_exibir = df_final[COL_ORDEM].drop_duplicates()
+        # Exibe apenas as colunas solicitadas e remove duplicatas
+        df_exibir = df_res[COL_ORDEM].drop_duplicates()
         
-        st.markdown(f'<div class="status-box">🟢 Informações Extraídas de: {origem_msg}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="status-box">🟢 Exibindo informações exclusivas da Planilha PC</div>', unsafe_allow_html=True)
         
+        # Download do Excel
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_exibir.to_excel(wr, index=False)
-        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Portal_Compras_Parente.xlsx")
+        st.download_button("📥 BAIXAR EXCEL (PC)", out.getvalue(), "Portal_Pedidos_PC.xlsx")
         
         st.dataframe(df_exibir, use_container_width=True, hide_index=True)
     else:
-        st.warning(f"Nenhum registro encontrado para: {busca}")
+        st.warning(f"Nenhum registro de Pedido encontrado para: {busca}")
 else:
-    st.info("💡 Digite o número da SC ou Pedido. Prioridade de busca: 1º Pedidos (PC) | 2º Solicitações (SC).")
+    st.info("💡 Digite o termo de busca. O sistema está configurado para pesquisar APENAS na aba de Pedidos (PC).")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
