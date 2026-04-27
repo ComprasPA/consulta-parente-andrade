@@ -21,7 +21,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS (DESIGN PADRÃO)
+# 3. CSS
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
@@ -49,87 +49,83 @@ with c1:
 with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
 with c3:
-    busca = st.text_input("", placeholder="🔍 Buscar SC, Pedido, Fornecedor...", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Buscar SCM, SC ou Pedido...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. MOTOR DE BUSCA CORRIGIDO (PROCV POR ITEM)
+# 5. MOTOR DE BUSCA COM SOBERANIA (PC > SC)
 def normalizar(val):
     if pd.isna(val) or str(val).lower() in ['nan', 'none', '']: return ""
     return str(val).split('.')[0].strip().lstrip('0')
 
 @st.cache_data(ttl=600)
-def carregar_e_vincular_por_item():
+def carregar_dados_soberanos():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
+        
+        # 1. Carrega Planilha Soberana (Pedidos - PC)
         df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
+        df_pc['CHAVE_ITEM'] = df_pc['Numero da SC'].apply(normalizar) + "_" + df_pc['Produto'].apply(normalizar)
 
+        # 2. Carrega Planilha de Apoio (Solicitações - SC)
         aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
         df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
         df_sc.columns = [str(c).strip() for c in df_sc.columns]
+        df_sc['CHAVE_ITEM'] = df_sc['Numero da SC'].apply(normalizar) + "_" + df_sc['Produto'].apply(normalizar)
 
-        # Criar CHAVE_UNICA (Numero da SC + Produto) para evitar erros em pedidos com múltiplos fornecedores
-        for df in [df_pc, df_sc]:
-            df['CHAVE_ITEM'] = df['Numero da SC'].apply(normalizar) + "_" + df['Produto'].apply(normalizar)
-
-        # 1. Separar dados exclusivos de Pedido (PC) para levar para a SC
-        # Mantemos Numero Pedido, Fornecedor e Status atrelados ao ITEM
-        pc_dados = df_pc[['CHAVE_ITEM', 'STATUS', 'Numero Pedido', 'Nome Fornecedor', 'CC', 'Data Emissao', 'DT entrega']].drop_duplicates('CHAVE_ITEM')
-
-        # 2. PROCV: Injetar dados da PC na SC
-        df_sc_vinculada = df_sc.merge(pc_dados, on='CHAVE_ITEM', how='left', suffixes=('_sc', ''))
-
-        # 3. Lógica de Status "EM COTAÇÃO" na aba SC
-        def aplicar_status(row):
-            st_pc = str(row.get('STATUS', '')).strip()
+        # 3. Lógica de Cruzamento:
+        # Identificamos quais itens da aba SC NÃO estão na aba PC
+        itens_nao_em_pc = df_sc[~df_sc['CHAVE_ITEM'].isin(df_pc['CHAVE_ITEM'])].copy()
+        
+        # Para esses itens que só existem na SC, verificamos se há cotação para dar o status
+        def definir_status_sc(row):
             cot = str(row.get('Num. Cotacao', '')).strip()
-            if (st_pc == "" or st_pc == "nan") and cot != "":
-                return "EM COTAÇÃO"
-            return st_pc
+            return "EM COTAÇÃO" if cot != "" else "SC ABERTA"
+        
+        if not itens_nao_em_pc.empty:
+            itens_nao_em_pc['STATUS'] = itens_nao_em_pc.apply(definir_status_sc, axis=1)
 
-        df_sc_vinculada['STATUS'] = df_sc_vinculada.apply(aplicar_status, axis=1)
-
-        # 4. Consolidar Bases: Prioridade total para a aba PC se o item existir lá
-        # Itens que estão na PC já estão completos. Itens apenas na SC recebem o status "Em Cotação"
-        df_consolidado = pd.concat([df_pc, df_sc_vinculada[df_sc_vinculada['STATUS'] == 'EM COTAÇÃO']], ignore_index=True)
+        # 4. Consolidação Final: Base PC (Soberana) + Itens Pendentes da SC
+        df_final = pd.concat([df_pc, itens_nao_em_pc], ignore_index=True)
 
         # 5. Formatação de Datas
-        for col in df_consolidado.columns:
+        for col in df_final.columns:
             if any(d in col.upper() for d in ["DATA", "DT "]):
-                df_consolidado[col] = pd.to_datetime(df_consolidado[col], errors='coerce').dt.strftime('%d/%m/%y').fillna('')
+                df_final[col] = pd.to_datetime(df_final[col], errors='coerce').dt.strftime('%d/%m/%y').fillna('')
 
-        return df_consolidado.fillna('')
+        return df_final.fillna('')
     except Exception as e:
-        st.error(f"Erro técnico na vinculação: {e}")
+        st.error(f"Erro na integração soberana: {e}")
         return pd.DataFrame()
 
-df_portal = carregar_e_vincular_por_item()
+df_portal = carregar_dados_soberanos()
 
-COL_PAINEL = ["STATUS", "Numero da SC", "Numero Pedido", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega"]
+COL_ORDEM = ["STATUS", "Numero da SC", "Numero Pedido", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega"]
 
 # 6. EXIBIÇÃO
 if busca:
     t = busca.lower().strip()
+    # Busca em todas as colunas (incluindo SCM se houver na planilha)
     df_res = df_portal[df_portal.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
     
     if not df_res.empty:
-        # Garantir colunas e ordem
-        for c in COL_PAINEL:
+        # Garante as colunas e remove duplicatas de processamento
+        for c in COL_ORDEM:
             if c not in df_res.columns: df_res[c] = ""
             
-        df_exibir = df_res[COL_PAINEL].drop_duplicates()
+        df_display = df_res[COL_ORDEM].drop_duplicates()
         
-        st.markdown(f'<div class="status-box">🟢 {len(df_exibir)} itens encontrados (Vínculo por Item/Fornecedor)</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="status-box">🟢 {len(df_display)} registros encontrados (Hierarquia PC > SC)</div>', unsafe_allow_html=True)
         
         out = BytesIO()
-        with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_exibir.to_excel(wr, index=False)
-        st.download_button("📥 BAIXAR EXCEL CORRIGIDO", out.getvalue(), "Portal_Gestao_Parente.xlsx")
+        with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_display.to_excel(wr, index=False)
+        st.download_button("📥 BAIXAR RELATÓRIO CONSOLIDADO", out.getvalue(), "Portal_Gestao_Parente.xlsx")
         
-        st.dataframe(df_exibir, use_container_width=True, hide_index=True)
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
     else:
-        st.warning(f"Nada encontrado para: {busca}")
+        st.warning(f"Nenhum dado encontrado para: {busca}")
 else:
-    st.info("💡 Digite o termo. Bug de fornecedores repetidos corrigido via vínculo por Código de Produto.")
+    st.info("💡 Digite o termo de busca. A planilha de Pedidos (PC) é a base principal; itens sem pedido são buscados na aba SC.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
