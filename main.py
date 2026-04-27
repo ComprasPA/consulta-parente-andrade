@@ -52,18 +52,16 @@ with c3:
     busca = st.text_input("", placeholder="🔍 Buscar SC, Pedido, Fornecedor...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. MOTOR ANTI-DUPLICIDADE E VÍNCULO MESTRE
+# 5. MOTOR DE BUSCA CORRIGIDO (PROCV POR ITEM)
 def normalizar(val):
     if pd.isna(val) or str(val).lower() in ['nan', 'none', '']: return ""
     return str(val).split('.')[0].strip().lstrip('0')
 
 @st.cache_data(ttl=600)
-def carregar_e_limpar_duplicados():
+def carregar_e_vincular_por_item():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
-        
-        # Carregar abas
         df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
 
@@ -71,70 +69,67 @@ def carregar_e_limpar_duplicados():
         df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
         df_sc.columns = [str(c).strip() for c in df_sc.columns]
 
-        # Criar chaves para cruzamento
-        df_pc['CHAVE_SC'] = df_pc['Numero da SC'].apply(normalizar)
-        df_sc['CHAVE_SC'] = df_sc['Numero da SC'].apply(normalizar)
+        # Criar CHAVE_UNICA (Numero da SC + Produto) para evitar erros em pedidos com múltiplos fornecedores
+        for df in [df_pc, df_sc]:
+            df['CHAVE_ITEM'] = df['Numero da SC'].apply(normalizar) + "_" + df['Produto'].apply(normalizar)
 
-        # 1. Criar um dicionário de informações da PC (onde o fornecedor e pedido estão)
-        # Agrupamos por CHAVE_SC para pegar os dados do cabeçalho do pedido
-        pc_cabecalho = df_pc[['CHAVE_SC', 'STATUS', 'Numero Pedido', 'Nome Fornecedor', 'CC']].drop_duplicates('CHAVE_SC')
+        # 1. Separar dados exclusivos de Pedido (PC) para levar para a SC
+        # Mantemos Numero Pedido, Fornecedor e Status atrelados ao ITEM
+        pc_dados = df_pc[['CHAVE_ITEM', 'STATUS', 'Numero Pedido', 'Nome Fornecedor', 'CC', 'Data Emissao', 'DT entrega']].drop_duplicates('CHAVE_ITEM')
 
-        # 2. Integrar as informações da PC na aba SC
-        df_sc = df_sc.merge(pc_cabecalho, on='CHAVE_SC', how='left', suffixes=('_sc', ''))
+        # 2. PROCV: Injetar dados da PC na SC
+        df_sc_vinculada = df_sc.merge(pc_dados, on='CHAVE_ITEM', how='left', suffixes=('_sc', ''))
 
-        # 3. Concatenar as duas abas, mas priorizar a aba PC para evitar duplicar itens
-        # Criamos uma chave única de ITEM (SC + Produto)
-        df_pc['CHAVE_ITEM'] = df_pc['CHAVE_SC'] + "_" + df_pc['Produto'].apply(normalizar)
-        df_sc['CHAVE_ITEM'] = df_sc['CHAVE_SC'] + "_" + df_sc['Produto'].apply(normalizar)
-
-        # Unimos as bases e removemos duplicados baseados na CHAVE_ITEM
-        # Isso garante que se o item está na PC e na SC, manteremos apenas um registro consolidado
-        df_mestre = pd.concat([df_pc, df_sc], ignore_index=True)
-        df_mestre = df_mestre.sort_values(by=['Nome Fornecedor'], ascending=False) # Prioriza linhas preenchidas
-        df_mestre = df_mestre.drop_duplicates(subset=['CHAVE_ITEM'], keep='first')
-
-        # 4. Lógica de Status "EM COTAÇÃO"
-        def definir_status(row):
-            st_atual = str(row.get('STATUS', '')).strip()
+        # 3. Lógica de Status "EM COTAÇÃO" na aba SC
+        def aplicar_status(row):
+            st_pc = str(row.get('STATUS', '')).strip()
             cot = str(row.get('Num. Cotacao', '')).strip()
-            if st_atual in ['', 'nan', 'NaN'] and cot != "":
+            if (st_pc == "" or st_pc == "nan") and cot != "":
                 return "EM COTAÇÃO"
-            return st_atual if st_atual not in ['nan', 'NaN'] else ""
+            return st_pc
 
-        df_mestre['STATUS'] = df_mestre.apply(definir_status, axis=1)
+        df_sc_vinculada['STATUS'] = df_sc_vinculada.apply(aplicar_status, axis=1)
+
+        # 4. Consolidar Bases: Prioridade total para a aba PC se o item existir lá
+        # Itens que estão na PC já estão completos. Itens apenas na SC recebem o status "Em Cotação"
+        df_consolidado = pd.concat([df_pc, df_sc_vinculada[df_sc_vinculada['STATUS'] == 'EM COTAÇÃO']], ignore_index=True)
 
         # 5. Formatação de Datas
-        for col in df_mestre.columns:
+        for col in df_consolidado.columns:
             if any(d in col.upper() for d in ["DATA", "DT "]):
-                df_mestre[col] = pd.to_datetime(df_mestre[col], errors='coerce').dt.strftime('%d/%m/%y').fillna('')
+                df_consolidado[col] = pd.to_datetime(df_consolidado[col], errors='coerce').dt.strftime('%d/%m/%y').fillna('')
 
-        return df_mestre.fillna('')
+        return df_consolidado.fillna('')
     except Exception as e:
-        st.error(f"Erro na limpeza de duplicidade: {e}")
+        st.error(f"Erro técnico na vinculação: {e}")
         return pd.DataFrame()
 
-df_limpo = carregar_e_limpar_duplicados()
+df_portal = carregar_e_vincular_por_item()
 
 COL_PAINEL = ["STATUS", "Numero da SC", "Numero Pedido", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega"]
 
 # 6. EXIBIÇÃO
 if busca:
     t = busca.lower().strip()
-    df_res = df_limpo[df_limpo.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
+    df_res = df_portal[df_portal.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
     
     if not df_res.empty:
-        df_exibir = df_res[[c for c in COL_PAINEL if c in df_res.columns]]
+        # Garantir colunas e ordem
+        for c in COL_PAINEL:
+            if c not in df_res.columns: df_res[c] = ""
+            
+        df_exibir = df_res[COL_PAINEL].drop_duplicates()
         
-        st.markdown(f'<div class="status-box">🟢 {len(df_res)} itens únicos localizados e vinculados</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="status-box">🟢 {len(df_exibir)} itens encontrados (Vínculo por Item/Fornecedor)</div>', unsafe_allow_html=True)
         
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_exibir.to_excel(wr, index=False)
-        st.download_button("📥 BAIXAR EXCEL LIMPO", out.getvalue(), "Portal_Compras_Final.xlsx")
+        st.download_button("📥 BAIXAR EXCEL CORRIGIDO", out.getvalue(), "Portal_Gestao_Parente.xlsx")
         
         st.dataframe(df_exibir, use_container_width=True, hide_index=True)
     else:
-        st.warning(f"Nenhum registro para: {busca}")
+        st.warning(f"Nada encontrado para: {busca}")
 else:
-    st.info("💡 Busque para visualizar os itens sem duplicidade de fornecedores.")
+    st.info("💡 Digite o termo. Bug de fornecedores repetidos corrigido via vínculo por Código de Produto.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
