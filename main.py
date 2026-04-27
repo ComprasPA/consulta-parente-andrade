@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. FUNÇÃO LOGO (Arquivo Local)
+# 2. FUNÇÃO LOGO
 @st.cache_data(ttl=600)
 def get_base64_logo(image_path="logo"):
     try:
@@ -22,33 +22,22 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS PARA INTERFACE E TÍTULO (FONTE 40)
+# 3. CSS PARA INTERFACE (Título 40 e Justificação)
 st.markdown(f"""
     <style>
-    #MainMenu {{visibility: hidden;}}
-    footer {{visibility: hidden;}}
-    header {{visibility: hidden;}}
+    #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     .stApp {{ background-color: #f0f2f6; }}
     
-    /* Título solicitado: Preto, Tamanho 40, Centralizado */
     .portal-title {{
         color: #000000 !important;
         font-size: 40px !important;
         font-weight: bold !important;
         text-align: center !important;
-        margin: 0px !important;
-        padding: 0px !important;
+        margin-bottom: 10px !important;
         line-height: 1.1;
-        display: block;
-        width: 100%;
     }}
 
-    /* Container do cabeçalho */
-    .block-container {{ 
-        padding-top: 1.5rem !important; 
-    }}
-
-    /* Barra de Busca à direita */
+    /* Ajuste da Barra de Busca */
     div[data-testid="stVerticalBlock"] > div:has(input) {{
         background-color: #ffffff;
         padding: 2px 10px !important;
@@ -60,30 +49,24 @@ st.markdown(f"""
         background-color: #f2a933 !important;
         color: white !important;
         font-weight: bold !important;
-        border: none !important;
     }}
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO (LOGO ESQUERDA | TÍTULO CENTRO | BUSCA DIREITA)
-# Usando colunas para organizar o layout
-col_logo, col_titulo, col_busca = st.columns([1, 3.5, 1.2])
-
+# 4. CABEÇALHO
+col_logo, col_titulo, col_busca = st.columns([1, 4, 1.5])
 with col_logo:
     if base64_logo:
-        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:160px; height:auto;">', unsafe_allow_html=True)
-
+        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:150px; height:auto;">', unsafe_allow_html=True)
 with col_titulo:
-    # Div com classe portal-title para forçar o tamanho 40 via CSS
     st.markdown('<div class="portal-title">Portal Gestão de Compras Parente Andrade</div>', unsafe_allow_html=True)
-
 with col_busca:
     st.write("<div style='height: 15px;'></div>", unsafe_allow_html=True)
-    busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 SC, Cotação ou Produto...", label_visibility="collapsed")
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 15px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 5. CARREGAMENTO DE DADOS (GOOGLE DRIVE)
+# 5. CARREGAMENTO DE DADOS (INTEGRAÇÃO AMPLIADA)
 URL_XLSX = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
 
 @st.cache_data(ttl=300)
@@ -91,38 +74,50 @@ def carregar_dados():
     try:
         excel_file = pd.ExcelFile(URL_XLSX, engine='openpyxl')
         abas = excel_file.sheet_names
+        
+        # Carrega Aba 1 (Follow Up / PC)
         df_follow = pd.read_excel(excel_file, sheet_name=abas[0], dtype=str).fillna('')
         
-        # Lógica para segunda aba (Protheus/SC)
-        aba_sc = next((s for s in abas if "PROTHEUS" in s.upper() or "SC" in s.upper() and s != abas[0]), None)
-        if aba_sc:
-            df_sc = pd.read_excel(excel_file, sheet_name=aba_sc, dtype=str).fillna('')
-            if 'N° da SC' in df_follow.columns:
-                df_follow['N° da SC'] = df_follow['N° da SC'].astype(str).str.zfill(7)
-            
-            sc_col = 'Numero da SC' if 'Numero da SC' in df_sc.columns else 'Solicitação'
-            if sc_col in df_sc.columns:
-                df_sc[sc_col] = df_sc[sc_col].astype(str).str.zfill(7)
-                cot_col = next((c for c in df_sc.columns if "COTACAO" in c.upper() or "COTAÇÃO" in c.upper()), None)
-                if cot_col:
-                    df_follow = pd.merge(df_follow, df_sc[[sc_col, cot_col]], left_on='N° da SC', right_on=sc_col, how='left').fillna('')
+        # Identifica a aba de SC de forma dinâmica
+        aba_sc_nome = next((s for s in abas if "SC" in s.upper() or "PROTHEUS" in s.upper() and s != abas[0]), None)
         
-        # Formatação de Datas
-        for c in ["DT Envio", "Data Emissao", "Dt Liberacao", "DT entrega "]:
+        if aba_sc_nome:
+            df_sc = pd.read_excel(excel_file, sheet_name=aba_sc_nome, dtype=str).fillna('')
+            
+            # Normaliza colunas de ligação
+            col_sc_f = 'N° da SC' if 'N° da SC' in df_follow.columns else None
+            col_sc_s = next((c for c in df_sc.columns if "NUMERO" in c.upper() and "SC" in c.upper() or "SOLICIT" in c.upper()), None)
+            
+            if col_sc_f and col_sc_s:
+                df_follow[col_sc_f] = df_follow[col_sc_f].astype(str).str.zfill(7)
+                df_sc[col_sc_s] = df_sc[col_sc_s].astype(str).str.zfill(7)
+                
+                # Puxa informações extras da aba SC para a principal
+                # Exemplo: Código de Cotação
+                cot_col = next((c for c in df_sc.columns if "COTACAO" in c.upper() or "COTAÇÃO" in c.upper()), None)
+                
+                if cot_col:
+                    df_follow = pd.merge(df_follow, df_sc[[col_sc_s, cot_col]], 
+                                        left_on=col_sc_f, right_on=col_sc_s, 
+                                        how='left').fillna('')
+
+        # Formatação de Datas para exibição brasileira
+        for c in ["DT Envio", "Data Emissao", "Dt Liberacao", "DT entrega ", "DT Prev de Entrega"]:
             if c in df_follow.columns:
                 df_follow[c] = pd.to_datetime(df_follow[c], errors='coerce').dt.strftime('%d/%m/%y').fillna(df_follow[c])
         
         return df_follow
     except Exception as e:
-        st.error(f"Erro técnico: {e}")
+        st.error(f"Erro na integração: {e}")
         return None
 
 df = carregar_dados()
 
-# 6. TABELA E DOWNLOAD
+# 6. EXIBIÇÃO
 if df is not None:
     df_disp = df.copy()
     if busca:
+        # A busca agora varre todas as colunas, incluindo as trazidas da aba SC
         mask = df_disp.apply(lambda r: r.astype(str).str.contains(busca, case=False).any(), axis=1)
         df_disp = df_disp[mask]
 
@@ -137,13 +132,21 @@ if df is not None:
 
     c1, c2 = st.columns([3, 1])
     with c1:
-        st.write(f"🟢 **{len(df_disp)}** registros encontrados.")
+        st.write(f"🟢 **{len(df_disp)}** registros.")
     with c2:
         output = BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as wr:
             df_disp[cols_finais].to_excel(wr, index=False)
         st.download_button("📥 BAIXAR EXCEL", output.getvalue(), "PortalCompras_PA.xlsx")
 
-    st.dataframe(df_disp[cols_finais], use_container_width=True, hide_index=True)
+    # st.column_config garante que a coluna STATUS fique justificada (alinhada) ao texto
+    st.dataframe(
+        df_disp[cols_finais], 
+        use_container_width=True, 
+        hide_index=True,
+        column_config={
+            "STATUS": st.column_config.TextColumn("STATUS", width="medium", help="Status atual do processo"),
+        }
+    )
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
