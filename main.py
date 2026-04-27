@@ -52,16 +52,18 @@ with c3:
     busca = st.text_input("", placeholder="🔍 Digite SC, Cotação, Fornecedor...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. MOTOR DE FUSÃO AGRESSIVA (PROCV TOTAL)
+# 5. MOTOR DE BUSCA COM PROPAGAÇÃO DE DADOS POR CÉLULA
 def normalizar(val):
     if pd.isna(val) or str(val).lower() in ['nan', 'none', '']: return ""
     return str(val).split('.')[0].strip().lstrip('0')
 
 @st.cache_data(ttl=600)
-def carregar_dados_blindados():
+def carregar_e_propagar_dados():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
+        
+        # Carregar abas
         df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
 
@@ -69,72 +71,61 @@ def carregar_dados_blindados():
         df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
         df_sc.columns = [str(c).strip() for c in df_sc.columns]
 
-        # União das bases para criar um dicionário de consulta completo
-        df_unificado = pd.concat([df_pc, df_sc], ignore_index=True)
-        df_unificado['CHAVE'] = df_unificado['Numero da SC'].apply(normalizar)
+        # 1. Unificar tudo em um bloco mestre
+        df_mestre = pd.concat([df_pc, df_sc], ignore_index=True)
+        df_mestre['CHAVE'] = df_mestre['Numero da SC'].apply(normalizar)
         
-        # Criação de mapas de valores únicos (Onde o valor não está vazio)
-        def criar_mapa(coluna):
-            subset = df_unificado[df_unificado[coluna] != ''][['CHAVE', coluna]]
-            return subset.drop_duplicates('CHAVE').set_index('CHAVE')[coluna].to_dict()
+        # 2. LÓGICA DE PROPAGAÇÃO: Garante que cada célula tenha informação se ela existir no grupo
+        # Lista de colunas que devem ser "copiadas" para todas as linhas da mesma SC
+        colunas_vinc = ["STATUS", "Num. Cotacao", "Numero Pedido", "CC", "Nome Fornecedor", "Data Emissao", "Dt Liberacao", "DT Envio", "DT entrega"]
+        
+        for col in colunas_vinc:
+            if col in df_mestre.columns:
+                # Substitui vazios por NaN temporariamente para usar a função 'first' do groupby
+                df_mestre[col] = df_mestre[col].replace('', pd.NA)
+                # Agrupa pela SC e pega o primeiro valor preenchido que encontrar para aquela coluna
+                df_mestre[col] = df_mestre.groupby('CHAVE')[col].transform('first')
+        
+        # 3. Formatação Final de Datas
+        for col in df_mestre.columns:
+            if any(d in col.upper() for d in ["DATA", "DT "]):
+                df_mestre[col] = pd.to_datetime(df_mestre[col], errors='coerce').dt.strftime('%d/%m/%y')
 
-        mapas = {
-            'Num. Cotacao': criar_mapa('Num. Cotacao'),
-            'Numero Pedido': criar_mapa('Numero Pedido'),
-            'STATUS': criar_mapa('STATUS'),
-            'Nome Fornecedor': criar_mapa('Nome Fornecedor'),
-            'CC': criar_mapa('CC'),
-            'SCM': criar_mapa('SCM') if 'SCM' in df_unificado.columns else {}
-        }
-
-        # Aplicação forçada em ambas as abas
-        for df in [df_pc, df_sc]:
-            df['CHAVE'] = df['Numero da SC'].apply(normalizar)
-            for col, mapa in mapas.items():
-                if col in df.columns:
-                    # Se o mapa tem o valor para aquela CHAVE, ele substitui ou preenche
-                    df[col] = df.apply(lambda r: mapa.get(r['CHAVE'], r[col]), axis=1)
-
-        # Formatação de Datas
-        for df in [df_pc, df_sc]:
-            for col in df.columns:
-                if any(d in col.upper() for d in ["DATA", "DT "]):
-                    df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%y').fillna('')
-
-        return df_pc, df_sc
+        return df_mestre.fillna('')
     except Exception as e:
-        st.error(f"Erro na fusão: {e}")
-        return pd.DataFrame(), pd.DataFrame()
+        st.error(f"Erro ao processar células: {e}")
+        return pd.DataFrame()
 
-df_pc, df_sc = carregar_dados_blindados()
+df_final_completo = carregar_e_propagar_dados()
 
 COL_FINAL = ["STATUS", "Numero da SC", "Num. Cotacao", "Numero Pedido", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega"]
 
-# 6. EXIBIÇÃO
+# 6. EXIBIÇÃO DOS RESULTADOS
 if busca:
     t = busca.lower().strip()
-    res_pc = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
-    res_sc = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
-
-    df_res = pd.concat([res_pc, res_sc], ignore_index=True)
+    # Busca em toda a base mestre já propagada
+    df_res = df_final_completo[df_final_completo.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
+    
     if not df_res.empty:
-        # Garante que as duplicatas sejam removidas mas os dados preenchidos fiquem
-        df_res = df_res.drop_duplicates(subset=['CHAVE', 'Produto', 'QNT', 'Numero Pedido'])
+        # Remove duplicatas exatas de itens
+        df_res = df_res.drop_duplicates(subset=['CHAVE', 'Produto', 'QNT', 'Descricao'])
         
+        # Garante as colunas do painel
         for c in COL_FINAL:
             if c not in df_res.columns: df_res[c] = ""
             
-        df_final = df_res[COL_FINAL].fillna('')
-        st.markdown(f'<div class="status-box">🟢 {len(df_res)} registros localizados e vinculados</div>', unsafe_allow_html=True)
+        df_exibir = df_res[COL_FINAL].fillna('')
+        
+        st.markdown(f'<div class="status-box">🟢 {len(df_res)} registros localizados com todas as informações vinculadas</div>', unsafe_allow_html=True)
         
         out = BytesIO()
-        with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_final.to_excel(wr, index=False)
-        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Relatorio_Consolidado_PA.xlsx")
+        with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_exibir.to_excel(wr, index=False)
+        st.download_button("📥 BAIXAR EXCEL COMPLETO", out.getvalue(), "Relatorio_Consolidado_Parente.xlsx")
         
-        st.dataframe(df_final, use_container_width=True, hide_index=True)
+        st.dataframe(df_exibir, use_container_width=True, hide_index=True)
     else:
-        st.warning(f"Nada encontrado para: {busca}")
+        st.warning(f"Nenhum dado encontrado para: {busca}")
 else:
-    st.info("💡 Digite o termo de busca. O sistema agora força o preenchimento de Cotação e Pedido cruzando as duas abas.")
+    st.info("💡 Digite o termo de busca. O sistema agora preenche cada célula individualmente cruzando os dados das abas.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
