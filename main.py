@@ -21,7 +21,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS (DESIGN LIMPO E MOLDURA ÚNICA)
+# 3. CSS (MOLDURA ÚNICA E LIMPA)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
@@ -47,21 +47,13 @@ st.markdown(f"""
     }}
 
     .portal-title {{ 
-        color: #000000 !important; 
-        font-size: 40px !important; 
-        font-weight: bold !important; 
-        text-align: center !important; 
-        margin: 0 !important;
-        line-height: 1.1;
-        white-space: nowrap;
+        color: #000000 !important; font-size: 40px !important; font-weight: bold !important; 
+        text-align: center !important; margin: 0 !important; line-height: 1.1; white-space: nowrap;
     }}
 
     div[data-testid="stVerticalBlock"] > div:has(input) {{
-        background-color: #ffffff; 
-        padding: 0px 10px !important; 
-        border-radius: 8px; 
-        border: 2px solid #478c3b !important;
-        margin: 0 !important;
+        background-color: #ffffff; padding: 0px 10px !important; 
+        border-radius: 8px; border: 2px solid #478c3b !important; margin: 0 !important;
     }}
 
     .stDownloadButton button {{ background-color: #f2a933 !important; color: white !important; font-weight: bold !important; }}
@@ -84,10 +76,9 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 0px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
-# 5. TRATAMENTO DE DADOS COM VÍNCULO SCM REFORÇADO
+# 5. TRATAMENTO E INTEGRAÇÃO (FOCO NO SCM)
 def tratar_basico(df):
     for col in df.columns:
-        # Remove .0 de números lidos como float e limpa espaços
         df[col] = df[col].astype(str).str.split('.').str[0].str.strip().replace(['nan', 'NaT', 'None'], '')
     return df
 
@@ -96,34 +87,39 @@ def carregar_dados():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
-        
-        # 1. Carrega Protheus PC (Aba Principal)
         df_pc = tratar_basico(pd.read_excel(excel, sheet_name=0, dtype=str).fillna(''))
         
-        # 2. Tenta localizar a aba de Solicitações (SC)
         aba_sc_name = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
-        
         df_sc = pd.DataFrame()
+        
         if aba_sc_name:
             df_sc = tratar_basico(pd.read_excel(excel, sheet_name=aba_sc_name, dtype=str).fillna(''))
             
-            # Identifica as colunas de ligação (chaves)
-            col_ligacao_pc = "N° da SC" if "N° da SC" in df_pc.columns else ("Numero da SC" if "Numero da SC" in df_pc.columns else "")
-            col_ligacao_sc = "Numero da SC" if "Numero da SC" in df_sc.columns else ("N° da SC" if "N° da SC" in df_sc.columns else ("Solicitação" if "Solicitação" in df_sc.columns else ""))
+            # Identificação das colunas de vínculo
+            # Na PC geralmente é 'N° da SC'. Na aba SC, pode ser 'Numero da SC' ou 'Solicitação'
+            col_link_pc = "N° da SC" if "N° da SC" in df_pc.columns else "Numero da SC"
+            col_link_sc = "Numero da SC" if "Numero da SC" in df_sc.columns else "Solicitação"
             
-            # Identifica a coluna que contém o dado SCM (pode se chamar 'SCM' ou 'Solicitação')
-            col_valor_scm = "SCM" if "SCM" in df_sc.columns else ("Solicitação" if "Solicitação" in df_sc.columns else "")
+            # Coluna que de fato contém o código SCM (ex: SCM001234)
+            # Se não houver coluna 'SCM', usamos a própria coluna de Solicitação da aba SC
+            col_dado_scm = "SCM" if "SCM" in df_sc.columns else col_link_sc
 
-            if col_ligacao_pc and col_ligacao_sc and col_valor_scm:
-                # Cria o mapa: Numero da SC -> Código SCM
-                mapa_scm = df_sc.drop_duplicates(subset=[col_ligacao_sc]).set_index(col_ligacao_sc)[col_valor_scm].to_dict()
-                
-                # Aplica o vínculo na aba PC
-                df_pc['SCM'] = df_pc[col_ligacao_pc].map(mapa_scm).fillna('')
+            if col_link_pc in df_pc.columns and col_link_sc in df_sc.columns:
+                # Criar dicionário de mapeamento
+                mapa_scm = df_sc.drop_duplicates(subset=[col_link_sc]).set_index(col_link_sc)[col_dado_scm].to_dict()
+                mapa_cot = df_sc.drop_duplicates(subset=[col_link_sc]).set_index(col_link_sc).get("Num. Cotacao", pd.Series(dtype=str)).to_dict()
+
+                # Injetar os dados na PC
+                df_pc['SCM'] = df_pc[col_link_pc].map(mapa_scm).fillna('')
+                # Se a cotação estiver vazia na PC, busca na SC
+                df_pc['Num. Cotacao'] = df_pc.apply(
+                    lambda r: mapa_cot.get(r[col_link_pc], r.get('Num. Cotacao', '')) 
+                    if not r.get('Num. Cotacao') else r.get('Num. Cotacao'), axis=1
+                )
         
         return df_pc, df_sc
     except Exception as e:
-        st.error(f"Erro na integração: {e}")
+        st.error(f"Erro ao vincular SCM: {e}")
         return pd.DataFrame(), pd.DataFrame()
 
 df_pc, df_sc = carregar_dados()
@@ -135,20 +131,18 @@ COLUNAS_PADRAO = [
     "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "
 ]
 
-# 6. MOTOR DE BUSCA
+# 6. BUSCA E EXIBIÇÃO
 if busca:
     termo = busca.lower()
-    # Filtra em toda a tabela PC
     df_res = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(termo).any(), axis=1)].copy()
     origem = "Protheus PC (Vinculado)"
 
     if df_res.empty and not df_sc.empty:
-        # Se não achar no PC, tenta no SC
         df_res = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(termo).any(), axis=1)].copy()
         origem = "Protheus SC"
-        # Ajusta nomes para o padrão visual
-        if "Solicitação" in df_res.columns and "SCM" not in df_res.columns: df_res['SCM'] = df_res['Solicitação']
-        if "Numero da SC" in df_res.columns: df_res = df_res.rename(columns={"Numero da SC": "N° da SC"})
+        # Ajuste de nomes para exibição caso a busca venha da aba SC
+        if "Solicitação" in df_res.columns: df_res['SCM'] = df_res['Solicitação']
+        if "Numero da SC" in df_res.columns: df_res['N° da SC'] = df_res['Numero da SC']
 
     if not df_res.empty:
         for c in COLUNAS_PADRAO:
@@ -159,9 +153,9 @@ if busca:
         
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_final.to_excel(wr, index=False)
-        st.download_button("📥 BAIXAR RESULTADOS", out.getvalue(), "Portal_Gestao_PA.xlsx")
+        st.download_button("📥 BAIXAR RESULTADOS", out.getvalue(), "Portal_PA_SCM.xlsx")
         st.dataframe(df_final, use_container_width=True, hide_index=True)
 else:
-    st.info("💡 Digite o Fornecedor, SC ou SCM para iniciar a pesquisa.")
+    st.info("💡 Digite o Fornecedor, SC ou SCM para pesquisar.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Suprimentos</p>", unsafe_allow_html=True)
