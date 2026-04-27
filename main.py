@@ -52,47 +52,48 @@ with c3:
     busca = st.text_input("", placeholder="🔍 Digite Numero da SC ou Pedido...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. MOTOR DE BUSCA COM HIERARQUIA DE DADOS (PC SOBERANA)
+# 5. MOTOR DE BUSCA COM SOBERANIA ABSOLUTA (PC > SC)
 @st.cache_data(ttl=600)
-def carregar_bases_vinc():
+def carregar_bases_blindadas():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
-        # Aba 0: Sempre tratada como a Soberana (Pedidos PC)
+        
+        # ABA 0 (PC) - CARREGAMENTO BRUTO (Traz todas as colunas existentes)
         df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
         
-        # Aba SC: Apoio
+        # ABA SC - CARREGAMENTO BRUTO
         aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
         df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
         df_sc.columns = [str(c).strip() for c in df_sc.columns]
         
         return df_pc, df_sc
-    except:
+    except Exception as e:
+        st.error(f"Erro ao carregar ficheiro: {e}")
         return pd.DataFrame(), pd.DataFrame()
 
-df_pc, df_sc = carregar_bases_vinc()
+df_pc, df_sc = carregar_bases_blindadas()
 
-# Colunas oficiais do painel
-COL_PAINEL = ["STATUS", "Numero da SC", "Numero Pedido", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega"]
+# Lista de colunas para o painel (A sequencia que você solicitou)
+COL_ORDEM = ["STATUS", "Numero da SC", "Numero Pedido", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega"]
 
-# 6. LÓGICA DE BUSCA
+# 6. LÓGICA DE FILTRAGEM SEQUENCIAL
 if busca:
     t = busca.lower().strip()
     
-    # 1ª TENTATIVA: BUSCA NA PC (SOBERANA)
-    # Se encontrar aqui, traz todas as colunas de data e fornecedor da PC
+    # 1º PASSO: Procurar na PC (Se encontrar, ignora a SC para evitar bugs de informação incompleta)
     res_pc = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
     
     if not res_pc.empty:
         df_final = res_pc.copy()
         origem = "Base de Pedidos (PC)"
     else:
-        # 2ª TENTATIVA: BUSCA NA SC (APOIO)
+        # 2º PASSO: Se não houver na PC, procurar na SC
         res_sc = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
         if not res_sc.empty:
             df_final = res_sc.copy()
-            # Inteligência de Status para itens só da SC
+            # Status inteligente para itens que só existem na SC
             def definir_status(row):
                 cot = str(row.get('Num. Cotacao', '')).strip()
                 return "EM COTAÇÃO" if cot != "" and cot.lower() != "nan" else "SC ABERTA"
@@ -102,29 +103,29 @@ if busca:
             df_final = pd.DataFrame()
 
     if not df_final.empty:
-        # FORMATAÇÃO DE DATAS (dd/mm/yy)
+        # FORMATAÇÃO DE DATAS (Forçar dd/mm/yy em todas as colunas de data/dt)
         for col in df_final.columns:
             if any(d in col.upper() for d in ["DATA", "DT "]):
-                # Garante que campos de data vazios ou com erro não quebrem a visualização
                 df_final[col] = pd.to_datetime(df_final[col], errors='coerce').dt.strftime('%d/%m/%y').fillna('')
         
-        # GARANTE QUE TODAS AS COLUNAS DO PAINEL EXISTAM
-        for c in COL_PAINEL:
+        # GARANTIA DE COLUNAS: Se a coluna não existir na aba (ex: Numero Pedido na SC), cria vazia
+        for c in COL_ORDEM:
             if c not in df_final.columns: df_final[c] = ""
         
-        df_exibir = df_final[COL_PAINEL].drop_duplicates()
+        # Exibe apenas as colunas do painel na ordem correta
+        df_exibir = df_final[COL_ORDEM].drop_duplicates()
         
-        st.markdown(f'<div class="status-box">🟢 Localizado em: {origem}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="status-box">🟢 Informações Extraídas de: {origem}</div>', unsafe_allow_html=True)
         
-        # DOWNLOAD EXCEL
+        # DOWNLOAD
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_exibir.to_excel(wr, index=False)
         st.download_button("📥 BAIXAR RELATÓRIO COMPLETO", out.getvalue(), "Portal_Compras_Parente.xlsx")
         
         st.dataframe(df_exibir, use_container_width=True, hide_index=True)
     else:
-        st.warning(f"Nenhum registro encontrado para o termo: {busca}")
+        st.warning(f"Nenhum registo encontrado para: {busca}")
 else:
-    st.info("💡 Digite o número da SC ou Pedido. O sistema prioriza os dados completos da aba PC.")
+    st.info("💡 Digite o número da SC ou Pedido. O sistema prioriza os dados da aba PC para trazer Fornecedor, Datas e Condições.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
