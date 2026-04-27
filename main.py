@@ -21,7 +21,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS (REMOÇÃO DE BORDAS FANTASMAS E MOLDURA ÚNICA)
+# 3. CSS (MOLDURA ÚNICA E LIMPA)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
@@ -88,7 +88,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 0px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
-# 5. TRATAMENTO DE DADOS (INCLUINDO SCM)
+# 5. TRATAMENTO DE DADOS (CORREÇÃO SCM)
 def tratar_dados(df):
     cols_dt = ["Data Emissao", "Dt Liberacao", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
     for col in cols_dt:
@@ -98,7 +98,7 @@ def tratar_dados(df):
     if "Produto" in df.columns:
         df["Produto"] = df["Produto"].astype(str).str.split('.').str[0].str.strip().str.zfill(10).replace('0000000nan', '')
     
-    # Limpeza de números de documentos e SCM
+    # Limpeza de strings e remoção de .0 de IDs
     for col in df.columns:
         if any(x in col.upper() for x in ["NUMERO", "N°", "SC", "PC", "PEDIDO", "COTACAO", "SCM"]):
             df[col] = df[col].astype(str).str.split('.').str[0].str.strip().replace('nan', '')
@@ -111,30 +111,42 @@ def carregar_e_vincular_bases():
         excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
         df_pc = tratar_dados(pd.read_excel(excel, sheet_name=0, dtype=str).fillna(''))
         
-        aba_sc = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
-        df_sc = pd.DataFrame()
-        if aba_sc:
-            df_sc = tratar_dados(pd.read_excel(excel, sheet_name=aba_sc, dtype=str).fillna(''))
+        # Identifica a aba SC (Solicitação de Compras)
+        aba_sc_name = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
+        
+        if aba_sc_name:
+            df_sc = tratar_dados(pd.read_excel(excel, sheet_name=aba_sc_name, dtype=str).fillna(''))
             
-            link_pc, link_sc = "N° da SC", "Numero da SC"
-            if link_pc in df_pc.columns and link_sc in df_sc.columns:
-                # Mapeia Cotação e SCM da aba SC para a aba PC
-                map_data = df_sc.set_index(link_sc)[["Num. Cotacao", "SCM"]].to_dict('index')
+            # Normalização de nomes para garantir o vínculo
+            col_sc_pc = "N° da SC" if "N° da SC" in df_pc.columns else "Numero da SC"
+            col_sc_sc = "Numero da SC" if "Numero da SC" in df_sc.columns else "N° da SC"
+            
+            if col_sc_pc in df_pc.columns and col_sc_sc in df_sc.columns:
+                # Criar dicionário de SCM e Cotação baseado na SC
+                # Verificamos se as colunas existem na aba SC antes de mapear
+                cols_to_map = [c for c in ["Num. Cotacao", "SCM"] if c in df_sc.columns]
                 
-                def vincular(row):
-                    sc_val = row[link_pc]
-                    info = map_data.get(sc_val, {})
-                    row['Num. Cotacao'] = info.get('Num. Cotacao', row.get('Num. Cotacao', ''))
-                    row['SCM'] = info.get('SCM', row.get('SCM', ''))
-                    return row
+                if cols_to_map:
+                    map_data = df_sc.drop_duplicates(subset=[col_sc_sc]).set_index(col_sc_sc)[cols_to_map].to_dict('index')
+                    
+                    def vincular_scm(row):
+                        key = row[col_sc_pc]
+                        if key in map_data:
+                            for c in cols_to_map:
+                                row[c] = map_data[key].get(c, '')
+                        return row
 
-                df_pc = df_pc.apply(vincular, axis=1)
-        return df_pc, df_sc
-    except: return pd.DataFrame(), pd.DataFrame()
+                    df_pc = df_pc.apply(vincular_scm, axis=1)
+            
+            return df_pc, df_sc
+        return df_pc, pd.DataFrame()
+    except Exception as e:
+        st.error(f"Erro ao carregar dados: {e}")
+        return pd.DataFrame(), pd.DataFrame()
 
 df_pc, df_sc = carregar_e_vincular_bases()
 
-# DEFINIÇÃO DA ORDEM DAS COLUNAS (SCM APÓS STATUS)
+# ORDEM DAS COLUNAS SOLICITADA
 COLUNAS_PADRAO = [
     "STATUS", "SCM", "N° da SC", "Num. Cotacao", "N° PC", "CC", "Nome Fornecedor", 
     "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", 
@@ -149,24 +161,28 @@ if busca:
     df_res = df_pc[mask_pc].copy()
     origem = "Protheus PC (Vinculado)"
 
+    # Se não achar no PC, busca direto no SC
     if df_res.empty and not df_sc.empty:
         mask_sc = df_sc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
         df_res = df_sc[mask_sc].copy()
         origem = "Protheus SC"
-        df_res = df_res.rename(columns={"Numero da SC": "N° da SC", "Numero Pedido": "N° PC"})
+        # Garante nomes compatíveis para exibição
+        if "Numero da SC" in df_res.columns: df_res = df_res.rename(columns={"Numero da SC": "N° da SC"})
+        if "Numero Pedido" in df_res.columns: df_res = df_res.rename(columns={"Numero Pedido": "N° PC"})
 
     if not df_res.empty:
+        # Garante que todas as colunas padrão existam no resultado
         for col in COLUNAS_PADRAO:
             if col not in df_res.columns: df_res[col] = ""
-        df_final = df_res[COLUNAS_PADRAO]
         
-        st.markdown(f'<div class="status-box">🟢 {origem} - {len(df_res)} registros</div>', unsafe_allow_html=True)
+        df_final = df_res[COLUNAS_PADRAO]
+        st.markdown(f'<div class="status-box">🟢 {origem} - {len(df_res)} registros encontrados</div>', unsafe_allow_html=True)
         
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_final.to_excel(wr, index=False)
-        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Portal_PA.xlsx")
+        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Portal_Gestao_PA.xlsx")
         st.dataframe(df_final, use_container_width=True, hide_index=True)
 else:
-    st.info("💡 Digite um termo acima para pesquisar.")
+    st.info("💡 Digite um termo (Fornecedor, SC, PC, Descrição) para pesquisar.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Suprimentos</p>", unsafe_allow_html=True)
