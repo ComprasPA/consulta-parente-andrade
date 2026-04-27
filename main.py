@@ -21,15 +21,16 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS PARA ALINHAMENTO VERTICAL CENTRALIZADO
+# 3. CSS PARA ALINHAMENTO MILIMÉTRICO
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     .stApp {{ background-color: #f0f2f6; }}
     
-    /* Alinhamento central de todas as colunas no bloco horizontal */
+    /* Força o alinhamento vertical de todos os elementos no topo da página */
     [data-testid="stHorizontalBlock"] {{
         align-items: center !important;
+        display: flex !important;
     }}
 
     .portal-title {{ 
@@ -39,17 +40,18 @@ st.markdown(f"""
         text-align: center !important; 
         margin: 0 !important;
         padding: 0 !important;
-        line-height: 1;
+        line-height: 1.1;
+        width: 100%;
         white-space: nowrap;
     }}
 
-    /* Estilização da Barra de Busca */
+    /* Estilização da Barra de Busca para não ocupar espaço excessivo */
     div[data-testid="stVerticalBlock"] > div:has(input) {{
         background-color: #ffffff; 
         padding: 0px 10px !important; 
         border-radius: 8px; 
         border: 2px solid #478c3b;
-        margin: 0 !important;
+        margin-top: 0px !important;
     }}
 
     .stDownloadButton button {{ 
@@ -60,26 +62,34 @@ st.markdown(f"""
         background-color: #478c3b; color: white; padding: 12px 20px;
         border-radius: 10px; font-weight: bold; font-size: 18px;
     }}
+
+    /* Ajuste para que o título não fique "espremido" */
+    @media (max-width: 1200px) {{
+        .portal-title {{ font-size: 30px !important; }}
+    }}
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO (Logo | Título | Busca)
-# Colunas com alinhamento forçado pelo CSS acima
+# 4. CABEÇALHO EM LINHA ÚNICA (PROPORÇÕES AJUSTADAS)
+# Coluna 1: Logo | Coluna 2: Título | Coluna 3: Busca
 col_logo, col_titulo, col_busca = st.columns([1.2, 5, 2.3])
 
 with col_logo:
     if base64_logo: 
-        st.markdown(f'<div style="display: flex; justify-content: center;"><img src="data:image/png;base64,{base64_logo}" style="width:140px;"></div>', unsafe_allow_html=True)
+        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:140px; vertical-align: middle;">', unsafe_allow_html=True)
+    else:
+        st.write("### PA")
 
 with col_titulo:
     st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
 
 with col_busca:
+    # Removi qualquer espaçamento extra (st.write) aqui para manter o alinhamento
     busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
 
-st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 15px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 10px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
-# 5. TRATAMENTO DE DADOS E INTEGRAÇÃO (Vínculo SC -> PC)
+# 5. TRATAMENTO DE DADOS (INTEGRAÇÃO E PRODUTO)
 def tratar_dados(df):
     cols_dt = ["Data Emissao", "Dt Liberacao", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
     for col in cols_dt:
@@ -105,10 +115,11 @@ def carregar_e_vincular_bases():
         df_sc = pd.DataFrame()
         if aba_sc:
             df_sc = tratar_dados(pd.read_excel(excel, sheet_name=aba_sc, dtype=str).fillna(''))
-            # Vincula cotação da SC na base PC usando Numero da SC
-            if "N° da SC" in df_pc.columns and "Numero da SC" in df_sc.columns:
-                map_cot = df_sc.set_index("Numero da SC")["Num. Cotacao"].to_dict()
-                df_pc['Num. Cotacao'] = df_pc.apply(lambda r: map_cot.get(r["N° da SC"], r.get('Num. Cotacao', '')), axis=1)
+            # PROCV da Cotação para a base de Pedidos
+            link_pc, link_sc = "N° da SC", "Numero da SC"
+            if link_pc in df_pc.columns and link_sc in df_sc.columns:
+                map_cot = df_sc.set_index(link_sc)["Num. Cotacao"].to_dict()
+                df_pc['Num. Cotacao'] = df_pc.apply(lambda r: map_cot.get(r[link_pc], r.get('Num. Cotacao', '')), axis=1)
         return df_pc, df_sc
     except: return pd.DataFrame(), pd.DataFrame()
 
@@ -143,4 +154,4 @@ if busca:
 else:
     st.info("💡 Digite um termo acima para pesquisar.")
 
-st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Suprimentos</p>", unsafe_allow_html=True)
