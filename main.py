@@ -21,54 +21,31 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS (TÍTULO 40 PRETO E ALINHAMENTO)
+# 3. CSS (ESTILIZAÇÃO)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     .stApp {{ background-color: #f0f2f6; }}
-    
     .portal-title {{ 
-        color: #000000 !important; 
-        font-size: 40px !important; 
-        font-weight: bold !important; 
-        text-align: center !important; 
-        margin: 0 !important;
-        padding: 0 !important;
-        white-space: nowrap;
+        color: #000000 !important; font-size: 40px !important; 
+        font-weight: bold !important; text-align: center !important; margin: 0 !important;
     }}
-
     div[data-testid="stVerticalBlock"] > div:has(input) {{
-        background-color: #ffffff; 
-        padding: 2px 10px !important; 
-        border-radius: 8px; 
-        border: 2px solid #478c3b;
+        background-color: #ffffff; padding: 2px 10px !important; 
+        border-radius: 8px; border: 2px solid #478c3b;
     }}
-
-    [data-testid="column"] {{
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }}
-
-    .stDownloadButton button {{ 
-        background-color: #f2a933 !important; color: white !important; font-weight: bold !important; 
-    }}
-    
+    [data-testid="column"] {{ display: flex; align-items: center; justify-content: center; }}
+    .stDownloadButton button {{ background-color: #f2a933 !important; color: white !important; font-weight: bold !important; }}
     .status-box {{
-        background-color: #478c3b;
-        color: white;
-        padding: 12px 20px;
-        border-radius: 10px;
-        font-weight: bold;
-        font-size: 18px;
-        margin-bottom: 15px;
+        background-color: #478c3b; color: white; padding: 12px 20px;
+        border-radius: 10px; font-weight: bold; font-size: 18px; margin-bottom: 15px;
     }}
     </style>
     """, unsafe_allow_html=True)
 
-# 4. FUNÇÕES DE TRATAMENTO E MAPEAMENTO
+# 4. FUNÇÕES DE TRATAMENTO
 def tratar_dados(df):
-    # Datas
+    # Datas (DD/MM/AA)
     colunas_data = ["Data Emissao", "Dt Liberacao", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
     for col in colunas_data:
         if col in df.columns:
@@ -79,11 +56,12 @@ def tratar_dados(df):
         df["Produto"] = df["Produto"].astype(str).str.split('.').str[0]
         df["Produto"] = df["Produto"].str.zfill(10).replace('0000000nan', '')
     
-    # Padronização de N° SC para busca
-    col_sc = next((c for c in df.columns if "SC" in c.upper() or "SOLICIT" in c.upper()), None)
-    if col_sc:
-        df[col_sc] = df[col_sc].astype(str).str.zfill(6)
-        
+    # Padronização de Números (SC e Pedido) para facilitar busca e preenchimento
+    cols_numericas = ["Numero da SC", "N° da SC", "Numero Pedido", "N° PC"]
+    for col in cols_numericas:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.split('.').str[0].str.strip()
+            
     return df
 
 # 5. CARREGAMENTO DAS ABAS
@@ -108,7 +86,7 @@ def carregar_bases():
 
 df_pc, df_sc = carregar_bases()
 
-# ESTRUTURA PADRÃO DE COLUNAS
+# DEFINIÇÃO DA ESTRUTURA VISUAL ÚNICA
 COLUNAS_PADRAO = [
     "STATUS", "N° da SC", "Num. Cotacao", "Código Cotação", "N° PC", "CC", 
     "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", 
@@ -127,33 +105,31 @@ with col_busca:
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 10px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 7. LÓGICA DE BUSCA E MAPEAMENTO DE COLUNAS
+# 7. LÓGICA DE BUSCA E INTEGRAÇÃO
 if busca:
     termo = busca.lower().strip()
     
-    # BUSCA 1: Protheus PC
+    # 1ª Tentativa: Guia PC
     mask_pc = df_pc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
     df_res = df_pc[mask_pc].copy()
     origem = "Protheus PC"
 
-    # BUSCA 2: Protheus SC
+    # 2ª Tentativa: Guia SC (Se não achar na PC)
     if df_res.empty and not df_sc.empty:
         mask_sc = df_sc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
         df_res = df_sc[mask_sc].copy()
         origem = "Protheus SC"
         
-        # MAPEAMENTO DE SC PARA PADRÃO PC:
-        # Renomeia colunas comuns para o padrão da PC se elas vierem com nomes diferentes na SC
+        # MAPEAMENTO DOS NOVOS NOMES PARA O PADRÃO VISUAL
         mapeamento = {
-            "Solicitação": "N° da SC",
-            "Solicitacao": "N° da SC",
-            "Cotação": "Num. Cotacao",
-            "Cotacao": "Num. Cotacao"
+            "Numero da SC": "N° da SC",
+            "Num. Cotacao": "Num. Cotacao",
+            "Numero Pedido": "N° PC"
         }
         df_res = df_res.rename(columns=mapeamento)
 
     if not df_res.empty:
-        # Garante que todas as colunas padrão existam (mesmo que vazias)
+        # Garante que todas as colunas da visão padrão existam (mesmo que vazias)
         for col in COLUNAS_PADRAO:
             if col not in df_res.columns:
                 df_res[col] = ""
