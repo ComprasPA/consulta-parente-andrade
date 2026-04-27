@@ -21,13 +21,13 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS AJUSTADO (MOLDURA ÚNICA E LIMPA)
+# 3. CSS AJUSTADO (SEM O CONTAINER EXTRA DO TOPO)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     .stApp {{ background-color: #f0f2f6; }}
     
-    /* Moldura Principal do Cabeçalho */
+    /* Moldura Principal do Cabeçalho - Ajustada para ser a única */
     .header-wrapper {{
         border: 2px solid #478c3b;
         border-radius: 10px;
@@ -37,7 +37,7 @@ st.markdown(f"""
         align-items: center;
         justify-content: space-between;
         margin-top: 10px;
-        margin-bottom: 25px;
+        margin-bottom: 20px;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
     }}
 
@@ -52,7 +52,7 @@ st.markdown(f"""
         white-space: nowrap;
     }}
 
-    /* Estilização da Barra de Busca integrada */
+    /* Barra de Busca */
     div[data-testid="stVerticalBlock"] > div:has(input) {{
         background-color: #ffffff; 
         padding: 0px 10px !important; 
@@ -76,7 +76,7 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO DENTRO DA MOLDURA
+# 4. CABEÇALHO DENTRO DA MOLDURA ÚNICA
 st.markdown('<div class="header-wrapper">', unsafe_allow_html=True)
 col_logo, col_titulo, col_busca = st.columns([1.2, 5, 2.3])
 
@@ -93,10 +93,10 @@ with col_busca:
     busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Linha de separação visual após a moldura
-st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: -15px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+# Linha de separação visual laranja (abaixo do cabeçalho)
+st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 0px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
-# 5. TRATAMENTO DE DADOS (CÓDIGO PADRÃO)
+# 5. TRATAMENTO DE DADOS (BASE CONGELADA)
 def tratar_dados(df):
     cols_dt = ["Data Emissao", "Dt Liberacao", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
     for col in cols_dt:
