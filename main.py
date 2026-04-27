@@ -52,10 +52,19 @@ with c3:
     busca = st.text_input("", placeholder="🔍 Digite SC, SCM, Produto ou Fornecedor...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. MOTOR DE CONSOLIDAÇÃO (VÍNCULO INTELIGENTE)
+# 5. MOTOR DE CONSOLIDAÇÃO (VÍNCULO E DATAS DD/MM/YY)
 def normalizar_valor(val):
     if pd.isna(val) or str(val).lower() in ['nan', 'none', '']: return ""
     return str(val).split('.')[0].strip().lstrip('0')
+
+def formatar_datas_brasileiras(df):
+    cols_data = ["Data Emissao", "Dt Liberacao", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
+    for col in cols_data:
+        if col in df.columns:
+            # Converte para datetime e depois para string dd/mm/yy
+            df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%y')
+            df[col] = df[col].fillna('')
+    return df
 
 @st.cache_data(ttl=600)
 def carregar_dados():
@@ -63,59 +72,54 @@ def carregar_dados():
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
         
-        # Carrega aba PC (Pedidos)
-        df_pc = pd.read_excel(excel, sheet_name=0, dtype=str)
+        # Carrega Pedidos (PC)
+        df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
-        df_pc = df_pc.fillna('')
 
-        # Carrega aba SC (Solicitações)
+        # Carrega Solicitações (SC)
         aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
-        if aba_sc_nome:
-            df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str)
-            df_sc.columns = [str(c).strip() for c in df_sc.columns]
-            df_sc = df_sc.fillna('')
-        else:
-            df_sc = pd.DataFrame()
+        df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
+        df_sc.columns = [str(c).strip() for c in df_sc.columns]
 
-        # mapeamento inteligente de colunas para garantir o N° PC e N° SC
-        def encontrar_coluna(lista_cols, termos):
+        # Mapeamento Inteligente de Colunas
+        def achar_col(lista, termos):
             for t in termos:
-                for c in lista_cols:
+                for c in lista:
                     if t.upper() in c.upper(): return c
             return None
 
-        col_sc_pc = encontrar_coluna(df_pc.columns, ["N° da SC", "NUMERO DA SC", "SC"])
-        col_pc_pc = encontrar_coluna(df_pc.columns, ["N° PC", "PEDIDO", "NUMERO PC"])
-        col_sc_sc = encontrar_coluna(df_sc.columns, ["NUMERO DA SC", "N° DA SC", "SC"])
-        col_pc_sc = encontrar_coluna(df_sc.columns, ["N° PC", "PEDIDO", "NUMERO PEDIDO"])
+        c_sc_pc = achar_col(df_pc.columns, ["N° da SC", "NUMERO DA SC", "SC"])
+        c_pc_pc = achar_col(df_pc.columns, ["N° PC", "PEDIDO", "PC"])
+        c_sc_sc = achar_col(df_sc.columns, ["NUMERO DA SC", "N° DA SC", "SC"])
+        c_pc_sc = achar_col(df_sc.columns, ["N° PC", "PEDIDO", "NUMERO PEDIDO"])
 
-        if col_sc_pc and not df_sc.empty and col_sc_sc:
-            # Criar chave de ligação idêntica (limpa)
-            df_pc['CHAVE_VINCULO'] = df_pc[col_sc_pc].apply(normalizar_valor)
-            df_sc['CHAVE_VINCULO'] = df_sc[col_sc_sc].apply(normalizar_valor)
+        if c_sc_pc and not df_sc.empty and c_sc_sc:
+            df_pc['CHAVE'] = df_pc[c_sc_pc].apply(normalizar_valor)
+            df_sc['CHAVE'] = df_sc[c_sc_sc].apply(normalizar_valor)
 
-            # --- PROCV: Puxar do Pedido para a Solicitação ---
-            # Identificamos colunas úteis que existem na aba PC para "doar" para a SC
-            colunas_para_doar = [c for c in [col_pc_pc, 'STATUS', 'Nome Fornecedor', 'CC', 'Data Emissao', 'DT entrega '] if c in df_pc.columns]
-            pc_map = df_pc[['CHAVE_VINCULO'] + colunas_para_doar].drop_duplicates('CHAVE_VINCULO')
+            # --- PROCV REFORÇADO (PC para SC) ---
+            cols_doar = [c for c in [c_pc_pc, 'STATUS', 'Nome Fornecedor', 'CC', 'Data Emissao', 'DT entrega ', 'DT Pgo (AVISTA)', 'DT Prev de Entrega'] if c in df_pc.columns]
+            pc_map = df_pc[['CHAVE'] + cols_doar].drop_duplicates('CHAVE')
             
-            # Mescla os dados
-            df_sc = df_sc.merge(pc_map, on='CHAVE_VINCULO', how='left', suffixes=('', '_extra'))
+            df_sc = df_sc.merge(pc_map, on='CHAVE', how='left', suffixes=('', '_pc'))
 
-            # Forçar preenchimento do N° PC na aba SC
-            if col_pc_sc and f"{col_pc_pc}_extra" in df_sc.columns:
-                df_sc[col_pc_sc] = df_sc[col_pc_sc].replace('', pd.NA).fillna(df_sc[f"{col_pc_pc}_extra"]).fillna('')
-            elif col_pc_pc and not col_pc_sc: # Se a SC não tem a coluna, a gente cria com o dado da PC
-                df_sc['N° PC'] = df_sc[f"{col_pc_pc}_extra"]
+            # Preenchimento compulsório do N° PC e Datas na aba SC
+            target_pc = c_pc_sc if c_pc_sc else 'N° PC'
+            if f"{c_pc_pc}_pc" in df_sc.columns:
+                df_sc[target_pc] = df_sc[target_pc].replace('', pd.NA).fillna(df_sc[f"{c_pc_pc}_pc"]).fillna('')
+            
+            # Preenche Status e Datas vindos da PC
+            for f in ['STATUS', 'Nome Fornecedor', 'CC', 'Data Emissao', 'DT entrega ', 'DT Pgo (AVISTA)', 'DT Prev de Entrega']:
+                if f"{f}_pc" in df_sc.columns:
+                    df_sc[f] = df_sc[f].replace('', pd.NA).fillna(df_sc[f"{f}_pc"]).fillna('')
 
-            # Repetir para os outros campos (Status, Fornecedor, etc)
-            for campo in ['STATUS', 'Nome Fornecedor', 'CC', 'Data Emissao', 'DT entrega ']:
-                if f"{campo}_extra" in df_sc.columns:
-                    df_sc[campo] = df_sc[campo].replace('', pd.NA).fillna(df_sc[f"{campo}_extra"]).fillna('')
+        # Padronização de nomes
+        if not df_pc.empty: df_pc = df_pc.rename(columns={c_sc_pc: "N° da SC", c_pc_pc: "N° PC"})
+        if not df_sc.empty: df_sc = df_sc.rename(columns={c_sc_sc: "N° da SC", c_pc_sc: "N° PC"})
 
-        # Padronização final para visualização
-        if not df_pc.empty: df_pc = df_pc.rename(columns={col_sc_pc: "N° da SC", col_pc_pc: "N° PC"})
-        if not df_sc.empty: df_sc = df_sc.rename(columns={col_sc_sc: "N° da SC", col_pc_sc: "N° PC"})
+        # APLICAÇÃO FINAL DA FORMATAÇÃO DE DATA BRASILEIRA
+        df_pc = formatar_datas_brasileiras(df_pc)
+        df_sc = formatar_datas_brasileiras(df_sc)
 
         return df_pc, df_sc
 
@@ -130,31 +134,24 @@ COLUNAS_PADRAO = ["STATUS", "N° da SC", "Num. Cotacao", "N° PC", "CC", "Nome F
 # 6. BUSCA E EXIBIÇÃO
 if busca:
     t = busca.lower().strip()
-    
-    # Busca em ambas as bases consolidadas
     res_pc = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)] if not df_pc.empty else pd.DataFrame()
     res_sc = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)] if not df_sc.empty else pd.DataFrame()
 
     df_res = pd.concat([res_pc, res_sc], ignore_index=True)
-    
     if not df_res.empty:
-        if 'CHAVE_VINCULO' in df_res.columns:
-            df_res = df_res.drop_duplicates(subset=['CHAVE_VINCULO', 'Produto', 'QNT'])
+        if 'CHAVE' in df_res.columns: df_res = df_res.drop_duplicates(subset=['CHAVE', 'Produto', 'QNT'])
 
         for col in COLUNAS_PADRAO:
             if col not in df_res.columns: df_res[col] = ""
             
         df_final = df_res[COLUNAS_PADRAO].fillna('')
-        st.markdown(f'<div class="status-box">🟢 {len(df_res)} registros localizados e vinculados</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="status-box">🟢 {len(df_res)} registros localizados e formatados</div>', unsafe_allow_html=True)
         
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_final.to_excel(wr, index=False)
         st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Portal_Compras_PA.xlsx")
-        
         st.dataframe(df_final, use_container_width=True, hide_index=True)
-    else:
-        st.warning(f"Nenhum registro encontrado para: {busca}")
 else:
-    st.info("💡 Digite um termo para pesquisar. O sistema cruza os dados entre Pedidos e Solicitações automaticamente.")
+    st.info("💡 Digite um termo para pesquisar. Datas formatadas em DD/MM/YY.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
