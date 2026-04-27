@@ -21,7 +21,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS (DESIGN PADRÃO CONGELADO)
+# 3. CSS (DESIGN PADRÃO)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
@@ -52,18 +52,17 @@ with c3:
     busca = st.text_input("", placeholder="🔍 Buscar SC, Pedido, Fornecedor...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. MOTOR DE INTELIGÊNCIA DE STATUS
+# 5. MOTOR DE INTELIGÊNCIA DE STATUS (CORRIGIDO)
 def normalizar(val):
     if pd.isna(val) or str(val).lower() in ['nan', 'none', '']: return ""
     return str(val).split('.')[0].strip().lstrip('0')
 
 @st.cache_data(ttl=600)
-def carregar_e_processar_status():
+def carregar_e_processar_status_final():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
         
-        # Carregar abas (PC e SC)
         df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
 
@@ -71,71 +70,69 @@ def carregar_e_processar_status():
         df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
         df_sc.columns = [str(c).strip() for c in df_sc.columns]
 
-        # União para Processamento
-        df_mestre = pd.concat([df_pc, df_sc], ignore_index=True)
-        df_mestre['CHAVE'] = df_mestre['Numero da SC'].apply(normalizar)
+        # 1. Unificar bases e criar chave de ligação
+        df_m = pd.concat([df_pc, df_sc], ignore_index=True)
+        df_m['CHAVE'] = df_m['Numero da SC'].apply(normalizar)
         
-        # PROPAGAÇÃO: Pega a primeira info válida de cada coluna por grupo de SC
-        cols_para_vincular = ["STATUS", "Num. Cotacao", "Numero Pedido", "CC", "Nome Fornecedor", "Data Emissao", "Dt Liberacao", "DT Envio", "DT entrega"]
-        
-        for col in cols_para_vincular:
-            if col in df_mestre.columns:
-                df_mestre[col] = df_mestre[col].replace('', pd.NA)
-                # Garante que todas as linhas da mesma SC recebam a info
-                df_mestre[col] = df_mestre.groupby('CHAVE')[col].transform(lambda x: x.ffill().bfill()).fillna('')
+        # 2. Propagação agressiva de dados entre linhas da mesma SC
+        cols_vinc = ["STATUS", "Num. Cotacao", "Numero Pedido", "CC", "Nome Fornecedor", "Data Emissao", "DT entrega"]
+        for col in cols_vinc:
+            if col in df_m.columns:
+                df_m[col] = df_m[col].replace(['', 'nan', 'NaN', 'None'], pd.NA)
+                # O ffill/bfill garante que se existir em uma linha, existirá em todas do mesmo Numero da SC
+                df_m[col] = df_m.groupby('CHAVE')[col].transform(lambda x: x.ffill().bfill())
 
-        # LÓGICA DE STATUS: Prioridade Planilha PC > Se vazio, checa Cotação
-        def calcular_status(row):
-            st_final = str(row.get('STATUS', '')).strip()
+        # 3. Lógica Definitiva da Coluna STATUS
+        def aplicar_status_inteligente(row):
+            status_planilha = str(row.get('STATUS', '')).strip()
             cotacao = str(row.get('Num. Cotacao', '')).strip()
             
-            # Se não tem status mas tem cotação, define como "EM COTAÇÃO"
-            if (st_final == "" or st_final.lower() == "nan") and cotacao != "":
+            # Se o status da planilha PC estiver vazio/nulo, mas houver cotação na SC
+            if (status_planilha in ['', 'nan', 'NaN', '<NA>', 'None']) and (cotacao not in ['', 'nan', 'NaN', 'None']):
                 return "EM COTAÇÃO"
-            return st_final
+            
+            return status_planilha if status_planilha not in ['nan', '<NA>', 'None'] else ""
 
-        df_mestre['STATUS'] = df_mestre.apply(calcular_status, axis=1)
+        df_m['STATUS'] = df_m.apply(aplicar_status_inteligente, axis=1)
 
-        # Formatação de Datas
-        for col in df_mestre.columns:
+        # 4. Limpeza e Formatação de Datas
+        for col in df_m.columns:
             if any(d in col.upper() for d in ["DATA", "DT "]):
-                df_mestre[col] = pd.to_datetime(df_mestre[col], errors='coerce').dt.strftime('%d/%m/%y').fillna('')
+                df_m[col] = pd.to_datetime(df_m[col], errors='coerce').dt.strftime('%d/%m/%y')
 
-        return df_mestre.fillna('')
+        return df_m.fillna('')
     except Exception as e:
-        st.error(f"Erro ao vincular Status: {e}")
+        st.error(f"Erro no processamento do Status: {e}")
         return pd.DataFrame()
 
-df_consolidado = carregar_e_processar_status()
+df_ready = carregar_e_processar_status_final()
 
-# Painel sem a coluna "Num. Cotacao" conforme solicitado
-COL_PAINEL = ["STATUS", "Numero da SC", "Numero Pedido", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega"]
+# Definição das colunas do painel (Num. Cotacao fica oculta, mas foi usada para o Status)
+COL_VISIVEL = ["STATUS", "Numero da SC", "Numero Pedido", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega"]
 
 # 6. EXIBIÇÃO
 if busca:
     t = busca.lower().strip()
-    df_res = df_consolidado[df_consolidado.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
+    df_res = df_ready[df_ready.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
     
     if not df_res.empty:
-        # Remove duplicatas de itens repetidos entre abas
+        # Remove duplicatas para não repetir o mesmo item da SC e PC
         df_res = df_res.drop_duplicates(subset=['CHAVE', 'Produto', 'QNT', 'Descricao'])
         
-        # Garante colunas
-        for c in COL_PAINEL:
-            if c not in df_res.columns: df_res[c] = ""
-            
-        df_final = df_res[COL_PAINEL]
+        # Filtra apenas as colunas desejadas
+        cols_existentes = [c for c in COL_VISIVEL if c in df_res.columns]
+        df_final = df_res[cols_existentes]
         
-        st.markdown(f'<div class="status-box">🟢 {len(df_res)} registros localizados | Status Vinculado</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="status-box">🟢 {len(df_res)} registros localizados e validados</div>', unsafe_allow_html=True)
         
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_final.to_excel(wr, index=False)
-        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Portal_Gestao_PA.xlsx")
+        st.download_button("📥 DESCARREGAR RELATÓRIO", out.getvalue(), "Portal_Compras_PA.xlsx")
         
         st.dataframe(df_final, use_container_width=True, hide_index=True)
     else:
         st.warning(f"Nenhum dado encontrado para: {busca}")
 else:
-    st.info("💡 Digite o termo de busca. O Status 'EM COTAÇÃO' aparece automaticamente quando há vínculo na aba SC.")
+    st.info("💡 Digite o termo de busca. O sistema verifica automaticamente se há cotações pendentes na aba SC.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
