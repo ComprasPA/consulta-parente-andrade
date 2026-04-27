@@ -21,7 +21,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS (DESIGN)
+# 3. CSS (DESIGN PADRÃO CONGELADO)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
@@ -57,7 +57,7 @@ with c1:
 with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
 with c3:
-    busca = st.text_input("", placeholder="🔍 Buscar (CC, Produto, Fornecedor...)", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Buscar (SCM, CC, Produto, Fornecedor...)", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 0px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
@@ -71,7 +71,7 @@ def tratar_dados(df):
     if "Produto" in df.columns:
         df["Produto"] = df["Produto"].astype(str).str.split('.').str[0].str.strip().str.zfill(10).replace('0000000nan', '')
     for col in df.columns:
-        if any(x in col.upper() for x in ["NUMERO", "N°", "SC", "PC", "PEDIDO", "COTACAO", "CC"]):
+        if any(x in col.upper() for x in ["NUMERO", "N°", "SC", "PC", "PEDIDO", "COTACAO", "CC", "SCM"]):
             df[col] = df[col].astype(str).str.split('.').str[0].str.strip().replace('nan', '')
     return df
 
@@ -83,33 +83,39 @@ def carregar_e_vincular_bases():
         df_pc = tratar_dados(pd.read_excel(excel, sheet_name=0, dtype=str).fillna(''))
         aba_sc = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
         df_sc = pd.DataFrame()
+        
         if aba_sc:
             df_sc = tratar_dados(pd.read_excel(excel, sheet_name=aba_sc, dtype=str).fillna(''))
             link_pc, link_sc = "N° da SC", "Numero da SC"
+            
             if link_pc in df_pc.columns and link_sc in df_sc.columns:
-                map_cot = df_sc.set_index(link_sc)["Num. Cotacao"].to_dict()
+                # Mapeia Num. Cotacao e SCM da aba SC
+                df_mapeamento = df_sc.set_index(link_sc)
+                map_cot = df_mapeamento["Num. Cotacao"].to_dict() if "Num. Cotacao" in df_mapeamento.columns else {}
+                map_scm = df_mapeamento["SCM"].to_dict() if "SCM" in df_mapeamento.columns else {}
+                
+                # Vincula na aba PC
                 df_pc['Num. Cotacao'] = df_pc.apply(lambda r: map_cot.get(r[link_pc], r.get('Num. Cotacao', '')), axis=1)
+                df_pc['SCM'] = df_pc.apply(lambda r: map_scm.get(r[link_pc], r.get('SCM', '')), axis=1)
+                
         return df_pc, df_sc
     except: return pd.DataFrame(), pd.DataFrame()
 
 df_pc, df_sc = carregar_e_vincular_bases()
 
-COLUNAS_PADRAO = ["STATUS", "N° da SC", "Num. Cotacao", "N° PC", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
+# Adicionado SCM à lista de colunas padrão
+COLUNAS_PADRAO = ["STATUS", "SCM", "N° da SC", "Num. Cotacao", "N° PC", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
 
-# 6. LÓGICA DE BUSCA REPARADA (FILTRO POR COLUNA ESPECÍFICA)
+# 6. LÓGICA DE BUSCA REPARADA
 if busca:
     termo = busca.lower().strip()
     
-    # Função para filtrar priorizando Centro de Custo ou busca geral
     def filtrar_inteligente(df, t):
-        # Se o termo for numérico e tiver tamanho de CC (ex: 4 a 6 dígitos), foca na coluna CC
         if t.isdigit() and "CC" in df.columns:
             mask = df["CC"].str.contains(t, na=False)
-            # Se não achar nada no CC, tenta no restante da linha
             if not mask.any():
                 mask = df.apply(lambda row: row.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)
         else:
-            # Busca geral em todas as colunas
             mask = df.apply(lambda row: row.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)
         return df[mask].copy()
 
@@ -133,6 +139,6 @@ if busca:
     else:
         st.warning(f"Nenhum registro encontrado para: '{busca}'")
 else:
-    st.info("💡 Digite um termo (Centro de Custo, Produto, Fornecedor ou SC) para pesquisar.")
+    st.info("💡 Digite um termo (SCM, Centro de Custo, Produto, Fornecedor ou SC) para pesquisar.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
