@@ -21,7 +21,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS (TÍTULO 40 PRETO E ALINHAMENTO TOTAL)
+# 3. CSS (TÍTULO 40 PRETO E ALINHAMENTO)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
@@ -54,7 +54,6 @@ st.markdown(f"""
         background-color: #f2a933 !important; color: white !important; font-weight: bold !important; 
     }}
     
-    /* Estilização da caixa de status de busca */
     .status-box {{
         background-color: #478c3b;
         color: white;
@@ -63,27 +62,11 @@ st.markdown(f"""
         font-weight: bold;
         font-size: 18px;
         margin-bottom: 15px;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
     }}
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO EM LINHA ÚNICA
-col_logo, col_titulo, col_busca = st.columns([1, 5, 2])
-
-with col_logo:
-    if base64_logo: 
-        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:130px; height:auto;">', unsafe_allow_html=True)
-
-with col_titulo:
-    st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
-
-with col_busca:
-    busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
-
-st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 10px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
-
-# 5. FUNÇÕES DE FORMATAÇÃO
+# 4. FUNÇÕES DE FORMATAÇÃO
 def tratar_dados(df):
     colunas_data = ["Data Emissao", "Dt Liberacao", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
     for col in colunas_data:
@@ -95,7 +78,7 @@ def tratar_dados(df):
         df["Produto"] = df["Produto"].str.zfill(10).replace('0000000nan', '')
     return df
 
-# 6. CARREGAMENTO DAS ABAS EM CACHE
+# 5. CARREGAMENTO DAS ABAS EM CACHE
 @st.cache_data(ttl=600, show_spinner="Sincronizando bases...")
 def carregar_bases():
     URL_XLSX = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
@@ -117,38 +100,58 @@ def carregar_bases():
 
 df_pc, df_sc = carregar_bases()
 
-# 7. LÓGICA DE BUSCA E EXIBIÇÃO
+# DEFINIÇÃO DO PADRÃO DE COLUNAS (Baseado na PC)
+COLUNAS_PADRAO = [
+    "STATUS", "N° da SC", "Num. Cotacao", "Código Cotação", "N° PC", "CC", 
+    "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", 
+    " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", 
+    "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "
+]
+
+# 6. CABEÇALHO
+col_logo, col_titulo, col_busca = st.columns([1, 5, 2])
+with col_logo:
+    if base64_logo: st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:130px;">', unsafe_allow_html=True)
+with col_titulo:
+    st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
+with col_busca:
+    busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
+
+st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 10px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+
+# 7. LÓGICA DE BUSCA
 if busca:
     termo = busca.lower().strip()
+    
+    # BUSCA 1: Protheus PC
     mask_pc = df_pc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
     df_res = df_pc[mask_pc]
     origem = "Protheus PC"
 
+    # BUSCA 2: Protheus SC (Se a 1 falhar)
     if df_res.empty and not df_sc.empty:
         mask_sc = df_sc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
         df_res = df_sc[mask_sc]
         origem = "Protheus SC"
 
     if not df_res.empty:
-        col_v = [
-            "STATUS", "N° da SC", "Num. Cotacao", "Código Cotação", "N° PC", "CC", 
-            "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", 
-            " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", 
-            "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "
-        ]
-        cols_finais = [c for c in col_v if c in df_res.columns]
+        # PADRONIZAÇÃO FORÇADA: Cria colunas faltantes com vazio e ordena igual à PC
+        for col in COLUNAS_PADRAO:
+            if col not in df_res.columns:
+                df_res[col] = "" # Adiciona coluna vazia se não existir na SC
+        
+        df_exibicao = df_res[COLUNAS_PADRAO]
 
-        # Caixa de status personalizada e botão de download
         st.markdown(f'<div class="status-box">🟢 Encontrado em: {origem} ({len(df_res)} registros)</div>', unsafe_allow_html=True)
         
         c_down, _ = st.columns([1, 3])
         with c_down:
             out = BytesIO()
             with pd.ExcelWriter(out, engine='xlsxwriter') as wr:
-                df_res[cols_finais].to_excel(wr, index=False)
+                df_exibicao.to_excel(wr, index=False)
             st.download_button("📥 BAIXAR RESULTADO EM EXCEL", out.getvalue(), f"Busca_{origem}.xlsx")
 
-        st.dataframe(df_res[cols_finais], use_container_width=True, hide_index=True)
+        st.dataframe(df_exibicao, use_container_width=True, hide_index=True)
     else:
         st.warning(f"Nenhuma informação localizada para: '{busca}'")
 else:
