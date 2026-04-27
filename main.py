@@ -56,11 +56,10 @@ def tratar_dados(df):
         df["Produto"] = df["Produto"].astype(str).str.split('.').str[0]
         df["Produto"] = df["Produto"].str.zfill(10).replace('0000000nan', '')
     
-    # Padronização de Números (SC e Pedido) para facilitar busca e preenchimento
-    cols_numericas = ["Numero da SC", "N° da SC", "Numero Pedido", "N° PC"]
-    for col in cols_numericas:
-        if col in df.columns:
-            df[col] = df[col].astype(str).str.split('.').str[0].str.strip()
+    # Limpeza de números (remove decimais .0 e espaços)
+    for col in df.columns:
+        if any(x in col.upper() for x in ["NUMERO", "N°", "COTACAO", "SC", "PC", "PEDIDO"]):
+            df[col] = df[col].astype(str).str.split('.').str[0].str.strip().replace('nan', '')
             
     return df
 
@@ -86,7 +85,7 @@ def carregar_bases():
 
 df_pc, df_sc = carregar_bases()
 
-# DEFINIÇÃO DA ESTRUTURA VISUAL ÚNICA
+# ESTRUTURA VISUAL PADRÃO
 COLUNAS_PADRAO = [
     "STATUS", "N° da SC", "Num. Cotacao", "Código Cotação", "N° PC", "CC", 
     "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", 
@@ -105,31 +104,33 @@ with col_busca:
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 10px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 7. LÓGICA DE BUSCA E INTEGRAÇÃO
+# 7. LÓGICA DE BUSCA E INTEGRAÇÃO DE COLUNAS
 if busca:
     termo = busca.lower().strip()
     
-    # 1ª Tentativa: Guia PC
+    # BUSCA 1: Protheus PC
     mask_pc = df_pc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
     df_res = df_pc[mask_pc].copy()
     origem = "Protheus PC"
 
-    # 2ª Tentativa: Guia SC (Se não achar na PC)
+    # BUSCA 2: Protheus SC
     if df_res.empty and not df_sc.empty:
         mask_sc = df_sc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
         df_res = df_sc[mask_sc].copy()
         origem = "Protheus SC"
         
-        # MAPEAMENTO DOS NOVOS NOMES PARA O PADRÃO VISUAL
+        # MAPEAMENTO REFORÇADO PARA PREENCHER COTAÇÃO E OUTROS
+        # Aqui garantimos que os nomes da planilha SC virem os nomes da exibição PC
         mapeamento = {
             "Numero da SC": "N° da SC",
             "Num. Cotacao": "Num. Cotacao",
+            "Numero da Cotacao": "Num. Cotacao",
             "Numero Pedido": "N° PC"
         }
         df_res = df_res.rename(columns=mapeamento)
 
     if not df_res.empty:
-        # Garante que todas as colunas da visão padrão existam (mesmo que vazias)
+        # Preenchimento das células em branco: se a coluna padrão não existe no resultado, cria como vazia
         for col in COLUNAS_PADRAO:
             if col not in df_res.columns:
                 df_res[col] = ""
