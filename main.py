@@ -21,30 +21,25 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS (DESIGN PADRÃO)
+# 3. CSS (DESIGN PADRÃO CONGELADO)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     .stApp {{ background-color: #f0f2f6; }}
-    div[data-testid="column"], div[data-testid="stHorizontalBlock"] {{
-        border: none !important; box-shadow: none !important; background-color: transparent !important;
-    }}
     .header-wrapper {{
         border: 2px solid #478c3b; border-radius: 10px; padding: 15px 25px;
         background-color: #ffffff; display: flex; align-items: center;
         justify-content: space-between; margin-top: 10px; margin-bottom: 20px;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
     }}
     .portal-title {{ 
         color: #000000 !important; font-size: 40px !important; font-weight: bold !important; 
-        text-align: center !important; margin: 0 !important; line-height: 1.1; white-space: nowrap;
+        text-align: center !important; margin: 0 !important;
     }}
     div[data-testid="stVerticalBlock"] > div:has(input) {{
         background-color: #ffffff; padding: 0px 10px !important; 
-        border-radius: 8px; border: 2px solid #478c3b !important; margin: 0 !important;
+        border-radius: 8px; border: 2px solid #478c3b !important;
     }}
-    .stDownloadButton button {{ background-color: #f2a933 !important; color: white !important; font-weight: bold !important; }}
-    .status-box {{ background-color: #478c3b; color: white; padding: 12px 20px; border-radius: 10px; font-weight: bold; font-size: 18px; }}
+    .status-box {{ background-color: #478c3b; color: white; padding: 12px 20px; border-radius: 10px; font-weight: bold; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -52,111 +47,114 @@ st.markdown(f"""
 st.markdown('<div class="header-wrapper">', unsafe_allow_html=True)
 c1, c2, c3 = st.columns([1.2, 5, 2.3])
 with c1:
-    if base64_logo: st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:140px; vertical-align: middle;">', unsafe_allow_html=True)
+    if base64_logo: st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:140px;">', unsafe_allow_html=True)
 with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
 with c3:
-    busca = st.text_input("", placeholder="🔍 Buscar (SCM, CC, Produto, SC...)", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 0px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+# 5. TRATAMENTO E VÍNCULO (CORREÇÃO DO PROCV)
+def limpar_id(texto):
+    """Limpa IDs para garantir que a comparação funcione (remove .0, espaços e nulos)"""
+    if pd.isna(texto) or str(texto).lower() in ['nan', 'none', '']: return ""
+    return str(texto).split('.')[0].strip()
 
-# 5. TRATAMENTO DE DADOS
-def tratar_dados(df):
+def tratar_datas(df):
     cols_dt = ["Data Emissao", "Dt Liberacao", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
     for col in cols_dt:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%y').fillna(df[col]).replace(['NaT', 'nan', 'None'], '')
-    if "Produto" in df.columns:
-        df["Produto"] = df["Produto"].astype(str).str.split('.').str[0].str.strip().str.zfill(10).replace('0000000nan', '')
-    for col in df.columns:
-        if any(x in col.upper() for x in ["NUMERO", "N°", "SC", "PC", "PEDIDO", "COTACAO", "CC", "SCM"]):
-            df[col] = df[col].astype(str).str.split('.').str[0].str.strip().replace(['nan', 'None'], '')
+            df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%y').fillna('').replace(['NaT', 'nan'], '')
     return df
 
 @st.cache_data(ttl=600)
-def carregar_e_vincular_bases():
+def carregar_dados_consolidados():
     URL_XLSX = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
-        df_pc = tratar_dados(pd.read_excel(excel, sheet_name=0, dtype=str).fillna(''))
-        aba_sc = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
-        df_sc = pd.DataFrame()
         
-        if aba_sc:
-            df_sc = tratar_dados(pd.read_excel(excel, sheet_name=aba_sc, dtype=str).fillna(''))
+        # Carregar Aba PC (Pedidos)
+        df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
+        df_pc = tratar_datas(df_pc)
+        
+        # Carregar Aba SC (Solicitações)
+        aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
+        df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
+        df_sc = tratar_datas(df_sc)
+
+        # Padronização de Colunas Chave para o Vínculo
+        link_pc = "N° da SC"
+        link_sc = "Numero da SC"
+
+        if link_pc in df_pc.columns and link_sc in df_sc.columns:
+            # Criar IDs limpos para comparação
+            df_pc['ID_LINK'] = df_pc[link_pc].apply(limpar_id)
+            df_sc['ID_LINK'] = df_sc[link_sc].apply(limpar_id)
+
+            # --- PROCV: Trazer dados da SC para a PC ---
+            sc_info = df_sc.drop_duplicates('ID_LINK').set_index('ID_LINK')
+            map_cot = sc_info['Num. Cotacao'].to_dict() if 'Num. Cotacao' in sc_info.columns else {}
+            map_scm = sc_info['SCM'].to_dict() if 'SCM' in sc_info.columns else {}
             
-            # CHAVES DE LIGAÇÃO
-            link_pc, link_sc = "N° da SC", "Numero da SC"
+            df_pc['Num. Cotacao'] = df_pc.apply(lambda r: map_cot.get(r['ID_LINK'], r.get('Num. Cotacao', '')), axis=1)
+            df_pc['SCM_BUSCA'] = df_pc['ID_LINK'].map(map_scm)
+
+            # --- PROCV: Trazer dados da PC para a SC ---
+            pc_info = df_pc.drop_duplicates('ID_LINK').set_index('ID_LINK')
+            # Colunas que a SC deve "sugar" da PC para não ficar em branco
+            cols_vinc = ["STATUS", "N° PC", "Data Emissao", "DT entrega ", "Nome Fornecedor", "CC"]
             
-            if link_pc in df_pc.columns and link_sc in df_sc.columns:
-                # 1. Trazer Cotação e SCM para a aba PC (VLOOKUP PC <- SC)
-                df_sc_map = df_sc.drop_duplicates(subset=[link_sc]).set_index(link_sc)
-                map_cot = df_sc_map["Num. Cotacao"].to_dict() if "Num. Cotacao" in df_sc_map.columns else {}
-                map_scm = df_sc_map["SCM"].to_dict() if "SCM" in df_sc_map.columns else {}
-                
-                df_pc['Num. Cotacao'] = df_pc[link_pc].map(map_cot).fillna(df_pc.get('Num. Cotacao', ''))
-                df_pc['SCM_INTERNO'] = df_pc[link_pc].map(map_scm)
-                
-                # 2. Trazer Status e Datas do Pedido para a aba SC (VLOOKUP SC <- PC)
-                # Criamos um mapa das informações que costumam faltar na SC
-                df_pc_map = df_pc.drop_duplicates(subset=[link_pc]).set_index(link_pc)
-                cols_para_vincular = ["STATUS", "N° PC", "Data Emissao", "DT entrega ", "DT Pgo (AVISTA)", "Nome Fornecedor"]
-                
-                for col in cols_para_vincular:
-                    if col in df_pc_map.columns:
-                        map_pc_info = df_pc_map[col].to_dict()
-                        # Só preenche na SC se a coluna original estiver vazia
-                        df_sc[col] = df_sc.apply(
-                            lambda r: map_pc_info.get(r[link_sc], r.get(col, '')) if not str(r.get(col, '')).strip() else r.get(col), 
-                            axis=1
-                        )
+            for col in cols_vinc:
+                if col in pc_info.columns:
+                    map_pc = pc_info[col].to_dict()
+                    # Preenche apenas se a SC estiver vazia naquelas colunas
+                    df_sc[col] = df_sc.apply(
+                        lambda r: map_pc.get(r['ID_LINK'], r.get(col, '')) if not str(r.get(col, '')).strip() else r.get(col),
+                        axis=1
+                    )
             
+            # Ajuste de nomes de colunas para exibição uniforme
+            if "Numero da SC" in df_sc.columns: df_sc = df_sc.rename(columns={"Numero da SC": "N° da SC"})
+            if "Numero Pedido" in df_sc.columns: df_sc = df_sc.rename(columns={"Numero Pedido": "N° PC"})
+
         return df_pc, df_sc
     except: return pd.DataFrame(), pd.DataFrame()
 
-df_pc, df_sc = carregar_e_vincular_bases()
+df_pc, df_sc = carregar_dados_consolidados()
 
 COLUNAS_PADRAO = ["STATUS", "N° da SC", "Num. Cotacao", "N° PC", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
 
-# 6. LÓGICA DE BUSCA
+# 6. BUSCA E EXIBIÇÃO
 if busca:
     termo = busca.lower().strip()
     
-    def filtrar_df(df, t):
-        # Busca em todas as colunas (incluindo SCM_INTERNO se houver)
-        mask = df.apply(lambda row: row.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)
-        # Prioridade para CC se for número
-        if t.isdigit() and "CC" in df.columns:
-            mask_cc = df["CC"].str.contains(t, na=False)
-            if mask_cc.any(): mask = mask_cc
-        return df[mask].copy()
+    def filtrar(df):
+        return df[df.apply(lambda r: r.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)].copy()
 
-    # Tenta primeiro na aba de Pedidos (PC)
-    df_res = filtrar_df(df_pc, termo)
-    origem = "Protheus PC (Vinculado)"
+    # Prioridade 1: Buscar na base de Pedidos (PC) já vinculada
+    df_res = filtrar(df_pc)
+    origem = "Pedidos (PC)"
 
-    # Se não achar na PC, busca na SC (que agora já recebeu o "PROCV" da PC)
+    # Prioridade 2: Se não achou no Pedido, busca na Solicitação (SC)
     if df_res.empty and not df_sc.empty:
-        df_res = filtrar_df(df_sc, termo)
-        origem = "Protheus SC (Info. Pedido)"
-        if "Numero da SC" in df_res.columns:
-            df_res = df_res.rename(columns={"Numero da SC": "N° da SC", "Numero Pedido": "N° PC"})
+        df_res = filtrar(df_sc)
+        origem = "Solicitações (SC)"
 
     if not df_res.empty:
+        # Garante que todas as colunas do padrão existam
         for col in COLUNAS_PADRAO:
             if col not in df_res.columns: df_res[col] = ""
+            
+        df_final = df_res[COLUNAS_PADRAO].fillna('')
+        st.markdown(f'<div class="status-box">🟢 Localizado em: {origem} ({len(df_res)} itens)</div>', unsafe_allow_html=True)
         
-        df_final = df_res[COLUNAS_PADRAO]
-        st.markdown(f'<div class="status-box">🟢 {origem} - {len(df_res)} registros</div>', unsafe_allow_html=True)
-        
+        # Download Excel
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_final.to_excel(wr, index=False)
-        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Portal_PA.xlsx")
+        st.download_button("📥 BAIXAR RESULTADO", out.getvalue(), "Busca_Portal.xlsx")
+        
         st.dataframe(df_final, use_container_width=True, hide_index=True)
     else:
-        st.warning(f"Nenhum registro encontrado para: '{busca}'")
+        st.warning(f"Nenhum dado encontrado para: {busca}")
 else:
-    st.info("💡 Digite um termo (SCM, CC, SC ou Produto) para pesquisar.")
-
-st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
+    st.info("💡 Digite SC, SCM, Fornecedor ou Produto para pesquisar.")
