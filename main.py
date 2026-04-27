@@ -40,27 +40,45 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CARREGAMENTO DAS ABAS EM CACHE
+# 4. FUNÇÕES DE FORMATAÇÃO (DATAS E PRODUTO)
+def tratar_dados(df):
+    # Formatação de Datas (DD/MM/AA)
+    colunas_data = ["Data Emissao", "Dt Liberacao", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
+    for col in colunas_data:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%y').fillna(df[col]).replace(['NaT', 'nan'], '')
+    
+    # Formatação do Produto (10 dígitos com zeros à esquerda)
+    if "Produto" in df.columns:
+        df["Produto"] = df["Produto"].astype(str).str.split('.').str[0] # Remove decimais se houver
+        df["Produto"] = df["Produto"].str.zfill(10).replace('0000000nan', '')
+        
+    return df
+
+# 5. CARREGAMENTO DAS ABAS EM CACHE
 @st.cache_data(ttl=600, show_spinner="Sincronizando bases...")
 def carregar_bases():
     URL_XLSX = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
+        
         # Aba 1 - Prioridade (PC)
         df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
+        df_pc = tratar_dados(df_pc)
         
         # Aba 2 - Secundária (SC)
         df_sc = pd.DataFrame()
         aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
         if aba_sc_nome:
             df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('')
+            df_sc = tratar_dados(df_sc)
             
         return df_pc, df_sc
     except Exception as e:
         st.error(f"Erro ao carregar bases: {e}")
         return pd.DataFrame(), pd.DataFrame()
 
-# 5. CABEÇALHO
+# 6. CABEÇALHO
 col_logo, col_titulo, col_busca = st.columns([1, 4, 1.5])
 with col_logo:
     if base64_logo: st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:140px;">', unsafe_allow_html=True)
@@ -72,25 +90,22 @@ with col_busca:
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 15px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 6. LÓGICA DE BUSCA HIERÁRQUICA
+# 7. LÓGICA DE BUSCA HIERÁRQUICA
 df_pc, df_sc = carregar_bases()
 
 if busca:
     termo = busca.lower().strip()
     
-    # Camada 1: Protheus PC
     mask_pc = df_pc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
     df_res = df_pc[mask_pc]
     origem = "Protheus PC"
 
-    # Camada 2: Protheus SC
     if df_res.empty and not df_sc.empty:
         mask_sc = df_sc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
         df_res = df_sc[mask_sc]
         origem = "Protheus SC"
 
     if not df_res.empty:
-        # Ordem das colunas atualizada conforme sua solicitação
         col_v = [
             "N° da SC", "Num. Cotacao", "Código Cotação", "N° PC", "CC", 
             "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", 
