@@ -40,7 +40,7 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CARREGAMENTO DAS ABAS EM CACHE (Separadas para velocidade)
+# 4. CARREGAMENTO DAS ABAS EM CACHE
 @st.cache_data(ttl=600, show_spinner="Sincronizando bases...")
 def carregar_bases():
     URL_XLSX = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
@@ -78,26 +78,25 @@ df_pc, df_sc = carregar_bases()
 if busca:
     termo = busca.lower().strip()
     
-    # --- CAMADA 1: Busca na Guia Protheus PC ---
+    # Camada 1: Protheus PC
     mask_pc = df_pc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
     df_res = df_pc[mask_pc]
     origem = "Protheus PC"
 
-    # --- CAMADA 2: Se não localizar na PC, busca na Guia Protheus SC ---
+    # Camada 2: Protheus SC
     if df_res.empty and not df_sc.empty:
         mask_sc = df_sc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
         df_res = df_sc[mask_sc]
         origem = "Protheus SC"
 
-    # --- EXIBIÇÃO DOS RESULTADOS ---
     if not df_res.empty:
-        # Padronização de colunas para exibição (Priorizando as existentes)
+        # Ordem das colunas atualizada conforme sua solicitação
         col_v = [
             "N° da SC", "Num. Cotacao", "Código Cotação", "N° PC", "CC", 
             "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", 
             " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", 
             "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", 
-            "DT entrega ", "STATUS"
+            "STATUS", "DT entrega "
         ]
         cols_finais = [c for c in col_v if c in df_res.columns]
 
@@ -111,7 +110,7 @@ if busca:
 
         st.dataframe(df_res[cols_finais], use_container_width=True, hide_index=True)
     else:
-        st.warning(f"Nenhuma informação localizada em ambas as guias para: '{busca}'")
+        st.warning(f"Nenhuma informação localizada para: '{busca}'")
 else:
     st.info("💡 Digite um termo para iniciar a busca prioritária (PC -> SC).")
 
