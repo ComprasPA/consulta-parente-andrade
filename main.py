@@ -66,19 +66,27 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. FUNÇÕES DE FORMATAÇÃO
+# 4. FUNÇÕES DE TRATAMENTO E MAPEAMENTO
 def tratar_dados(df):
+    # Datas
     colunas_data = ["Data Emissao", "Dt Liberacao", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
     for col in colunas_data:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%y').fillna(df[col]).replace(['NaT', 'nan'], '')
     
+    # Produto (10 dígitos)
     if "Produto" in df.columns:
         df["Produto"] = df["Produto"].astype(str).str.split('.').str[0]
         df["Produto"] = df["Produto"].str.zfill(10).replace('0000000nan', '')
+    
+    # Padronização de N° SC para busca
+    col_sc = next((c for c in df.columns if "SC" in c.upper() or "SOLICIT" in c.upper()), None)
+    if col_sc:
+        df[col_sc] = df[col_sc].astype(str).str.zfill(6)
+        
     return df
 
-# 5. CARREGAMENTO DAS ABAS EM CACHE
+# 5. CARREGAMENTO DAS ABAS
 @st.cache_data(ttl=600, show_spinner="Sincronizando bases...")
 def carregar_bases():
     URL_XLSX = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
@@ -100,7 +108,7 @@ def carregar_bases():
 
 df_pc, df_sc = carregar_bases()
 
-# DEFINIÇÃO DO PADRÃO DE COLUNAS (Baseado na PC)
+# ESTRUTURA PADRÃO DE COLUNAS
 COLUNAS_PADRAO = [
     "STATUS", "N° da SC", "Num. Cotacao", "Código Cotação", "N° PC", "CC", 
     "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", 
@@ -119,28 +127,38 @@ with col_busca:
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 10px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 7. LÓGICA DE BUSCA
+# 7. LÓGICA DE BUSCA E MAPEAMENTO DE COLUNAS
 if busca:
     termo = busca.lower().strip()
     
     # BUSCA 1: Protheus PC
     mask_pc = df_pc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
-    df_res = df_pc[mask_pc]
+    df_res = df_pc[mask_pc].copy()
     origem = "Protheus PC"
 
-    # BUSCA 2: Protheus SC (Se a 1 falhar)
+    # BUSCA 2: Protheus SC
     if df_res.empty and not df_sc.empty:
         mask_sc = df_sc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
-        df_res = df_sc[mask_sc]
+        df_res = df_sc[mask_sc].copy()
         origem = "Protheus SC"
+        
+        # MAPEAMENTO DE SC PARA PADRÃO PC:
+        # Renomeia colunas comuns para o padrão da PC se elas vierem com nomes diferentes na SC
+        mapeamento = {
+            "Solicitação": "N° da SC",
+            "Solicitacao": "N° da SC",
+            "Cotação": "Num. Cotacao",
+            "Cotacao": "Num. Cotacao"
+        }
+        df_res = df_res.rename(columns=mapeamento)
 
     if not df_res.empty:
-        # PADRONIZAÇÃO FORÇADA: Cria colunas faltantes com vazio e ordena igual à PC
+        # Garante que todas as colunas padrão existam (mesmo que vazias)
         for col in COLUNAS_PADRAO:
             if col not in df_res.columns:
-                df_res[col] = "" # Adiciona coluna vazia se não existir na SC
+                df_res[col] = ""
         
-        df_exibicao = df_res[COLUNAS_PADRAO]
+        df_final = df_res[COLUNAS_PADRAO]
 
         st.markdown(f'<div class="status-box">🟢 Encontrado em: {origem} ({len(df_res)} registros)</div>', unsafe_allow_html=True)
         
@@ -148,10 +166,10 @@ if busca:
         with c_down:
             out = BytesIO()
             with pd.ExcelWriter(out, engine='xlsxwriter') as wr:
-                df_exibicao.to_excel(wr, index=False)
+                df_final.to_excel(wr, index=False)
             st.download_button("📥 BAIXAR RESULTADO EM EXCEL", out.getvalue(), f"Busca_{origem}.xlsx")
 
-        st.dataframe(df_exibicao, use_container_width=True, hide_index=True)
+        st.dataframe(df_final, use_container_width=True, hide_index=True)
     else:
         st.warning(f"Nenhuma informação localizada para: '{busca}'")
 else:
