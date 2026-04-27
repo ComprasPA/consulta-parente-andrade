@@ -21,7 +21,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS (ESTILIZAÇÃO)
+# 3. CSS
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
@@ -53,10 +53,10 @@ def tratar_dados(df):
     
     # Produto (10 dígitos)
     if "Produto" in df.columns:
-        df["Produto"] = df["Produto"].astype(str).str.split('.').str[0]
+        df["Produto"] = df["Produto"].astype(str).str.split('.').str[0].str.strip()
         df["Produto"] = df["Produto"].str.zfill(10).replace('0000000nan', '')
     
-    # Limpeza de números (remove decimais .0 e espaços)
+    # Limpeza de códigos e números (remove .0 do Excel)
     for col in df.columns:
         if any(x in col.upper() for x in ["NUMERO", "N°", "COTACAO", "SC", "PC", "PEDIDO"]):
             df[col] = df[col].astype(str).str.split('.').str[0].str.strip().replace('nan', '')
@@ -85,9 +85,9 @@ def carregar_bases():
 
 df_pc, df_sc = carregar_bases()
 
-# ESTRUTURA VISUAL PADRÃO
+# ESTRUTURA VISUAL ÚNICA (Removido "Código Cotação")
 COLUNAS_PADRAO = [
-    "STATUS", "N° da SC", "Num. Cotacao", "Código Cotação", "N° PC", "CC", 
+    "STATUS", "N° da SC", "Num. Cotacao", "N° PC", "CC", 
     "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", 
     " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", 
     "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "
@@ -104,33 +104,33 @@ with col_busca:
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 10px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 7. LÓGICA DE BUSCA E INTEGRAÇÃO DE COLUNAS
+# 7. LÓGICA DE BUSCA E INTEGRAÇÃO
 if busca:
     termo = busca.lower().strip()
     
-    # BUSCA 1: Protheus PC
+    # Tenta na PC
     mask_pc = df_pc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
     df_res = df_pc[mask_pc].copy()
     origem = "Protheus PC"
 
-    # BUSCA 2: Protheus SC
+    # Tenta na SC
     if df_res.empty and not df_sc.empty:
         mask_sc = df_sc.apply(lambda row: row.astype(str).str.lower().str.contains(termo, na=False).any(), axis=1)
         df_res = df_sc[mask_sc].copy()
         origem = "Protheus SC"
         
-        # MAPEAMENTO REFORÇADO PARA PREENCHER COTAÇÃO E OUTROS
-        # Aqui garantimos que os nomes da planilha SC virem os nomes da exibição PC
+        # Mapeamento para garantir que os dados da SC preencham a visão padrão
         mapeamento = {
             "Numero da SC": "N° da SC",
             "Num. Cotacao": "Num. Cotacao",
             "Numero da Cotacao": "Num. Cotacao",
+            "Código Cotação": "Num. Cotacao", # Unifica aqui
             "Numero Pedido": "N° PC"
         }
         df_res = df_res.rename(columns=mapeamento)
 
     if not df_res.empty:
-        # Preenchimento das células em branco: se a coluna padrão não existe no resultado, cria como vazia
+        # Preenche o que faltar com vazio e garante a ordem
         for col in COLUNAS_PADRAO:
             if col not in df_res.columns:
                 df_res[col] = ""
