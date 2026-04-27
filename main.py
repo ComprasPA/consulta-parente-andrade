@@ -21,20 +21,18 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS AJUSTADO (REMOÇÃO TOTAL DE BORDAS FANTASMAS)
+# 3. CSS (REMOÇÃO DE BORDAS FANTASMAS E MOLDURA ÚNICA)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     .stApp {{ background-color: #f0f2f6; }}
     
-    /* Remove bordas de qualquer bloco horizontal/coluna do Streamlit */
     div[data-testid="column"], div[data-testid="stHorizontalBlock"] {{
         border: none !important;
         box-shadow: none !important;
         background-color: transparent !important;
     }}
 
-    /* Moldura Principal do Cabeçalho - A ÚNICA QUE DEVE APARECER */
     .header-wrapper {{
         border: 2px solid #478c3b;
         border-radius: 10px;
@@ -58,7 +56,6 @@ st.markdown(f"""
         white-space: nowrap;
     }}
 
-    /* Barra de Busca - Sem bordas extras além da sua própria */
     div[data-testid="stVerticalBlock"] > div:has(input) {{
         background-color: #ffffff; 
         padding: 0px 10px !important; 
@@ -74,7 +71,7 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO DENTRO DA MOLDURA ÚNICA
+# 4. CABEÇALHO
 st.markdown('<div class="header-wrapper">', unsafe_allow_html=True)
 c1, c2, c3 = st.columns([1.2, 5, 2.3])
 
@@ -91,16 +88,19 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 0px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
-# 5. TRATAMENTO DE DADOS (BASE CONGELADA)
+# 5. TRATAMENTO DE DADOS (INCLUINDO SCM)
 def tratar_dados(df):
     cols_dt = ["Data Emissao", "Dt Liberacao", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
     for col in cols_dt:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%y').fillna(df[col]).replace(['NaT', 'nan'], '')
+    
     if "Produto" in df.columns:
         df["Produto"] = df["Produto"].astype(str).str.split('.').str[0].str.strip().str.zfill(10).replace('0000000nan', '')
+    
+    # Limpeza de números de documentos e SCM
     for col in df.columns:
-        if any(x in col.upper() for x in ["NUMERO", "N°", "SC", "PC", "PEDIDO", "COTACAO"]):
+        if any(x in col.upper() for x in ["NUMERO", "N°", "SC", "PC", "PEDIDO", "COTACAO", "SCM"]):
             df[col] = df[col].astype(str).str.split('.').str[0].str.strip().replace('nan', '')
     return df
 
@@ -110,20 +110,37 @@ def carregar_e_vincular_bases():
     try:
         excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
         df_pc = tratar_dados(pd.read_excel(excel, sheet_name=0, dtype=str).fillna(''))
+        
         aba_sc = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
         df_sc = pd.DataFrame()
         if aba_sc:
             df_sc = tratar_dados(pd.read_excel(excel, sheet_name=aba_sc, dtype=str).fillna(''))
+            
             link_pc, link_sc = "N° da SC", "Numero da SC"
             if link_pc in df_pc.columns and link_sc in df_sc.columns:
-                map_cot = df_sc.set_index(link_sc)["Num. Cotacao"].to_dict()
-                df_pc['Num. Cotacao'] = df_pc.apply(lambda r: map_cot.get(r[link_pc], r.get('Num. Cotacao', '')), axis=1)
+                # Mapeia Cotação e SCM da aba SC para a aba PC
+                map_data = df_sc.set_index(link_sc)[["Num. Cotacao", "SCM"]].to_dict('index')
+                
+                def vincular(row):
+                    sc_val = row[link_pc]
+                    info = map_data.get(sc_val, {})
+                    row['Num. Cotacao'] = info.get('Num. Cotacao', row.get('Num. Cotacao', ''))
+                    row['SCM'] = info.get('SCM', row.get('SCM', ''))
+                    return row
+
+                df_pc = df_pc.apply(vincular, axis=1)
         return df_pc, df_sc
     except: return pd.DataFrame(), pd.DataFrame()
 
 df_pc, df_sc = carregar_e_vincular_bases()
 
-COLUNAS_PADRAO = ["STATUS", "N° da SC", "Num. Cotacao", "N° PC", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
+# DEFINIÇÃO DA ORDEM DAS COLUNAS (SCM APÓS STATUS)
+COLUNAS_PADRAO = [
+    "STATUS", "SCM", "N° da SC", "Num. Cotacao", "N° PC", "CC", "Nome Fornecedor", 
+    "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", 
+    "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", 
+    "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "
+]
 
 # 6. BUSCA E EXIBIÇÃO
 if busca:
@@ -142,7 +159,9 @@ if busca:
         for col in COLUNAS_PADRAO:
             if col not in df_res.columns: df_res[col] = ""
         df_final = df_res[COLUNAS_PADRAO]
+        
         st.markdown(f'<div class="status-box">🟢 {origem} - {len(df_res)} registros</div>', unsafe_allow_html=True)
+        
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_final.to_excel(wr, index=False)
         st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Portal_PA.xlsx")
