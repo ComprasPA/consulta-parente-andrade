@@ -21,16 +21,23 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS PARA ALINHAMENTO MILIMÉTRICO
+# 3. CSS PARA CRIAR A CAIXA GRANDE (MOLDURA VERMELHA DA IMAGEM)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     .stApp {{ background-color: #f0f2f6; }}
     
-    /* Força o alinhamento vertical de todos os elementos no topo da página */
-    [data-testid="stHorizontalBlock"] {{
-        align-items: center !important;
-        display: flex !important;
+    /* Moldura Principal (Equivalente à caixa vermelha da sua imagem) */
+    .header-wrapper {{
+        border: 2px solid #478c3b;
+        border-radius: 10px;
+        padding: 10px 20px;
+        background-color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
     }}
 
     .portal-title {{ 
@@ -41,17 +48,18 @@ st.markdown(f"""
         margin: 0 !important;
         padding: 0 !important;
         line-height: 1.1;
-        width: 100%;
+        flex-grow: 1; /* Faz o título ocupar o centro */
         white-space: nowrap;
     }}
 
-    /* Estilização da Barra de Busca para não ocupar espaço excessivo */
+    /* Estilização da Barra de Busca dentro da moldura */
     div[data-testid="stVerticalBlock"] > div:has(input) {{
         background-color: #ffffff; 
         padding: 0px 10px !important; 
         border-radius: 8px; 
         border: 2px solid #478c3b;
         margin-top: 0px !important;
+        min-width: 250px;
     }}
 
     .stDownloadButton button {{ 
@@ -63,15 +71,15 @@ st.markdown(f"""
         border-radius: 10px; font-weight: bold; font-size: 18px;
     }}
 
-    /* Ajuste para que o título não fique "espremido" */
     @media (max-width: 1200px) {{
         .portal-title {{ font-size: 30px !important; }}
     }}
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO EM LINHA ÚNICA (PROPORÇÕES AJUSTADAS)
-# Coluna 1: Logo | Coluna 2: Título | Coluna 3: Busca
+# 4. CABEÇALHO DENTRO DA MOLDURA ÚNICA
+# Usamos colunas dentro de um container customizado para simular a caixa vermelha
+st.markdown('<div class="header-wrapper">', unsafe_allow_html=True)
 col_logo, col_titulo, col_busca = st.columns([1.2, 5, 2.3])
 
 with col_logo:
@@ -84,12 +92,12 @@ with col_titulo:
     st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
 
 with col_busca:
-    # Removi qualquer espaçamento extra (st.write) aqui para manter o alinhamento
     busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
+st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 10px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: -10px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
-# 5. TRATAMENTO DE DADOS (INTEGRAÇÃO E PRODUTO)
+# 5. TRATAMENTO DE DADOS (BASE CONGELADA)
 def tratar_dados(df):
     cols_dt = ["Data Emissao", "Dt Liberacao", "DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "]
     for col in cols_dt:
@@ -115,7 +123,6 @@ def carregar_e_vincular_bases():
         df_sc = pd.DataFrame()
         if aba_sc:
             df_sc = tratar_dados(pd.read_excel(excel, sheet_name=aba_sc, dtype=str).fillna(''))
-            # PROCV da Cotação para a base de Pedidos
             link_pc, link_sc = "N° da SC", "Numero da SC"
             if link_pc in df_pc.columns and link_sc in df_sc.columns:
                 map_cot = df_sc.set_index(link_sc)["Num. Cotacao"].to_dict()
