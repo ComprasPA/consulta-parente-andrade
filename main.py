@@ -1,8 +1,9 @@
+prompt da pagina de follow up
+
 import streamlit as st
 import pandas as pd
 import base64
 from io import BytesIO
-import urllib.parse
 
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
@@ -12,108 +13,138 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. FUNÇÃO LOGO
+# 2. FUNÇÃO LOGO BASE64 PARA MARCA D'ÁGUA
 @st.cache_data(ttl=600)
 def get_base64_logo(image_path="logo"):
     try:
-        with open(image_path, "rb") as f: return base64.b64encode(f.read()).decode()
-    except: return None
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode()
+    except:
+        return None
 
 base64_logo = get_base64_logo()
 
-# 3. CSS CUSTOMIZADO
-st.markdown(f"""
+# 3. CSS PARA INTERFACE CLEAN E MARCA D'ÁGUA
+st.markdown("""
     <style>
-    .stApp {{ background-color: #f0f2f6; }}
-    .stApp > div > div > div > div > section > div {{
-        background-image: url("data:image/png;base64,{base64_logo}");
-        background-size: 350px; background-position: center 250px;
-        background-repeat: no-repeat; background-attachment: fixed; opacity: 0.05;
-    }}
-    div[data-testid="stVerticalBlock"] > div:has(input) {{
-        background-color: #ffffff; padding: 8px 15px !important;
-        border-radius: 10px; border: 2px solid #478c3b;
-    }}
-    .stDownloadButton button {{ background-color: #f2a933 !important; color: white !important; font-weight: bold !important; }}
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stAppDeployButton {display:none;}
+    
+    .stApp { background-color: #f0f2f6; }
+
+    /* Marca d'água no fundo */
+    .stApp > div > div > div > div > section > div {
+        background-image: url("data:image/png;base64,""" + str(base64_logo) + """");
+        background-size: 350px;
+        background-position: center 250px;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        opacity: 0.05;
+        z-index: -1;
+    }
+
+    .block-container { padding-top: 1rem !important; }
+
+    /* Barra de Busca */
+    div[data-testid="stVerticalBlock"] > div:has(input) {
+        background-color: #ffffff;
+        padding: 8px 15px !important;
+        border-radius: 10px;
+        border: 2px solid #478c3b;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    /* Botão de Download Amarelo PA */
+    .stDownloadButton button {
+        background-color: #f2a933 !important;
+        color: white !important;
+        font-weight: bold !important;
+        border: none !important;
+    }
+
+    .footer-text { text-align: center; color: #478c3b; font-size: 12px; margin-top: 40px; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CARREGAMENTO DOS DADOS
-URL_BASE = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP"
+# 4. CABEÇALHO
+col_logo, col_busca = st.columns([1, 4])
+with col_logo:
+    try: st.image("logo", width=150)
+    except: st.subheader("PARENTE ANDRADE")
+
+with col_busca:
+    busca = st.text_input("", placeholder="🔍 O que você deseja consultar? (SC, Produto, Fornecedor, CC...)", label_visibility="collapsed")
+
+st.markdown("<div style='height: 4px; background-color: #f2a933; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+
+# 5. CARREGAMENTO DE DADOS
+URL_PLANILHA = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/edit?usp=sharing"
+
+def preparar_url_google(url):
+    if "/edit" in url:
+        return url.split("/edit")[0] + "/export?format=csv"
+    return url
 
 @st.cache_data(ttl=300)
 def carregar_dados():
     try:
-        # Aba principal (Follow Up) - Geralmente gid=0
-        url_follow = f"{URL_BASE}/export?format=csv&gid=0"
-        df_follow = pd.read_csv(url_follow, dtype=str).fillna('')
-
-        # Aba Protheus SC
-        # Usando o nome da aba codificado para evitar Erro 400
-        nome_aba = urllib.parse.quote("Protheus SC")
-        url_sc = f"{URL_BASE}/gviz/tq?tqx=out:csv&sheet={nome_aba}"
-        df_sc = pd.read_csv(url_sc, dtype=str).fillna('')
-
-        # Padronização e Limpeza
-        if 'N° da SC' in df_follow.columns:
-            df_follow['N° da SC'] = df_follow['N° da SC'].astype(str).str.zfill(7)
+        url_csv = preparar_url_google(URL_PLANILHA)
+        df_raw = pd.read_csv(url_csv, dtype=str).fillna('')
         
-        # Identificar coluna de SC na aba Protheus SC
-        col_sc_origem = 'Numero da SC' if 'Numero da SC' in df_sc.columns else 'Solicitação'
+        # --- AJUSTES DE PADRONIZAÇÃO (ZEROS À ESQUERDA) ---
+        if 'Produto' in df_raw.columns:
+            df_raw['Produto'] = df_raw['Produto'].astype(str).str.zfill(10)
         
-        if col_sc_origem in df_sc.columns:
-            df_sc[col_sc_origem] = df_sc[col_sc_origem].astype(str).str.zfill(7)
-            
-            # Cruzamento de dados (PROCV) para trazer a Cotação
-            # Ajuste 'Num. Cotacao' para o nome exato da coluna na sua aba "Protheus SC"
-            col_cotacao = 'Num. Cotacao' if 'Num. Cotacao' in df_sc.columns else 'Código Cotação'
-            
-            df_final = pd.merge(
-                df_follow, 
-                df_sc[[col_sc_origem, col_cotacao]], 
-                left_on='N° da SC', 
-                right_on=col_sc_origem, 
-                how='left'
-            ).fillna('')
-        else:
-            df_final = df_follow
-
-        return df_final
+        if 'N° da SC' in df_raw.columns:
+            df_raw['N° da SC'] = df_raw['N° da SC'].astype(str).str.zfill(7)
+        
+        # Formatação de Datas
+        col_datas = ["DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "Data Emissao", "Dt Liberacao"]
+        for col in col_datas:
+            if col in df_raw.columns:
+                temp = pd.to_datetime(df_raw[col], errors='coerce')
+                df_raw[col] = temp.dt.strftime('%d/%m/%y').fillna(df_raw[col]).replace(['NaT', 'nan'], '')
+        
+        return df_raw
     except Exception as e:
-        st.error(f"Erro na conexão com o Google Sheets: {e}")
+        st.error(f"Erro ao carregar a planilha: {e}")
         return None
 
-# 5. EXECUÇÃO E FILTROS
 df = carregar_dados()
 
+# 6. EXIBIÇÃO DOS DADOS
 if df is not None:
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        try: st.image("logo", width=150)
-        except: st.subheader("PARENTE ANDRADE")
-    with col2:
-        busca = st.text_input("", placeholder="🔍 O que deseja consultar? (SC, Cotação, Pedido...)", label_visibility="collapsed")
-
+    df_display = df.copy()
+    
     if busca:
-        mask = df.apply(lambda r: r.astype(str).str.contains(busca, case=False).any(), axis=1)
+        mask = df.apply(lambda row: row.astype(str).str.contains(busca, case=False).any(), axis=1)
         df_display = df[mask]
-    else:
-        df_display = df
 
-    # Definição das colunas com a Cotação entre SC e Pedido
-    # Ajuste os nomes conforme aparecem no seu DataFrame
-    cols_referencia = [
-        "STATUS", "N° da SC", "Num. Cotacao", "Código Cotação", "N° PC", "CC", 
-        "Nome Fornecedor", "Produto", "Descricao", "Data Emissao"
+    # Ordem das colunas solicitada
+    col_v = [
+        "STATUS", "N° da SC", "N° PC", "CC", "Nome Fornecedor", "Produto", 
+        "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", 
+        "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", 
+        "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "
     ]
-    cols_existentes = [c for c in cols_referencia if c in df_display.columns]
+    
+    cols = [c for c in col_v if c in df_display.columns]
 
-    st.dataframe(df_display[cols_existentes], use_container_width=True, hide_index=True)
+    c_msg, c_down = st.columns([3, 1])
+    with c_msg:
+        if busca:
+            st.success(f"✅ {len(df_display)} registros encontrados.")
+        else:
+            st.info(f"💡 {len(df_display)} registros carregados.")
+    
+    with c_down:
+        out = BytesIO()
+        with pd.ExcelWriter(out, engine='xlsxwriter') as writer:
+            df_display[cols].to_excel(writer, index=False)
+        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Consulta_PA_Suprimentos.xlsx")
 
-    # Download
-    out = BytesIO()
-    with pd.ExcelWriter(out, engine='xlsxwriter') as writer:
-        df_display.to_excel(writer, index=False)
-    st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "FollowUp_Completo.xlsx")
+    st.dataframe(df_display[cols], use_container_width=True, hide_index=True)
 
-st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold;'>Suprimentos | Parente Andrade</p>", unsafe_allow_html=True)
+st.markdown("<p class='footer-text'>PARENTE ANDRADE LTDA | Setor de Suprimentos</p>", unsafe_allow_html=True)
