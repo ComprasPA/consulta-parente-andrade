@@ -11,93 +11,75 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. FUNÇÃO LOGO (Arquivo Local no Streamlit)
+# 2. FUNÇÃO LOGO (Arquivo Local)
 @st.cache_data(ttl=600)
 def get_base64_logo(image_path="logo"):
     try:
-        # Tenta ler o arquivo local 'logo'
         with open(image_path, "rb") as f:
             return base64.b64encode(f.read()).decode()
-    except Exception as e:
+    except:
         return None
 
 base64_logo = get_base64_logo()
 
-# 3. CSS PARA MARCA D'ÁGUA E INTERFACE
+# 3. CSS E ESTILIZAÇÃO
 st.markdown(f"""
     <style>
     .stApp {{ background-color: #f0f2f6; }}
-    /* Marca d'água */
     .stApp > div > div > div > div > section > div {{
         background-image: url("data:image/png;base64,{base64_logo if base64_logo else ''}");
-        background-size: 350px;
-        background-position: center 250px;
-        background-repeat: no-repeat;
-        background-attachment: fixed;
-        opacity: 0.05;
-        z-index: -1;
+        background-size: 350px; background-position: center 250px;
+        background-repeat: no-repeat; background-attachment: fixed; opacity: 0.05;
     }}
     div[data-testid="stVerticalBlock"] > div:has(input) {{
-        background-color: #ffffff;
-        padding: 8px 15px !important;
-        border-radius: 10px;
-        border: 2px solid #478c3b;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        background-color: #ffffff; padding: 8px 15px !important;
+        border-radius: 10px; border: 2px solid #478c3b;
     }}
-    .stDownloadButton button {{
-        background-color: #f2a933 !important;
-        color: white !important;
-        font-weight: bold !important;
-    }}
-    .footer-text {{ text-align: center; color: #478c3b; font-size: 12px; margin-top: 40px; font-weight: bold; }}
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CARREGAMENTO DE DADOS (PLANILHA GOOGLE DRIVE)
+# 4. CARREGAMENTO DOS DADOS (GOOGLE DRIVE)
 URL_XLSX = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
 
 @st.cache_data(ttl=300)
 def carregar_dados():
     try:
-        # Lê o Excel do Drive (Necessário openpyxl no requirements.txt)
+        # Carrega o Excel completo usando o motor openpyxl
         excel_data = pd.ExcelFile(URL_XLSX, engine='openpyxl')
         
-        # Aba 1 (Follow Up) e Aba 2 (Protheus SC)
+        # Aba 1: Follow Up
         df_follow = pd.read_excel(excel_data, sheet_name=0, dtype=str).fillna('')
         
+        # Aba 2: Protheus SC
         try:
             df_sc = pd.read_excel(excel_data, sheet_name="Protheus SC", dtype=str).fillna('')
         except:
             df_sc = pd.DataFrame()
 
-        # Padronização de Colunas
+        # Limpeza básica (N° da SC com 7 dígitos)
         if 'N° da SC' in df_follow.columns:
             df_follow['N° da SC'] = df_follow['N° da SC'].astype(str).str.zfill(7)
-        
+
+        # Se a aba de cotações existir, faz o merge
         if not df_sc.empty:
             col_sc_2 = 'Numero da SC' if 'Numero da SC' in df_sc.columns else 'Solicitação'
             if col_sc_2 in df_sc.columns:
                 df_sc[col_sc_2] = df_sc[col_sc_2].astype(str).str.zfill(7)
-                
-                # Identifica a coluna de Cotação na aba 2
                 col_cot = 'Num. Cotacao' if 'Num. Cotacao' in df_sc.columns else 'Código Cotação'
                 
-                # Merge (PROCV)
+                # Merge 'left' para não perder dados da aba principal
                 df_final = pd.merge(df_follow, df_sc[[col_sc_2, col_cot]], 
                                     left_on='N° da SC', right_on=col_sc_2, 
                                     how='left').fillna('')
-            else:
-                df_final = df_follow
-        else:
-            df_final = df_follow
+                return df_final
 
-        return df_final
+        return df_follow
     except Exception as e:
-        st.error(f"Erro ao carregar os dados da planilha: {e}")
+        st.error(f"Erro na Planilha: {e}")
         return None
 
-# 5. INTERFACE
-col_logo, col_busca = st.columns([1, 4])
+# 5. RENDERIZAÇÃO DA TELA
+col_logo, col_vazio = st.columns([1, 4])
 with col_logo:
     if base64_logo:
         st.image("logo", width=150)
@@ -107,21 +89,27 @@ with col_logo:
 df = carregar_dados()
 
 if df is not None:
-    busca = st.text_input("", placeholder="🔍 O que deseja consultar? (SC, Cotação, Pedido...)", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Digite para filtrar (SC, Cotação, Produto...)", label_visibility="collapsed")
     
-    df_display = df.copy()
+    # Filtro de busca
     if busca:
-        mask = df_display.apply(lambda r: r.astype(str).str.contains(busca, case=False).any(), axis=1)
-        df_display = df_display[mask]
+        mask = df.apply(lambda r: r.astype(str).str.contains(busca, case=False).any(), axis=1)
+        df_display = df[mask]
+    else:
+        df_display = df
 
-    # Ordem das colunas: SC -> Cotação -> Pedido
-    cols_ref = [
+    # Seleção de colunas existentes (Evita erro de tela branca)
+    cols_desejadas = [
         "STATUS", "N° da SC", "Num. Cotacao", "Código Cotação", "N° PC", 
-        "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", 
-        " Prc Unitario", " Vlr.Total", "Data Emissao"
+        "CC", "Nome Fornecedor", "Produto", "Descricao", "Data Emissao"
     ]
-    cols_finais = [c for c in cols_ref if c in df_display.columns]
+    cols_visiveis = [c for c in cols_desejadas if c in df_display.columns]
 
-    st.dataframe(df_display[cols_finais], use_container_width=True, hide_index=True)
+    if not df_display.empty:
+        st.dataframe(df_display[cols_visiveis], use_container_width=True, hide_index=True)
+    else:
+        st.info("Nenhum dado encontrado para a busca.")
+else:
+    st.warning("Aguardando conexão com a base de dados...")
 
-st.markdown("<p class='footer-text'>PARENTE ANDRADE | Suprimentos</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold;'>Suprimentos | Parente Andrade</p>", unsafe_allow_html=True)
