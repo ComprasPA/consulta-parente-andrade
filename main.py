@@ -22,94 +22,134 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS E ESTILIZAÇÃO
+# 3. CSS PARA INTERFACE, MARCA D'ÁGUA E AJUSTES DE BUSCA
 st.markdown(f"""
     <style>
+    #MainMenu {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
+    header {{visibility: hidden;}}
+    .stAppDeployButton {{display:none;}}
     .stApp {{ background-color: #f0f2f6; }}
+    
     .stApp > div > div > div > div > section > div {{
         background-image: url("data:image/png;base64,{base64_logo if base64_logo else ''}");
         background-size: 350px; background-position: center 250px;
         background-repeat: no-repeat; background-attachment: fixed; opacity: 0.05;
+        z-index: -1;
     }}
+
+    .block-container {{ padding-top: 1rem !important; }}
+
+    /* Barra de Busca mais compacta */
     div[data-testid="stVerticalBlock"] > div:has(input) {{
-        background-color: #ffffff; padding: 8px 15px !important;
-        border-radius: 10px; border: 2px solid #478c3b;
+        background-color: #ffffff;
+        padding: 5px 15px !important;
+        border-radius: 10px;
+        border: 2px solid #478c3b;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        max-width: 600px; /* Limita a largura da busca */
     }}
+
+    /* Botão de Download Amarelo PA */
+    .stDownloadButton button {{
+        background-color: #f2a933 !important;
+        color: white !important;
+        font-weight: bold !important;
+        border: none !important;
+    }}
+
+    .footer-text {{ text-align: center; color: #478c3b; font-size: 12px; margin-top: 40px; font-weight: bold; }}
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CARREGAMENTO DOS DADOS (GOOGLE DRIVE)
-URL_XLSX = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
-
-@st.cache_data(ttl=300)
-def carregar_dados():
-    try:
-        # Carrega o Excel completo usando o motor openpyxl
-        excel_data = pd.ExcelFile(URL_XLSX, engine='openpyxl')
-        
-        # Aba 1: Follow Up
-        df_follow = pd.read_excel(excel_data, sheet_name=0, dtype=str).fillna('')
-        
-        # Aba 2: Protheus SC
-        try:
-            df_sc = pd.read_excel(excel_data, sheet_name="Protheus SC", dtype=str).fillna('')
-        except:
-            df_sc = pd.DataFrame()
-
-        # Limpeza básica (N° da SC com 7 dígitos)
-        if 'N° da SC' in df_follow.columns:
-            df_follow['N° da SC'] = df_follow['N° da SC'].astype(str).str.zfill(7)
-
-        # Se a aba de cotações existir, faz o merge
-        if not df_sc.empty:
-            col_sc_2 = 'Numero da SC' if 'Numero da SC' in df_sc.columns else 'Solicitação'
-            if col_sc_2 in df_sc.columns:
-                df_sc[col_sc_2] = df_sc[col_sc_2].astype(str).str.zfill(7)
-                col_cot = 'Num. Cotacao' if 'Num. Cotacao' in df_sc.columns else 'Código Cotação'
-                
-                # Merge 'left' para não perder dados da aba principal
-                df_final = pd.merge(df_follow, df_sc[[col_sc_2, col_cot]], 
-                                    left_on='N° da SC', right_on=col_sc_2, 
-                                    how='left').fillna('')
-                return df_final
-
-        return df_follow
-    except Exception as e:
-        st.error(f"Erro na Planilha: {e}")
-        return None
-
-# 5. RENDERIZAÇÃO DA TELA
-col_logo, col_vazio = st.columns([1, 4])
+# 4. CABEÇALHO (LOGO E BUSCA LADO A LADO)
+col_logo, col_busca = st.columns([1, 3])
 with col_logo:
     if base64_logo:
         st.image("logo", width=150)
     else:
         st.subheader("PARENTE ANDRADE")
 
+with col_busca:
+    st.write("<div style='height: 15px;'></div>", unsafe_allow_html=True) # Ajuste de altura
+    busca = st.text_input("", placeholder="🔍 O que você deseja consultar?", label_visibility="collapsed")
+
+st.markdown("<div style='height: 4px; background-color: #f2a933; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+
+# 5. CARREGAMENTO DE DADOS (XLSX)
+URL_XLSX = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
+
+@st.cache_data(ttl=300)
+def carregar_dados():
+    try:
+        excel_data = pd.ExcelFile(URL_XLSX, engine='openpyxl')
+        df_follow = pd.read_excel(excel_data, sheet_name=0, dtype=str).fillna('')
+        
+        try:
+            df_sc = pd.read_excel(excel_data, sheet_name="Protheus SC", dtype=str).fillna('')
+        except:
+            df_sc = pd.DataFrame()
+
+        # Padronização
+        if 'N° da SC' in df_follow.columns:
+            df_follow['N° da SC'] = df_follow['N° da SC'].astype(str).str.zfill(7)
+        
+        if not df_sc.empty:
+            col_sc_2 = 'Numero da SC' if 'Numero da SC' in df_sc.columns else 'Solicitação'
+            if col_sc_2 in df_sc.columns:
+                df_sc[col_sc_2] = df_sc[col_sc_2].astype(str).str.zfill(7)
+                col_cot = 'Num. Cotacao' if 'Num. Cotacao' in df_sc.columns else 'Código Cotação'
+                
+                # Merge para incluir cotação
+                df_follow = pd.merge(df_follow, df_sc[[col_sc_2, col_cot]], 
+                                    left_on='N° da SC', right_on=col_sc_2, 
+                                    how='left').fillna('')
+        
+        # Formatação de Datas
+        col_datas = ["DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "Data Emissao", "Dt Liberacao"]
+        for col in col_datas:
+            if col in df_follow.columns:
+                temp = pd.to_datetime(df_follow[col], errors='coerce')
+                df_follow[col] = temp.dt.strftime('%d/%m/%y').fillna(df_follow[col]).replace(['NaT', 'nan'], '')
+        
+        return df_follow
+    except Exception as e:
+        st.error(f"Erro: {e}")
+        return None
+
 df = carregar_dados()
 
+# 6. EXIBIÇÃO E DOWNLOAD
 if df is not None:
-    busca = st.text_input("", placeholder="🔍 Digite para filtrar (SC, Cotação, Produto...)", label_visibility="collapsed")
-    
-    # Filtro de busca
+    df_display = df.copy()
     if busca:
-        mask = df.apply(lambda r: r.astype(str).str.contains(busca, case=False).any(), axis=1)
-        df_display = df[mask]
-    else:
-        df_display = df
+        mask = df_display.apply(lambda r: r.astype(str).str.contains(busca, case=False).any(), axis=1)
+        df_display = df_display[mask]
 
-    # Seleção de colunas existentes (Evita erro de tela branca)
-    cols_desejadas = [
-        "STATUS", "N° da SC", "Num. Cotacao", "Código Cotação", "N° PC", 
-        "CC", "Nome Fornecedor", "Produto", "Descricao", "Data Emissao"
+    # ORDEM EXATA DAS COLUNAS SOLICITADA
+    # Incluído 'Num. Cotacao' / 'Código Cotação' após 'N° da SC'
+    col_v = [
+        "STATUS", "N° da SC", "Num. Cotacao", "Código Cotação", "N° PC", "CC", 
+        "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", 
+        " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", 
+        "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "
     ]
-    cols_visiveis = [c for c in cols_desejadas if c in df_display.columns]
+    
+    # Filtra apenas as que existem no DataFrame final
+    cols_finais = [c for c in col_v if c in df_display.columns]
 
-    if not df_display.empty:
-        st.dataframe(df_display[cols_visiveis], use_container_width=True, hide_index=True)
-    else:
-        st.info("Nenhum dado encontrado para a busca.")
-else:
-    st.warning("Aguardando conexão com a base de dados...")
+    # Linha do Botão e Mensagem
+    c_msg, c_down = st.columns([3, 1])
+    with c_msg:
+        st.write(f"📊 {len(df_display)} registros encontrados.")
+    
+    with c_down:
+        out = BytesIO()
+        with pd.ExcelWriter(out, engine='xlsxwriter') as writer:
+            df_display[cols_finais].to_excel(writer, index=False)
+        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Suprimentos_PA.xlsx")
 
-st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold;'>Suprimentos | Parente Andrade</p>", unsafe_allow_html=True)
+    # Exibição da Tabela
+    st.dataframe(df_display[cols_finais], use_container_width=True, hide_index=True)
+
+st.markdown("<p class='footer-text'>PARENTE ANDRADE LTDA | Setor de Suprimentos</p>", unsafe_allow_html=True)
