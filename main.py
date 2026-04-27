@@ -49,27 +49,19 @@ with c1:
 with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
 with c3:
-    busca = st.text_input("", placeholder="🔍 Digite SC, SCM, Produto ou Fornecedor...", key="busca_input", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Digite SC, Cotação, Fornecedor...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. MOTOR DE CONSOLIDAÇÃO TOTAL (DICIONÁRIO DE VÍNCULOS)
-def normalizar_valor(val):
+# 5. MOTOR DE FUSÃO AGRESSIVA (PROCV TOTAL)
+def normalizar(val):
     if pd.isna(val) or str(val).lower() in ['nan', 'none', '']: return ""
     return str(val).split('.')[0].strip().lstrip('0')
 
-def formatar_datas(df):
-    for col in df.columns:
-        if any(d.upper() in col.upper() for d in ["DATA", "DT "]):
-            df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%y').fillna('')
-    return df
-
 @st.cache_data(ttl=600)
-def carregar_dados_venculados():
+def carregar_dados_blindados():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
-        
-        # Carregamento das abas
         df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
 
@@ -77,71 +69,72 @@ def carregar_dados_venculados():
         df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
         df_sc.columns = [str(c).strip() for c in df_sc.columns]
 
-        # Normalização das chaves
-        df_pc['CHAVE'] = df_pc["Numero da SC"].apply(normalizar_valor)
-        if not df_sc.empty:
-            df_sc['CHAVE'] = df_sc["Numero da SC"].apply(normalizar_valor)
+        # União das bases para criar um dicionário de consulta completo
+        df_unificado = pd.concat([df_pc, df_sc], ignore_index=True)
+        df_unificado['CHAVE'] = df_unificado['Numero da SC'].apply(normalizar)
+        
+        # Criação de mapas de valores únicos (Onde o valor não está vazio)
+        def criar_mapa(coluna):
+            subset = df_unificado[df_unificado[coluna] != ''][['CHAVE', coluna]]
+            return subset.drop_duplicates('CHAVE').set_index('CHAVE')[coluna].to_dict()
 
-            # --- CRIAÇÃO DO DICIONÁRIO MESTRE DE VÍNCULOS ---
-            # Pegamos tudo que é cotação/scm da aba SC
-            mapa_cotacao = df_sc[df_sc['CHAVE'] != ''][['CHAVE', 'Num. Cotacao', 'SCM']].drop_duplicates('CHAVE').set_index('CHAVE').to_dict('index')
-            
-            # Pegamos tudo que é pedido/status/fornecedor da aba PC
-            mapa_pedido = df_pc[df_pc['CHAVE'] != ''][['CHAVE', 'STATUS', 'Numero Pedido', 'Nome Fornecedor', 'CC']].drop_duplicates('CHAVE').set_index('CHAVE').to_dict('index')
+        mapas = {
+            'Num. Cotacao': criar_mapa('Num. Cotacao'),
+            'Numero Pedido': criar_mapa('Numero Pedido'),
+            'STATUS': criar_mapa('STATUS'),
+            'Nome Fornecedor': criar_mapa('Nome Fornecedor'),
+            'CC': criar_mapa('CC'),
+            'SCM': criar_mapa('SCM') if 'SCM' in df_unificado.columns else {}
+        }
 
-            # --- APLICAÇÃO FORÇADA DE VÍNCULOS (EM AMBAS AS ABAS) ---
-            for df in [df_pc, df_sc]:
-                for idx, row in df.iterrows():
-                    chave = row['CHAVE']
-                    if chave in mapa_cotacao:
-                        df.at[idx, 'Num. Cotacao'] = mapa_cotacao[chave]['Num. Cotacao']
-                        df.at[idx, 'SCM'] = mapa_cotacao[chave]['SCM']
-                    if chave in mapa_pedido:
-                        df.at[idx, 'STATUS'] = mapa_pedido[chave]['STATUS']
-                        df.at[idx, 'Numero Pedido'] = mapa_pedido[chave]['Numero Pedido']
-                        df.at[idx, 'Nome Fornecedor'] = mapa_pedido[chave]['Nome Fornecedor']
-                        df.at[idx, 'CC'] = mapa_pedido[chave]['CC']
+        # Aplicação forçada em ambas as abas
+        for df in [df_pc, df_sc]:
+            df['CHAVE'] = df['Numero da SC'].apply(normalizar)
+            for col, mapa in mapas.items():
+                if col in df.columns:
+                    # Se o mapa tem o valor para aquela CHAVE, ele substitui ou preenche
+                    df[col] = df.apply(lambda r: mapa.get(r['CHAVE'], r[col]), axis=1)
 
-        # Formatação final
-        df_pc = formatar_datas(df_pc)
-        df_sc = formatar_datas(df_sc)
+        # Formatação de Datas
+        for df in [df_pc, df_sc]:
+            for col in df.columns:
+                if any(d in col.upper() for d in ["DATA", "DT "]):
+                    df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%y').fillna('')
+
         return df_pc, df_sc
-
     except Exception as e:
-        st.error(f"Erro Crítico na Fusão de Dados: {e}")
+        st.error(f"Erro na fusão: {e}")
         return pd.DataFrame(), pd.DataFrame()
 
-df_pc, df_sc = carregar_dados_venculados()
+df_pc, df_sc = carregar_dados_blindados()
 
-# Colunas exatamente como no painel solicitado
-COL_PAINEL = ["STATUS", "Numero da SC", "Num. Cotacao", "Numero Pedido", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega"]
+COL_FINAL = ["STATUS", "Numero da SC", "Num. Cotacao", "Numero Pedido", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega"]
 
-# 6. BUSCA E EXIBIÇÃO
+# 6. EXIBIÇÃO
 if busca:
     t = busca.lower().strip()
-    res_pc = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)] if not df_pc.empty else pd.DataFrame()
-    res_sc = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)] if not df_sc.empty else pd.DataFrame()
+    res_pc = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
+    res_sc = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
 
     df_res = pd.concat([res_pc, res_sc], ignore_index=True)
     if not df_res.empty:
-        # Limpeza de duplicatas por item único
-        df_res = df_res.drop_duplicates(subset=['CHAVE', 'Produto', 'QNT', 'Numero Pedido', 'Num. Cotacao'])
+        # Garante que as duplicatas sejam removidas mas os dados preenchidos fiquem
+        df_res = df_res.drop_duplicates(subset=['CHAVE', 'Produto', 'QNT', 'Numero Pedido'])
         
-        for c in COL_PAINEL:
+        for c in COL_FINAL:
             if c not in df_res.columns: df_res[c] = ""
             
-        df_final = df_res[COL_PAINEL].fillna('')
-        st.markdown(f'<div class="status-box">🟢 {len(df_res)} registros vinculados com sucesso</div>', unsafe_allow_html=True)
+        df_final = df_res[COL_FINAL].fillna('')
+        st.markdown(f'<div class="status-box">🟢 {len(df_res)} registros localizados e vinculados</div>', unsafe_allow_html=True)
         
-        # Botão Excel
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_final.to_excel(wr, index=False)
-        st.download_button("📥 BAIXAR EXCEL CONSOLIDADO", out.getvalue(), "Relatorio_Compras_Vinc.xlsx")
+        st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Relatorio_Consolidado_PA.xlsx")
         
         st.dataframe(df_final, use_container_width=True, hide_index=True)
     else:
-        st.warning(f"Nenhum registro encontrado para: {busca}")
+        st.warning(f"Nada encontrado para: {busca}")
 else:
-    st.info("💡 Insira o termo de busca. O sistema garante agora o preenchimento da cotação e pedido em todas as células.")
+    st.info("💡 Digite o termo de busca. O sistema agora força o preenchimento de Cotação e Pedido cruzando as duas abas.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
