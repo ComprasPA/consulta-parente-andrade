@@ -21,13 +21,17 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS AJUSTADO (SEM O CONTAINER EXTRA DO TOPO)
+# 3. CSS AJUSTADO (REMOÇÃO TOTAL DE BLOCOS EXTRAS)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     .stApp {{ background-color: #f0f2f6; }}
     
-    /* Moldura Principal do Cabeçalho - Ajustada para ser a única */
+    /* Remove qualquer borda ou espaçamento automático do Streamlit no topo */
+    [data-testid="stHeader"] {{ background: rgba(0,0,0,0); }}
+    [data-testid="stVerticalBlock"] > div:first-child {{ padding-top: 0px !important; }}
+
+    /* Moldura Principal do Cabeçalho - Única caixa permitida */
     .header-wrapper {{
         border: 2px solid #478c3b;
         border-radius: 10px;
@@ -36,7 +40,7 @@ st.markdown(f"""
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-top: 10px;
+        margin-top: 5px;
         margin-bottom: 20px;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
     }}
@@ -47,12 +51,11 @@ st.markdown(f"""
         font-weight: bold !important; 
         text-align: center !important; 
         margin: 0 !important;
-        padding: 0 !important;
         line-height: 1.1;
         white-space: nowrap;
     }}
 
-    /* Barra de Busca */
+    /* Barra de Busca Limpa */
     div[data-testid="stVerticalBlock"] > div:has(input) {{
         background-color: #ffffff; 
         padding: 0px 10px !important; 
@@ -61,39 +64,28 @@ st.markdown(f"""
         margin: 0 !important;
     }}
 
-    .stDownloadButton button {{ 
-        background-color: #f2a933 !important; color: white !important; font-weight: bold !important; 
-    }}
-    
-    .status-box {{
-        background-color: #478c3b; color: white; padding: 12px 20px;
-        border-radius: 10px; font-weight: bold; font-size: 18px;
-    }}
+    .stDownloadButton button {{ background-color: #f2a933 !important; color: white !important; font-weight: bold !important; }}
+    .status-box {{ background-color: #478c3b; color: white; padding: 12px 20px; border-radius: 10px; font-weight: bold; font-size: 18px; }}
 
-    @media (max-width: 1200px) {{
-        .portal-title {{ font-size: 30px !important; }}
-    }}
+    @media (max-width: 1200px) {{ .portal-title {{ font-size: 30px !important; }} }}
     </style>
     """, unsafe_allow_html=True)
 
 # 4. CABEÇALHO DENTRO DA MOLDURA ÚNICA
 st.markdown('<div class="header-wrapper">', unsafe_allow_html=True)
-col_logo, col_titulo, col_busca = st.columns([1.2, 5, 2.3])
+c1, c2, c3 = st.columns([1.2, 5, 2.3])
 
-with col_logo:
+with c1:
     if base64_logo: 
         st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:140px; vertical-align: middle;">', unsafe_allow_html=True)
-    else:
-        st.write("### PA")
 
-with col_titulo:
+with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
 
-with col_busca:
+with c3:
     busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Linha de separação visual laranja (abaixo do cabeçalho)
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 0px; margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
 # 5. TRATAMENTO DE DADOS (BASE CONGELADA)
@@ -102,10 +94,8 @@ def tratar_dados(df):
     for col in cols_dt:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d/%m/%y').fillna(df[col]).replace(['NaT', 'nan'], '')
-    
     if "Produto" in df.columns:
         df["Produto"] = df["Produto"].astype(str).str.split('.').str[0].str.strip().str.zfill(10).replace('0000000nan', '')
-    
     for col in df.columns:
         if any(x in col.upper() for x in ["NUMERO", "N°", "SC", "PC", "PEDIDO", "COTACAO"]):
             df[col] = df[col].astype(str).str.split('.').str[0].str.strip().replace('nan', '')
@@ -117,7 +107,6 @@ def carregar_e_vincular_bases():
     try:
         excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
         df_pc = tratar_dados(pd.read_excel(excel, sheet_name=0, dtype=str).fillna(''))
-        
         aba_sc = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
         df_sc = pd.DataFrame()
         if aba_sc:
@@ -150,9 +139,7 @@ if busca:
         for col in COLUNAS_PADRAO:
             if col not in df_res.columns: df_res[col] = ""
         df_final = df_res[COLUNAS_PADRAO]
-        
         st.markdown(f'<div class="status-box">🟢 {origem} - {len(df_res)} registros</div>', unsafe_allow_html=True)
-        
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_final.to_excel(wr, index=False)
         st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Portal_PA.xlsx")
