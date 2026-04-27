@@ -76,21 +76,16 @@ URL_XLSX = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZ
 def carregar_dados():
     try:
         excel_file = pd.ExcelFile(URL_XLSX, engine='openpyxl')
-        
-        # Carrega Aba 1
         df_follow = pd.read_excel(excel_file, sheet_name=0, dtype=str).fillna('')
         
-        # Carrega Aba Protheus SC
         try:
             df_sc = pd.read_excel(excel_file, sheet_name="Protheus SC", dtype=str).fillna('')
         except:
             df_sc = pd.DataFrame()
 
-        # Padronização SC
         if 'N° da SC' in df_follow.columns:
             df_follow['N° da SC'] = df_follow['N° da SC'].astype(str).str.zfill(7)
         
-        # Integração (Merge)
         if not df_sc.empty:
             sc_col_2 = 'Numero da SC' if 'Numero da SC' in df_sc.columns else 'Solicitação'
             if sc_col_2 in df_sc.columns:
@@ -101,7 +96,6 @@ def carregar_dados():
                                     left_on='N° da SC', right_on=sc_col_2, 
                                     how='left').fillna('')
         
-        # Formatação de Datas
         cols_dt = ["DT Envio", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega ", "Data Emissao", "Dt Liberacao"]
         for c in cols_dt:
             if c in df_follow.columns:
@@ -122,25 +116,27 @@ if df is not None:
         mask = df_disp.apply(lambda r: r.astype(str).str.contains(busca, case=False).any(), axis=1)
         df_disp = df_disp[mask]
 
-    # ORDEM EXATA SOLICITADA
+    # ORDEM DAS COLUNAS: STATUS POR ÚLTIMO
     col_v = [
-        "STATUS", "N° da SC", "Num. Cotacao", "Código Cotação", "N° PC", "CC", 
+        "N° da SC", "Num. Cotacao", "Código Cotação", "N° PC", "CC", 
         "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", 
         " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", 
-        "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "
+        "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", 
+        "DT entrega ", "STATUS"
     ]
     cols_finais = [c for c in col_v if c in df_disp.columns]
 
-    # Botão e Tabela
+    # Botão de Download e Contador
     c1, c2 = st.columns([3, 1])
     with c1:
-        st.info(f"✅ {len(df_disp)} registros.")
+        st.info(f"✅ {len(df_disp)} registros encontrados.")
     with c2:
         output = BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as wr:
             df_disp[cols_finais].to_excel(wr, index=False)
         st.download_button("📥 BAIXAR EXCEL", output.getvalue(), "FollowUp_PA.xlsx")
 
+    # Tabela com as colunas na nova ordem
     st.dataframe(df_disp[cols_finais], use_container_width=True, hide_index=True)
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold;'>Parente Andrade | Suprimentos</p>", unsafe_allow_html=True)
