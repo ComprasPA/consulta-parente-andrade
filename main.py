@@ -21,18 +21,12 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS (DESIGN LIMPO E MOLDURA ÚNICA)
+# 3. CSS (DESIGN LIMPO)
 st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     .stApp {{ background-color: #f0f2f6; }}
     
-    div[data-testid="column"], div[data-testid="stHorizontalBlock"] {{
-        border: none !important;
-        box-shadow: none !important;
-        background-color: transparent !important;
-    }}
-
     .header-wrapper {{
         border: 2px solid #478c3b;
         border-radius: 10px;
@@ -43,7 +37,6 @@ st.markdown(f"""
         justify-content: space-between;
         margin-top: 10px;
         margin-bottom: 20px;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
     }}
 
     .portal-title {{ 
@@ -72,10 +65,10 @@ with c3:
     busca = st.text_input("", placeholder="🔍 Buscar...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. TRATAMENTO E VÍNCULO (BUSCA FLEXÍVEL DE COLUNAS)
-def preparar_dataframe(df):
-    # Limpa nomes das colunas (remove espaços e garante string)
-    df.columns = [str(c).strip() for c in df.columns]
+# 5. TRATAMENTO E VÍNCULO (LIMPEZA TOTAL DE COLUNAS)
+def preparar_dados(df):
+    # Transforma nomes de colunas em MAIÚSCULAS e remove espaços
+    df.columns = [str(c).strip().upper() for c in df.columns]
     for col in df.columns:
         df[col] = df[col].astype(str).str.split('.').str[0].str.strip().replace(['nan', 'NaT', 'None'], '')
     return df
@@ -85,71 +78,65 @@ def carregar_e_vincular():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
-        df_pc = preparar_dataframe(pd.read_excel(excel, sheet_name=0, dtype=str).fillna(''))
+        # Carrega aba de Pedidos (PC)
+        df_pc = preparar_dados(pd.read_excel(excel, sheet_name=0, dtype=str).fillna(''))
         
-        # Procura a aba SC
+        # Procura a aba SC (Solicitações)
         nome_aba_sc = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
         df_sc = pd.DataFrame()
 
         if nome_aba_sc:
-            df_sc = preparar_dataframe(pd.read_excel(excel, sheet_name=nome_aba_sc, dtype=str).fillna(''))
+            df_sc = preparar_dados(pd.read_excel(excel, sheet_name=nome_aba_sc, dtype=str).fillna(''))
             
-            # Localização dinâmica das colunas de ligação (Chave SC)
-            col_chave_pc = next((c for c in df_pc.columns if "SC" in c.upper() or "SOLICIT" in c.upper()), None)
-            col_chave_sc = next((c for c in df_sc.columns if "SC" in c.upper() or "SOLICIT" in c.upper()), None)
+            # Encontra as colunas de ligação (Chaves) de forma flexível (em maiúsculas)
+            col_chave_pc = next((c for c in df_pc.columns if "SC" in c or "SOLICIT" in c), None)
+            col_chave_sc = next((c for c in df_sc.columns if "SC" in c or "SOLICIT" in c), None)
             
-            # Localização dinâmica da coluna de valor SCM
-            col_valor_scm = next((c for c in df_sc.columns if "SCM" in c.upper()), col_chave_sc)
+            # Valor SCM
+            col_val_scm = next((c for c in df_sc.columns if "SCM" in c), col_chave_sc)
 
             if col_chave_pc and col_chave_sc:
-                # Criar dicionário de mapeamento (PROCV)
-                mapa_scm = df_sc.drop_duplicates(subset=[col_chave_sc]).set_index(col_chave_sc)[col_valor_scm].to_dict()
+                # Cria mapa de SCM
+                mapa_scm = df_sc.drop_duplicates(subset=[col_chave_sc]).set_index(col_chave_sc)[col_val_scm].to_dict()
+                df_pc['SCM_VINC'] = df_pc[col_chave_pc].map(mapa_scm).fillna('')
                 
-                # Injetar SCM na aba PC
-                df_pc['SCM'] = df_pc[col_chave_pc].map(mapa_scm).fillna('')
-                
-                # Injetar Cotação (se existir na SC)
-                col_cot = next((c for c in df_sc.columns if "COT" in c.upper()), None)
-                if col_cot:
-                    mapa_cot = df_sc.drop_duplicates(subset=[col_chave_sc]).set_index(col_chave_sc)[col_cot].to_dict()
-                    df_pc['Num. Cotacao'] = df_pc.apply(
-                        lambda r: mapa_cot.get(r[col_chave_pc], r.get('Num. Cotacao', '')) 
-                        if not str(r.get('Num. Cotacao', '')).strip() else r.get('Num. Cotacao'), axis=1
+                # Mapa de Cotação
+                col_cot_sc = next((c for c in df_sc.columns if "COT" in c), None)
+                if col_cot_sc:
+                    mapa_cot = df_sc.drop_duplicates(subset=[col_chave_sc]).set_index(col_chave_sc)[col_cot_sc].to_dict()
+                    # Coluna de cotação na PC
+                    col_cot_pc = next((c for c in df_pc.columns if "COT" in c), "NUM. COTACAO")
+                    df_pc[col_cot_pc] = df_pc.apply(
+                        lambda r: mapa_cot.get(r[col_chave_pc], r.get(col_cot_pc, '')) 
+                        if not str(r.get(col_cot_pc, '')).strip() else r.get(col_cot_pc), axis=1
                     )
         return df_pc, df_sc
     except Exception as e:
-        # Se der erro, retorna o PC puro para não travar a tela
-        return df_pc if 'df_pc' in locals() else pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame()
 
 df_pc, df_sc = carregar_e_vincular()
 
+# MAPEAMENTO PARA EXIBIÇÃO AMIGÁVEL
 COLUNAS_PADRAO = [
-    "STATUS", "SCM", "N° da SC", "Num. Cotacao", "N° PC", "CC", "Nome Fornecedor", 
-    "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", 
-    "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", 
-    "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega "
+    "STATUS", "SCM_VINC", "N° DA SC", "NUM. COTACAO", "N° PC", "CC", "NOME FORNECEDOR", 
+    "PRODUTO", "DESCRICAO", "UM", "QNT", " PRC UNITARIO", " VLR.TOTAL", 
+    "DATA EMISSAO", "DT LIBERACAO", "DT ENVIO", "CONDICAO PGO", 
+    "DT PGO (AVISTA)", "DT PREV DE ENTREGA", "DT ENTREGA "
 ]
 
-# 6. FILTRO E EXIBIÇÃO
+# 6. EXIBIÇÃO
 if busca:
-    termo = busca.lower().strip()
-    df_res = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(termo).any(), axis=1)].copy()
+    termo = busca.upper().strip()
+    df_res = df_pc[df_pc.apply(lambda r: r.astype(str).str.upper().str.contains(termo).any(), axis=1)].copy()
     
-    if df_res.empty and not df_sc.empty:
-        df_res = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(termo).any(), axis=1)].copy()
-        # Ajusta nomes para o padrão visual quando vem da aba SC
-        col_sc_local = next((c for c in df_res.columns if "SC" in c.upper() or "SOLICIT" in c.upper()), "SCM")
-        df_res['SCM'] = df_res.get(next((c for c in df_res.columns if "SCM" in c.upper()), col_sc_local), "")
-        df_res['N° da SC'] = df_res.get(col_sc_local, "")
-
     if not df_res.empty:
+        # Renomeia colunas para o padrão de visualização
+        df_res = df_res.rename(columns={"SCM_VINC": "SCM"})
         # Garante que as colunas existam
         for col in COLUNAS_PADRAO:
-            if col not in df_res.columns: df_res[col] = ""
+            c_upper = col.upper()
+            if c_upper not in df_res.columns: df_res[c_upper] = ""
         
-        st.markdown(f'<div class="status-box">🟢 Registros encontrados: {len(df_res)}</div>', unsafe_allow_html=True)
-        st.dataframe(df_res[COLUNAS_PADRAO], use_container_width=True, hide_index=True)
+        st.dataframe(df_res[[c.upper() for c in COLUNAS_PADRAO if c != "SCM_VINC"] + ["SCM"]], use_container_width=True, hide_index=True)
 else:
-    st.info("💡 Pesquise por Fornecedor, SC ou SCM.")
-
-st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Suprimentos</p>", unsafe_allow_html=True)
+    st.info("💡 Digite um termo para pesquisar.")
