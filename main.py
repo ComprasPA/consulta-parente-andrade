@@ -27,7 +27,7 @@ st.markdown(f"""
     <style>
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     .stApp {{ background-color: #f0f2f6; }}
-    .portal-title {{ color: #000000 !important; font-size: 40px !important; font-weight: bold !important; text-align: center !important; }}
+    .portal-title {{ color: #000000 !important; font-size: 40px !important; font-weight: bold !important; text-align: center !important; margin:0;}}
     div[data-testid="stVerticalBlock"] > div:has(input) {{
         background-color: #ffffff; padding: 2px 10px !important; border-radius: 8px; border: 2px solid #478c3b;
     }}
@@ -35,79 +35,79 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CARREGAMENTO GLOBAL EM CACHE (O SEGREDO DA VELOCIDADE)
-# O Streamlit guardará a planilha na memória por 10 minutos (600s)
-@st.cache_data(ttl=600, show_spinner="Atualizando base de dados...")
-def carregar_base_completa():
-    URL_XLSX = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
+# 4. CARREGAMENTO ULTRA RÁPIDO (CSV GID)
+@st.cache_data(ttl=300, show_spinner="Otimizando base de dados...")
+def carregar_dados_leves():
+    # Usando exportação CSV por GID (muito mais leve que XLSX)
+    BASE_URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=csv"
+    
     try:
-        # Baixa as abas uma única vez
-        with pd.ExcelFile(URL_XLSX, engine='openpyxl') as excel:
-            abas = excel.sheet_names
-            df_main = pd.read_excel(excel, sheet_name=abas[0], dtype=str).fillna('')
+        # Carrega Aba Principal (GID 0)
+        df_main = pd.read_csv(f"{BASE_URL}&gid=0", dtype=str).fillna('')
+        
+        # Carrega Aba Protheus SC (Troque pelo GID correto da sua aba se necessário)
+        # O GID da aba Protheus SC geralmente é o número longo no final da URL
+        try:
+            df_sc = pd.read_csv(f"{BASE_URL}&gid=1626027376", dtype=str).fillna('')
             
-            # Tenta integrar com a aba Protheus SC se existir
-            aba_sc = next((s for s in abas if "SC" in s.upper() or "PROTHEUS" in s.upper() and s != abas[0]), None)
-            if aba_sc:
-                df_sc = pd.read_excel(excel, sheet_name=aba_sc, dtype=str).fillna('')
-                col_sc_f = 'N° da SC' if 'N° da SC' in df_main.columns else None
-                col_sc_s = next((c for c in df_sc.columns if "NUMERO" in c.upper() and "SC" in c.upper() or "SOLICIT" in c.upper()), None)
-                
-                if col_sc_f and col_sc_s:
-                    df_main[col_sc_f] = df_main[col_sc_f].astype(str).str.zfill(7)
-                    df_sc[col_sc_s] = df_sc[col_sc_s].astype(str).str.zfill(7)
-                    cot_col = next((c for c in df_sc.columns if "COTACAO" in c.upper() or "COTAÇÃO" in c.upper()), None)
-                    if cot_col:
-                        df_main = pd.merge(df_main, df_sc[[col_sc_s, cot_col]], left_on=col_sc_f, right_on=col_sc_s, how='left').fillna('')
+            # Normalização e Merge Relâmpago
+            df_main['N° da SC'] = df_main['N° da SC'].astype(str).str.zfill(7)
+            df_sc['Numero da SC'] = df_sc['Numero da SC'].astype(str).str.zfill(7)
+            
+            # Traz apenas a coluna necessária para não pesar a memória
+            df_final = pd.merge(df_main, df_sc[['Numero da SC', 'Num. Cotacao']], 
+                                left_on='N° da SC', right_on='Numero da SC', 
+                                how='left').fillna('')
+        except:
+            df_final = df_main
+
+        # Pré-processamento de datas para busca rápida
+        cols_datas = ["DT Envio", "Data Emissao", "Dt Liberacao", "DT entrega "]
+        for c in cols_datas:
+            if c in df_final.columns:
+                df_final[c] = pd.to_datetime(df_final[c], errors='coerce').dt.strftime('%d/%m/%y').fillna(df_final[c])
         
-        # Padronização de datas prévia ao cache
-        for c in ["DT Envio", "Data Emissao", "Dt Liberacao", "DT entrega ", "DT Prev de Entrega"]:
-            if c in df_main.columns:
-                df_main[c] = pd.to_datetime(df_main[c], errors='coerce').dt.strftime('%d/%m/%y').fillna(df_main[c])
-        
-        return df_main
+        return df_final
     except Exception as e:
-        st.error(f"Erro ao baixar planilha: {e}")
+        st.error(f"Erro de conexão: {e}")
         return pd.DataFrame()
 
 # 5. CABEÇALHO
 col_logo, col_titulo, col_busca = st.columns([1, 4, 1.5])
 with col_logo:
-    if base64_logo: st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:150px;">', unsafe_allow_html=True)
+    if base64_logo: st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:140px;">', unsafe_allow_html=True)
 with col_titulo:
     st.markdown('<div class="portal-title">Portal Gestão de Compras Parente Andrade</div>', unsafe_allow_html=True)
 with col_busca:
     st.write("<div style='height: 15px;'></div>", unsafe_allow_html=True)
-    busca = st.text_input("", placeholder="🔍 Digite e aperte Enter...", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Digite e aguarde...", label_visibility="collapsed")
 
 st.markdown("<div style='height: 4px; background-color: #f2a933; margin-top: 15px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-# 6. EXECUÇÃO DA BUSCA (INSTANTÂNEA)
-# Carrega a base da memória (se já foi baixada uma vez, é instantâneo)
-df_base = carregar_base_completa()
+# 6. FILTRAGEM INSTANTÂNEA
+df_base = carregar_dados_leves()
 
 if busca:
-    # Busca local via vetorização (muito mais rápido que loops)
+    # Filtro de alta performance
     termo = busca.lower()
-    mask = df_base.apply(lambda row: row.astype(str).str.lower().str.contains(termo).any(), axis=1)
-    df_resultado = df_base[mask]
+    df_resultado = df_base[df_base.apply(lambda row: row.astype(str).str.lower().str.contains(termo).any(), axis=1)]
 
     if not df_resultado.empty:
-        col_v = ["N° da SC", "Num. Cotacao", "Código Cotação", "N° PC", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "STATUS"]
+        col_v = ["N° da SC", "Num. Cotacao", "N° PC", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "STATUS"]
         cols_finais = [c for c in col_v if c in df_resultado.columns]
 
         c1, c2 = st.columns([3, 1])
-        with c1: st.write(f"🟢 **{len(df_resultado)}** registros encontrados.")
+        with c1: st.write(f"🟢 **{len(df_resultado)}** registros.")
         with c2:
             out = BytesIO()
             with pd.ExcelWriter(out, engine='xlsxwriter') as wr:
                 df_resultado[cols_finais].to_excel(wr, index=False)
-            st.download_button("📥 BAIXAR EXCEL", out.getvalue(), f"Pesquisa_PA.xlsx")
+            st.download_button("📥 BAIXAR EXCEL", out.getvalue(), "Portal_PA.xlsx")
 
         st.dataframe(df_resultado[cols_finais], use_container_width=True, hide_index=True)
     else:
-        st.warning(f"Nenhum registro para '{busca}'.")
+        st.warning("Nenhum registro encontrado.")
 else:
-    st.info("💡 Digite o número da SC, Pedido ou Fornecedor para iniciar a consulta.")
+    st.info("💡 Digite qualquer informação para pesquisar na base integrada.")
 
-st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Suprimentos</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
