@@ -125,4 +125,3 @@ else:
     st.info("💡 Digite o termo. O sistema busca primeiro na PC; se não houver pedido, busca na SC.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
-
