@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import base64
+import re
 from io import BytesIO
 
 # 1. CONFIGURAÇÃO DA PÁGINA
@@ -49,84 +50,103 @@ with c1:
 with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
 with c3:
-    busca = st.text_input("", placeholder="🔍 Numero da SC ou Pedido...", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Digite SC ou Pedido...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. CARREGAMENTO DAS BASES COM CAPTURA TOTAL DE COLUNAS
+# 5. MOTOR DE CARREGAMENTO COM LIMPEZA DE CABEÇALHO
+def limpar_nome_coluna(nome):
+    # Remove espaços, pontuação e caracteres especiais para garantir o match
+    return re.sub(r'[^a-zA-Z0-9]', '', str(nome)).upper()
+
 @st.cache_data(ttl=600)
-def carregar_dados_totais():
+def carregar_dados_seguros():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
         
-        # Carrega Aba PC (Soberana)
+        # --- CARREGAR ABA PC ---
         df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
-        df_pc.columns = [str(c).strip() for c in df_pc.columns]
+        # Criamos um mapa: Nome Limpo -> Nome Original para não perder a estética
+        mapa_pc = {limpar_nome_coluna(col): col for col in df_pc.columns}
         
-        # Carrega Aba SC (Plano B)
+        # --- CARREGAR ABA SC ---
         aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
         df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
-        df_sc.columns = [str(c).strip() for c in df_sc.columns]
+        mapa_sc = {limpar_nome_coluna(col): col for col in df_sc.columns}
         
-        return df_pc, df_sc
+        return df_pc, df_sc, mapa_pc, mapa_sc
     except:
-        return pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame(), {}, {}
 
-df_pc, df_sc = carregar_dados_totais()
+df_pc, df_sc, mapa_pc, mapa_sc = carregar_dados_seguros()
 
-# Colunas que DEVEM aparecer no painel
-COLUNAS_ALVO = ["STATUS", "Numero da SC", "Numero Pedido", "CC", "Nome Fornecedor", "Produto", "Descricao", "UM", "QNT", " Prc Unitario", " Vlr.Total", "Data Emissao", "Dt Liberacao", "DT Envio", "CONDIÇÃO PGO", "DT Pgo (AVISTA)", "DT Prev de Entrega", "DT entrega"]
+# Colunas que DEVEM aparecer (usamos chaves limpas para busca interna)
+COLUNAS_DISPLAY = [
+    ("STATUS", "STATUS"), ("NUMERODASC", "Numero da SC"), ("NUMEROPEDIDO", "Numero Pedido"), 
+    ("CC", "CC"), ("NOMEFORNECEDOR", "Nome Fornecedor"), ("PRODUTO", "Produto"), 
+    ("DESCRICAO", "Descricao"), ("UM", "UM"), ("QNT", "QNT"), 
+    ("PRCUNITARIO", " Prc Unitario"), ("VLRTOTAL", " Vlr.Total"), 
+    ("DATAEMISSAO", "Data Emissao"), ("DTLIBERACAO", "Dt Liberacao"), 
+    ("DTENVIO", "DT Envio"), ("CONDICAOPGO", "CONDIÇÃO PGO"), 
+    ("DTPGOAVISTA", "DT Pgo (AVISTA)"), ("DTPREVDEENTREGA", "DT Prev de Entrega"), 
+    ("DTENTREGA", "DT entrega")
+]
 
-# 6. EXECUÇÃO DA BUSCA
+# 6. LÓGICA DE BUSCA SEQUENCIAL CORRIGIDA
 if busca:
     t = busca.lower().strip()
     
-    # Busca na PC primeiro
+    # 1. Busca na PC
     res_pc = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
     
     if not res_pc.empty:
         df_final = res_pc.copy()
-        origem = "Base de Pedidos (PC)"
+        origem = "Planilha de Pedidos (PC)"
+        mapa_atual = mapa_pc
     else:
-        # Se não achou na PC, busca na SC
+        # 2. Busca na SC
         res_sc = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
         if not res_sc.empty:
             df_final = res_sc.copy()
             # Inteligência de Status
-            def status_auto(row):
-                cot = str(row.get('Num. Cotacao', '')).strip()
-                return "EM COTAÇÃO" if cot != "" and cot.lower() != "nan" else "SC ABERTA"
-            df_final['STATUS'] = df_final.apply(status_auto, axis=1)
-            origem = "Base de Solicitações (SC)"
+            def definir_st(row):
+                # Busca a coluna de cotação independente de como esteja escrita
+                col_cot = next((c for c in row.index if "COTACAO" in limpar_nome_coluna(c)), None)
+                val_cot = str(row[col_cot]).strip() if col_cot else ""
+                return "EM COTAÇÃO" if val_cot != "" and val_cot.lower() != "nan" else "SC ABERTA"
+            df_final['STATUS'] = df_final.apply(definir_st, axis=1)
+            origem = "Planilha de Solicitações (SC)"
+            mapa_atual = mapa_sc
         else:
             df_final = pd.DataFrame()
 
     if not df_final.empty:
-        # 1. Padronização de Datas dd/mm/yy
-        for col in df_final.columns:
-            if any(d in col.upper() for d in ["DATA", "DT "]):
-                df_final[col] = pd.to_datetime(df_final[col], errors='coerce').dt.strftime('%d/%m/%y').fillna('')
+        # Reconstrução da tabela para garantir que UM, QNT, Fornecedor e Datas apareçam
+        df_painel = pd.DataFrame()
         
-        # 2. Garantia de Presença: Cria a coluna vazia se não existir na aba atual
-        for c in COLUNAS_ALVO:
-            if c not in df_final.columns:
-                df_final[c] = ""
+        for chave_limpa, nome_bonito in COLUNAS_DISPLAY:
+            # Tenta achar a coluna original na base que veio da planilha
+            col_original = next((c for c in df_final.columns if limpar_nome_coluna(c) == chave_limpa), None)
+            
+            if col_original:
+                df_painel[nome_bonito] = df_final[col_original]
+                # Formata se for data
+                if "DATA" in chave_limpa or "DT" in chave_limpa:
+                    df_painel[nome_bonito] = pd.to_datetime(df_painel[nome_bonito], errors='coerce').dt.strftime('%d/%m/%y').fillna('')
+            else:
+                df_painel[nome_bonito] = ""
+
+        st.markdown(f'<div class="status-box">🟢 Dados Vinculados de: {origem}</div>', unsafe_allow_html=True)
         
-        # 3. Filtragem Final para Exibição
-        df_exibir = df_final[COLUNAS_ALVO].drop_duplicates()
-        
-        st.markdown(f'<div class="status-box">🟢 Informações Extraídas de: {origem}</div>', unsafe_allow_html=True)
-        
-        # Download Excel
+        # Download
         out = BytesIO()
-        with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_exibir.to_excel(wr, index=False)
-        st.download_button("📥 BAIXAR RELATÓRIO", out.getvalue(), "Portal_Gestao_PA.xlsx")
+        with pd.ExcelWriter(out, engine='xlsxwriter') as wr: df_painel.to_excel(wr, index=False)
+        st.download_button("📥 DESCARREGAR RELATÓRIO", out.getvalue(), "Portal_Compras_Parente.xlsx")
         
-        # Exibição na Tela
-        st.dataframe(df_exibir, use_container_width=True, hide_index=True)
+        st.dataframe(df_painel, use_container_width=True, hide_index=True)
     else:
-        st.warning(f"Nenhum registro encontrado para: {busca}")
+        st.warning(f"Nenhum registro localizado para: {busca}")
 else:
-    st.info("💡 Digite o Numero da SC ou Pedido. O sistema prioriza os dados completos da aba PC (UM, QNT, Fornecedor, Datas).")
+    st.info("💡 Digite o número da SC ou Pedido. Prioridade: PC (Completo) > SC (Pendente).")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
