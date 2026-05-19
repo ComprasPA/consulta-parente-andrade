@@ -61,35 +61,52 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
-# 5. NOVO DICIONÁRIO DE COLUNAS ALINHADO
+# 5. NOVO SISTEMA DE MAPEAMENTO ROBUSTO
 # ==========================================
-# Mapeia a "CHAVE LIMPA" para o "Nome Exato da Tela" baseado na nova lista da planilha
-DICIONARIO_COLUNAS = {
-    "STATUS": "STATUS",
-    "NUMERODASC": "Nº Solicitação (SC)",
-    "NUMEROPC": "Nº Pedido (PC)",
-    "CENTROCUSTO": "Centro de Custo",
-    "FORNECEDOR": "Cód. Fornecedor",
-    "NOMEFORNECE": "Fornecedor",
-    "PRODUTO": "Produto",
-    "DESCRICAO": "Descrição",
-    "UNIDADE": "UM",
-    "QUANTIDADE": "Qtd",
-    "PRCUNITARIO": "Preço Unitário",
-    "VLRTOTAL": "Valor Total",
-    "DATAEMISSAO": "Data Emissão",
-    "DTLIBPC": "Data Liberação PC",
-    "DTENVIO": "Data Envio",
-    "CONDICAOPGO": "Condição Pgto",
-    "DTPGOAVISTA": "Data Pago À Vista",
-    "DTPREVDEENTREGA": "Prev. Entrega",
-    "DTENTREGA": "Data Entrega Real",
-    "OBSERVACAO": "Observação"
-}
+# Define o nome que aparece na tela e uma lista de termos para o motor encontrar a coluna
+MAPEAMENTO_MOCK = [
+    {"label": "STATUS", "termos": ["STATUS"]},
+    {"label": "Nº Solicitação (SC)", "termos": ["NUMERO", "SC"]},
+    {"label": "Nº Pedido (PC)", "termos": ["NUMERO", "PC"]},
+    {"label": "Centro de Custo", "termos": ["CENTRO", "CUSTO"]},
+    {"label": "Fornecedor", "termos": ["NOME", "FORNECE"]},
+    {"label": "Produto", "termos": ["PRODUTO"]},
+    {"label": "Descrição", "termos": ["DESCRICAO"]},
+    {"label": "UM", "termos": ["UNIDADE"]},
+    {"label": "Qtd", "termos": ["QUANTIDADE"]},
+    {"label": "Preço Unitário", "termos": ["PRC", "UNITARIO"]},
+    {"label": "Valor Total", "termos": ["VLR", "TOTAL"]},
+    {"label": "Data Emissão", "termos": ["DATA", "EMISSAO"]},
+    {"label": "Data Liberação PC", "termos": ["LIB", "PC"]},
+    {"label": "Data Envio", "termos": ["DT", "ENVIO"]},
+    {"label": "Condição Pgto", "termos": ["CONDICAO", "PGO"]},
+    {"label": "Data Pago À Vista", "termos": ["PGO", "AVISTA"]},
+    {"label": "Prev. Entrega", "termos": ["PREV", "ENTREGA"]},
+    {"label": "Data Entrega Real", "termos": ["DT", "ENTREGA"]},
+    {"label": "Data Baixa", "termos": ["DT", "BAIXA"]},
+    {"label": "Observação", "termos": ["OBSERVACAO"]}
+]
 
-def limpar_nome_coluna(nome):
-    # Tratamento para garantir o match mesmo se houver caracteres invisíveis
-    return re.sub(r'[^a-zA-Z0-9]', '', str(nome)).upper()
+def normalizar_texto(texto):
+    # Remove acentos, espaços e caracteres especiais para comparação
+    if not texto: return ""
+    texto = str(texto).upper()
+    texto = re.sub(r'[ÁÀÂÃ]', 'A', texto)
+    texto = re.sub(r'[ÉÈÊ]', 'E', texto)
+    texto = re.sub(r'[ÍÌÎ]', 'I', texto)
+    texto = re.sub(r'[ÓÒÔÕ]', 'O', texto)
+    texto = re.sub(r'[ÚÙÛ]', 'U', texto)
+    texto = re.sub(r'[Ç]', 'C', texto)
+    return re.sub(r'[^A-Z0-9]', '', texto)
+
+def encontrar_coluna_original(df_colunas, lista_termos):
+    # Varre as colunas reais da planilha buscando a melhor correspondência pelos termos chave
+    for col in df_colunas:
+        col_norm = normalizar_texto(col)
+        # Verifica se todos os termos da lista estão contidos no nome da coluna normalizada
+        if all(normalizar_texto(termo) in col_norm for termo in lista_termos):
+            return col
+    return None
 
 @st.cache_data(ttl=60)
 def carregar_dados_seguros():
@@ -132,7 +149,7 @@ if busca:
             
             # Inteligência de Status para registros na aba SC
             def definir_st(row):
-                col_cot = next((c for c in row.index if "COTACAO" in limpar_nome_coluna(c)), None)
+                col_cot = encontrar_coluna_original(row.index, ["COTACAO"])
                 val_cot = str(row[col_cot]).strip() if col_cot else ""
                 if val_cot != "" and val_cot.lower() != "nan" and val_cot != "0":
                     return "EM COTAÇÃO"
@@ -146,14 +163,19 @@ if busca:
         # Constrói o painel com os índices corretos da busca
         df_painel = pd.DataFrame(index=df_final.index)
         
-        for chave_limpa, nome_bonito in DICIONARIO_COLUNAS.items():
-            # Procura o cabeçalho equivalente usando a higienização de strings
-            col_original = next((c for c in df_final.columns if limpar_nome_coluna(c) == chave_limpa), None)
+        for config in MAPEAMENTO_MOCK:
+            nome_bonito = config["label"]
+            termos_chave = config["termos"]
+            
+            # Localiza dinamicamente o nome real da coluna na planilha
+            col_original = encontrar_coluna_original(df_final.columns, termos_chave)
             
             if col_original:
                 # Tratamento unificado de datas para o formato nacional (DD/MM/AA)
-                if "DATA" in chave_limpa or "DT" in chave_limpa:
+                if any(x in normalizar_texto(col_original) for x in ["DATA", "DT", "PREV", "LIB"]):
                     datas_limpas = df_final[col_original].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+                    # Garante que campos vazios do Excel não virem erros de conversão
+                    datas_limpas = datas_limpas.replace(['nan', 'NONE', ''], '')
                     df_painel[nome_bonito] = pd.to_datetime(datas_limpas, errors='coerce', format='mixed').dt.strftime('%d/%m/%y').fillna('')
                 else:
                     df_painel[nome_bonito] = df_final[col_original]
@@ -161,7 +183,7 @@ if busca:
                 # Preenche com vazio se a coluna não pertencer à aba atual pesquisada
                 df_painel[nome_bonito] = ""
 
-        # Elimina linhas fantasmas do processamento
+        # Elimina linhas totalmente vazias
         df_painel = df_painel.dropna(how='all')
 
         st.markdown(f'<div class="status-box">🟢 Dados Vinculados de: {origem}</div>', unsafe_allow_html=True)
