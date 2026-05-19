@@ -43,110 +43,131 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO
+# 4. CABEÇALHO COM BOTÃO DE ATUALIZAÇÃO FORÇADA
 st.markdown('<div class="header-wrapper">', unsafe_allow_html=True)
-c1, c2, c3 = st.columns([1.2, 5, 2.3])
+c1, c2, c3, c4 = st.columns([1.2, 4.5, 1.3, 2.3])
 with c1:
     if base64_logo: 
         st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:140px;">', unsafe_allow_html=True)
 with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
 with c3:
+    if st.button("🔄 Atualizar Base", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+with c4:
     busca = st.text_input("", placeholder="🔍 Digite SC ou Pedido...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. MOTOR DE CARREGAMENTO COM LIMPEZA DE CABEÇALHO
+
+# ==========================================
+# 5. NOVO DICIONÁRIO DE COLUNAS ALINHADO
+# ==========================================
+# Mapeia a "CHAVE LIMPA" para o "Nome Exato da Tela" baseado na nova lista da planilha
+DICIONARIO_COLUNAS = {
+    "STATUS": "STATUS",
+    "NUMERODASC": "Nº Solicitação (SC)",
+    "NUMEROPC": "Nº Pedido (PC)",
+    "CENTROCUSTO": "Centro de Custo",
+    "FORNECEDOR": "Cód. Fornecedor",
+    "NOMEFORNECE": "Fornecedor",
+    "PRODUTO": "Produto",
+    "DESCRICAO": "Descrição",
+    "UNIDADE": "UM",
+    "QUANTIDADE": "Qtd",
+    "PRCUNITARIO": "Preço Unitário",
+    "VLRTOTAL": "Valor Total",
+    "DATAEMISSAO": "Data Emissão",
+    "DTLIBPC": "Data Liberação PC",
+    "DTENVIO": "Data Envio",
+    "CONDICAOPGO": "Condição Pgto",
+    "DTPGOAVISTA": "Data Pago À Vista",
+    "DTPREVDEENTREGA": "Prev. Entrega",
+    "DTENTREGA": "Data Entrega Real",
+    "OBSERVACAO": "Observação"
+}
+
 def limpar_nome_coluna(nome):
+    # Tratamento para garantir o match mesmo se houver caracteres invisíveis
     return re.sub(r'[^a-zA-Z0-9]', '', str(nome)).upper()
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=60)
 def carregar_dados_seguros():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
         
-        # --- CARREGAR ABA PC ---
+        # Carrega removendo espaços em branco extras das pontas das colunas
         df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
-        mapa_pc = {limpar_nome_coluna(col): col for col in df_pc.columns}
+        df_pc.columns = [c.strip() for c in df_pc.columns]
         
-        # --- CARREGAR ABA SC ---
         aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
         df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
-        mapa_sc = {limpar_nome_coluna(col): col for col in df_sc.columns}
+        df_sc.columns = [c.strip() for c in df_sc.columns]
         
-        return df_pc, df_sc, mapa_pc, mapa_sc
+        return df_pc, df_sc
     except Exception as e:
-        # Mantém a estabilidade do app se a planilha falhar
-        return pd.DataFrame(), pd.DataFrame(), {}, {}
+        return pd.DataFrame(), pd.DataFrame()
 
-df_pc, df_sc, mapa_pc, mapa_sc = carregar_dados_seguros()
+df_pc, df_sc = carregar_dados_seguros()
 
-# Colunas normatizadas para exibição em tela e download
-COLUNAS_DISPLAY = [
-    ("STATUS", "STATUS"), ("NUMERODASC", "Numero da SC"), ("NUMEROPEDIDO", "Numero Pedido"), 
-    ("CC", "CC"), ("NOMEFORNECEDOR", "Nome Fornecedor"), ("PRODUTO", "Produto"), 
-    ("DESCRICAO", "Descricao"), ("UM", "UM"), ("QNT", "QNT"), 
-    ("PRCUNITARIO", "Prc Unitario"), ("VLRTOTAL", "Vlr.Total"), 
-    ("DATAEMISSAO", "Data Emissao"), ("DTLIBERACAO", "Dt Liberacao"), 
-    ("DTENVIO", "DT Envio"), ("CONDICAOPGO", "CONDIÇÃO PGO"), 
-    ("DTPGOAVISTA", "DT Pgo (AVISTA)"), ("DTPREVDEENTREGA", "DT Prev de Entrega"), 
-    ("DTENTREGA", "DT entrega")
-]
 
-# 6. LÓGICA DE BUSCA SEQUENCIAL
+# ==========================================
+# 6. LÓGICA DE BUSCA E MONTAGEM DA TABELA
+# ==========================================
 if busca:
     t = busca.lower().strip()
     
-    # 1. Busca abrangente na aba de Pedidos (PC)
+    # Realiza a busca no DataFrame completo de Pedidos (PC)
     res_pc = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
     
     if not res_pc.empty:
         df_final = res_pc.copy()
         origem = "Planilha de Pedidos (PC)"
     else:
-        # 2. Se não achar na PC, busca na aba de Solicitações (SC)
+        # Se não achar na PC, busca na de Solicitações (SC)
         res_sc = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
         if not res_sc.empty:
             df_final = res_sc.copy()
             
-            # Inteligência de Definição de Status para a SC
+            # Inteligência de Status para registros na aba SC
             def definir_st(row):
                 col_cot = next((c for c in row.index if "COTACAO" in limpar_nome_coluna(c)), None)
                 val_cot = str(row[col_cot]).strip() if col_cot else ""
                 if val_cot != "" and val_cot.lower() != "nan" and val_cot != "0":
                     return "EM COTAÇÃO"
                 return "SC ABERTA"
-                
             df_final['STATUS'] = df_final.apply(definir_st, axis=1)
             origem = "Planilha de Solicitações (SC)"
         else:
             df_final = pd.DataFrame()
 
     if not df_final.empty:
-        # Reconstrói a estrutura com o index alinhado para evitar o erro de atribuição
+        # Constrói o painel com os índices corretos da busca
         df_painel = pd.DataFrame(index=df_final.index)
         
-        for chave_limpa, nome_bonito in COLUNAS_DISPLAY:
+        for chave_limpa, nome_bonito in DICIONARIO_COLUNAS.items():
+            # Procura o cabeçalho equivalente usando a higienização de strings
             col_original = next((c for c in df_final.columns if limpar_nome_coluna(c) == chave_limpa), None)
             
             if col_original:
-                # Tratamento robusto para colunas de data
+                # Tratamento unificado de datas para o formato nacional (DD/MM/AA)
                 if "DATA" in chave_limpa or "DT" in chave_limpa:
-                    # Remove pontos flutuantes parasitas originados do Excel (.0) antes de converter
-                    datas_limpas = df_final[col_original].astype(str).str.replace(r'\.0$', '', regex=True)
+                    datas_limpas = df_final[col_original].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
                     df_painel[nome_bonito] = pd.to_datetime(datas_limpas, errors='coerce', format='mixed').dt.strftime('%d/%m/%y').fillna('')
                 else:
                     df_painel[nome_bonito] = df_final[col_original]
             else:
+                # Preenche com vazio se a coluna não pertencer à aba atual pesquisada
                 df_painel[nome_bonito] = ""
 
-        # Remove linhas totalmente vazias que possam ter sido geradas na remontagem
+        # Elimina linhas fantasmas do processamento
         df_painel = df_painel.dropna(how='all')
 
         st.markdown(f'<div class="status-box">🟢 Dados Vinculados de: {origem}</div>', unsafe_allow_html=True)
-        st.write("") # Espaçamento estrutural
+        st.write("")
         
-        # Bloco de Download em Excel
+        # Geração do arquivo para Download
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
             df_painel.to_excel(wr, index=False)
@@ -158,7 +179,7 @@ if busca:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
         
-        # Exibição do Painel de Dados Otimizado
+        # Exibição estruturada dos dados na tela
         st.dataframe(df_painel, use_container_width=True, hide_index=True)
     else:
         st.warning(f"⚠️ Nenhum registro localizado para: '{busca}'")
