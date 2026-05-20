@@ -87,19 +87,19 @@ DICIONARIO_COLUNAS_EXATAS = [
 # Formata strings numéricas limpando flutuantes .0 do Excel e preenchendo zeros à esquerda
 def ajustar_zeros_protheus(valor, tamanho_alvo):
     val_limpo = str(valor).split('.')[0].strip()
-    if val_limpo and val_limpo.lower() != 'nan' and val_limpo != '0':
+    if val_limpo and val_limpo.lower() != 'nan' and val_limpo != '0' and val_limpo != '':
         return val_limpo.zfill(tamanho_alvo)
-    return val_limpo
+    return ""
 
 # Converte strings de preço/valores para float numérico válido
 def converter_para_numerico(valor):
-    if not valor or str(valor).lower() == 'nan':
-        return 0.0
+    if not valor or str(valor).lower() == 'nan' or str(valor).strip() == '':
+        return ""
     dado = str(valor).replace('.', '').replace(',', '.').strip()
     try:
         return float(dado)
     except:
-        return 0.0
+        return ""
 
 # Formata qualquer string ou objeto de data estritamente para DD/MM/AA
 def formatar_para_dd_mm_aa(valor):
@@ -137,11 +137,9 @@ df_pc, df_sc = carregar_dados_seguros()
 # 6. MOTOR DE BUSCA ROBUSTO (MÉTODO CONTAINS REGEX)
 # ==========================================
 if busca:
-    # Extrai o número limpo digitado ignorando zeros extras para a busca flexível
     termo_busca = busca.strip()
     termo_numerico = re.sub(r'[^0-9]', '', termo_busca)
     
-    # Monta a expressão regular de busca tolerante (pega o número exato, com ou sem .0)
     if termo_numerico:
         padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
     else:
@@ -152,10 +150,8 @@ if busca:
     
     # ---- 1º PASSO: BUSCA NA PLANILHA DE PEDIDOS (PC) ----
     if not df_pc.empty:
-        # Encontra a coluna correta de SC na aba PC
         col_sc_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
         if col_sc_pc:
-            # Varre usando regex tolerante para capturar variações numéricas de string (.0)
             res_pc = df_pc[df_pc[col_sc_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)]
             if not res_pc.empty:
                 df_final = res_pc.copy()
@@ -163,11 +159,9 @@ if busca:
 
     # ---- 2º PASSO: FALLBACK PARA A PLANILHA DE SOLICITAÇÕES (SC) ----
     if df_final.empty and not df_sc.empty:
-        # Encontra a coluna de busca (pode se chamar "Nº Solicitação (SC)", "SCM" ou similar)
         col_busca_sc = next((c for c in df_sc.columns if "SOLICITACAO" in c.upper() or "SCM" in c.upper() or "SC" in c.upper()), None)
         
         if col_busca_sc:
-            # Varre usando regex tolerante
             res_sc = df_sc[df_sc[col_busca_sc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)]
             if not res_sc.empty:
                 df_final = res_sc.copy()
@@ -182,7 +176,6 @@ if busca:
             nome_exibicao_tela = col_config["tela"]
             tipo_campo = col_config["tipo"]
             
-            # Ajuste dinâmico de cabeçalho para conciliação entre abas
             col_real = nome_original_planilha
             if nome_original_planilha not in df_final.columns:
                 if "SOLICITACAO" in nome_original_planilha.upper() or "SC" in nome_original_planilha.upper():
@@ -208,15 +201,13 @@ if busca:
                 else:
                     df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
             else:
-                # Preenchimento indexado seguro para colunas ausentes
+                # Mantém vazio absoluto em formato de texto para colunas ausentes
                 if nome_exibicao_tela == "Nº Solicitação (SC)":
                     df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
-                elif tipo_campo in ["moeda", "numero"]:
-                    df_painel[nome_exibicao_tela] = 0.0
                 else:
                     df_painel[nome_exibicao_tela] = ""
 
-        # REGRA ATIVADA: Se os dados vierem da aba de Solicitações (SC), força o status para "EM COTAÇÃO"
+        # REGRA ATIVADA: Força status "EM COTAÇÃO" se vier da aba de solicitações pendentes
         if origem.startswith("Planilha de Solicitações") and "STATUS" in df_painel.columns:
             df_painel["STATUS"] = "EM COTAÇÃO"
 
@@ -248,6 +239,7 @@ if busca:
             if col_data in df_painel.columns:
                 df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
 
+        # Remove apenas se TODAS as células da linha forem completamente vazias
         df_painel = df_painel.dropna(how='all')
 
         st.markdown(f'<div class="status-box">🟢 {origem}</div>', unsafe_allow_html=True)
@@ -274,6 +266,7 @@ if busca:
             nome_tela = col_config["tela"]
             tipo_campo = col_config["tipo"]
             
+            # Aplica NumberColumn apenas em campos que contêm dados numéricos reais (não vazios em texto)
             if tipo_campo == "moeda":
                 configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(
                     nome_tela,
@@ -297,7 +290,7 @@ if busca:
                         alignment="right"
                     )
         
-        # Renderização final na tela
+        # Renderização estável na tela
         st.dataframe(
             df_painel, 
             use_container_width=True, 
