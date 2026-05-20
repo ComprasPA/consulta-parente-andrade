@@ -1,4 +1,4 @@
-import streamlit st
+import streamlit as st  # <-- Corrigido aqui!
 import pandas as pd
 import base64
 import re
@@ -63,7 +63,6 @@ st.markdown('</div>', unsafe_allow_html=True)
 # ==========================================
 # 5. ESTRUTURA DE COLUNAS REORGANIZADA (NOVA ORDEM)
 # ==========================================
-# Sequência reordenada exatamente conforme o layout solicitado para a tela e extração
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "Centro de Custo (CC)", "tela": "Centro de Custo (CC)", "tipo": "texto"},
@@ -239,7 +238,7 @@ if busca:
                     alignment="right"
                 )
             else:
-                # Mantém alinhamento à esquerda apenas para Fornecedor e Descrição
+                # Alinhamento à esquerda mantido apenas para Fornecedor e Descrição
                 if nome_tela in ["Fornecedor", "Descrição"]:
                     configuracao_colunas_tela[nome_tela] = st.column_config.TextColumn(
                         nome_tela,
@@ -251,7 +250,7 @@ if busca:
                         alignment="right"
                     )
         
-        # Renderização final na tela seguindo a nova ordenação do índice do dataframe
+        # Renderização final na tela
         st.dataframe(
             df_painel, 
             use_container_width=True, 
