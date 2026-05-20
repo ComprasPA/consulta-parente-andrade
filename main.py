@@ -24,7 +24,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Ajustes de cores, inputs, e remoção do espaço do topo)
+# 3. CSS MODERNIZADO (Controles visuais e destaque do Expander de Filtros)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -96,13 +96,25 @@ st.markdown(f"""
         border-color: #478c3b !important;
     }}
     
-    /* Estilização limpa para remover as bordas pesadas padrões do expander do Streamlit */
+    /* MODIFICAÇÃO ATIVADA (SILVIO): Destaque absoluto no título do Expander */
     div[data-testid="stExpander"] {{
         background: #ffffff !important;
         border: 1px solid #e2e8f0 !important;
         border-radius: 8px !important;
         box-shadow: 0 1px 3px rgba(0,0,0,0.02) !important;
         margin-bottom: 24px;
+    }}
+    
+    /* Força a cor do texto do cabeçalho do expander para alta visibilidade */
+    div[data-testid="stExpander"] summary p {{
+        color: #0f172a !important;
+        font-weight: 700 !important;
+        font-size: 16px !important;
+    }}
+    
+    /* Cor de destaque quando o usuário passa o mouse por cima do botão de filtros */
+    div[data-testid="stExpander"] summary:hover p {{
+        color: #478c3b !important;
     }}
     
     /* Ajuste de largura do input de data nativo */
@@ -217,7 +229,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
-# GAVETA RETRÁTIL EXCLUSIVA PARA OS FILTROS DE DATA E STATUS
+# GAVETA RETRÁTIL OPERACIONAL COM CABEÇALHO DESTACADO VIA CSS
 # ==========================================
 with st.expander("⚙️ Filtros Avançados (Status, Emissão e Atualização)", expanded=False):
     f_col1, f_col2, f_col3 = st.columns([3.5, 3.5, 3.0])
@@ -466,7 +478,7 @@ if busca:
             elif valor_numerico_inteiro >= 170000:
                 st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
             else:
-                st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!</div>', unsafe_allow_html=True)
+                st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
     except Exception as e:
         st.markdown('<div class="custom-error-red">⚠️ Erro ao processar os dados da busca. Verifique as configurações dos filtros e tente novamente.</div>', unsafe_allow_html=True)
 else:
