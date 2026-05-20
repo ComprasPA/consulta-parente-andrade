@@ -347,7 +347,6 @@ if not df_pc.empty:
 # GAVETA RETRÁTIL OPERACIONAL - AJUSTADA EM LINHA ÚNICA PLANA
 # ==========================================
 with st.expander("⚙️ Filtros Avançados (Status, Emissão e Atualização)", expanded=False):
-    # Redistribuição equilibrada para 4 blocos ficarem milimetricamente na mesma linha
     f_col1, f_col2, f_col3, f_col4 = st.columns([3.0, 3.0, 3.5, 2.5])
     
     with f_col1:
@@ -356,17 +355,14 @@ with st.expander("⚙️ Filtros Avançados (Status, Emissão e Atualização)",
             lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
         else:
             lista_status = ["Todos"]
-        # label_visibility="collapsed" remove o topo e nivela a altura com os botões
         filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed")
         
     with f_col2:
         data_hoje = datetime.now().date()
         trinta_dias_atras = data_hoje - timedelta(days=30)
-        # label_visibility="collapsed" remove o topo e nivela a altura com os botões
         filtro_data = st.date_input("", value=(trinta_dias_atras, data_hoje), format="DD/MM/YYYY", label_visibility="collapsed")
         
     with f_col3:
-        # Processamento prévio do Excel
         df_excel_ready = pd.DataFrame()
         if not df_final.empty:
             df_excel_ready = pd.DataFrame(index=df_final.index)
@@ -414,7 +410,8 @@ if busca:
         if not df_final.empty and filtro_status != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == filtro_status]
 
-        if not df_final.empty && filtro_data && len(filtro_data) == 2:
+        # CORREÇÃO: Trocado '&&' por 'and' nativo do Python para matar o SyntaxError de vez
+        if not df_final.empty and filtro_data and len(filtro_data) == 2:
             col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
             if col_emissao_original:
                 datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed').dt.date
