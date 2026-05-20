@@ -344,10 +344,11 @@ if not df_pc.empty:
         df_final = df_pc.copy()
 
 # ==========================================
-# GAVETA RETRÁTIL OPERACIONAL - RETORNO DO BOTÃO EXCEL INTERNO
+# GAVETA RETRÁTIL OPERACIONAL - AJUSTADA EM LINHA ÚNICA PLANA
 # ==========================================
 with st.expander("⚙️ Filtros Avançados (Status, Emissão e Atualização)", expanded=False):
-    f_col1, f_col2, f_col3 = st.columns([3.5, 3.5, 3.0])
+    # Redistribuição equilibrada para 4 blocos ficarem milimetricamente na mesma linha
+    f_col1, f_col2, f_col3, f_col4 = st.columns([3.0, 3.0, 3.5, 2.5])
     
     with f_col1:
         col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
@@ -355,15 +356,17 @@ with st.expander("⚙️ Filtros Avançados (Status, Emissão e Atualização)",
             lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
         else:
             lista_status = ["Todos"]
-        filtro_status = st.selectbox("Filtrar por Status Operacional:", options=lista_status, index=0)
+        # label_visibility="collapsed" remove o topo e nivela a altura com os botões
+        filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed")
         
     with f_col2:
         data_hoje = datetime.now().date()
         trinta_dias_atras = data_hoje - timedelta(days=30)
-        filtro_data = st.date_input("Filtrar por Período de Emissão:", value=(trinta_dias_atras, data_hoje), format="DD/MM/YYYY")
+        # label_visibility="collapsed" remove o topo e nivela a altura com os botões
+        filtro_data = st.date_input("", value=(trinta_dias_atras, data_hoje), format="DD/MM/YYYY", label_visibility="collapsed")
         
     with f_col3:
-        # Processamento prévio do Excel para estar pronto para download dentro da gaveta
+        # Processamento prévio do Excel
         df_excel_ready = pd.DataFrame()
         if not df_final.empty:
             df_excel_ready = pd.DataFrame(index=df_final.index)
@@ -381,7 +384,6 @@ with st.expander("⚙️ Filtros Avançados (Status, Emissão e Atualização)",
                     else:
                         df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
             
-            # Formatações finais de exibição de datas
             for col_data in ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]:
                 if col_data in df_excel_ready.columns:
                     df_excel_ready[col_data] = df_excel_ready[col_data].apply(formatar_para_dd_mm_aa)
@@ -390,15 +392,16 @@ with st.expander("⚙️ Filtros Avançados (Status, Emissão e Atualização)",
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
             df_excel_ready.to_excel(wr, index=False)
             
-        # Botões operacionais organizados lado a lado verticalmente
         st.download_button(
-            label="📥 Extrair Relatório Operacional Excel",
+            label="📥 Exportar Excel",
             data=out.getvalue(),
             file_name=f"Relatorio_Compras_{termo_busca if termo_busca else 'Geral'}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
-        if st.button("🔄 Atualizar Base de Dados", use_container_width=True):
+        
+    with f_col4:
+        if st.button("🔄 Sincronizar Base", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
 
@@ -411,7 +414,7 @@ if busca:
         if not df_final.empty and filtro_status != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == filtro_status]
 
-        if not df_final.empty and filtro_data and len(filtro_data) == 2:
+        if not df_final.empty && filtro_data && len(filtro_data) == 2:
             col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
             if col_emissao_original:
                 datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed').dt.date
