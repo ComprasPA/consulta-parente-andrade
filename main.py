@@ -134,13 +134,13 @@ df_pc, df_sc = carregar_dados_seguros()
 
 
 # ==========================================
-# 6. LÓGICA DE PROCV ROBUSTA (PC -> SC)
+# 6. LÓGICA DE PROCV ROBUSTA POR COLUNA ESPECÍFICA
 # ==========================================
 if busca:
-    # Higieniza o termo buscado removendo decimais flutuantes se houver
+    # Higieniza a entrada da busca tirando espaços e casas decimais parasitas (.0)
     t = busca.lower().split('.')[0].strip()
     
-    # Prepara os padrões de texto comuns para a busca do Protheus
+    # Prepara variações com e sem zeros à esquerda para garantir o cruzamento
     t_puro = str(int(t)) if t.isdigit() else t
     t_6 = t.zfill(6) if t.isdigit() else t
     t_10 = t.zfill(10) if t.isdigit() else t
@@ -148,22 +148,29 @@ if busca:
     df_final = pd.DataFrame()
     origem = ""
     
-    # ---- 1º PASSO: PROCV NA PLANILHA DE PEDIDOS (PC) ----
+    # ---- 1º PASSO: BUSCA DIRECIONADA NA PLANILHA DE PEDIDOS (PC) ----
     if not df_pc.empty and "Nº Solicitação (SC)" in df_pc.columns:
-        col_sc_pc_limpa = df_pc["Nº Solicitação (SC)"].astype(str).str.split('.').str[0].str.lower().str.strip()
-        res_pc = df_pc[(col_sc_pc_limpa == t) | (col_sc_pc_limpa == t_puro) | (col_sc_pc_limpa == t_6) | (col_sc_pc_limpa == t_10)]
+        # Extrai e limpa a coluna de SC da aba PC para evitar falhas com decimais ocultos
+        serie_sc_pc = df_pc["Nº Solicitação (SC)"].astype(str).str.split('.').str[0].str.lower().str.strip()
+        
+        # Faz o filtro focado direto na coluna mapeada
+        res_pc = df_pc[(serie_sc_pc == t) | (serie_sc_pc == t_puro) | (serie_sc_pc == t_6) | (serie_sc_pc == t_10)]
         
         if not res_pc.empty:
             df_final = res_pc.copy()
             origem = "Planilha de Pedidos (PC) - Registro Localizado"
 
-    # ---- 2º PASSO: FALLBACK PARA A PLANILHA DE SOLICITAÇÕES (SC) ----
+    # ---- 2º PASSO: FALLBACK DIRECIONADO NA PLANILHA DE SOLICITAÇÕES (SC) ----
     if df_final.empty and not df_sc.empty:
+        # Localiza se o nome da coluna de identificação na aba SC é "Nº Solicitação (SC)" ou "SCM"
         col_busca_sc = "Nº Solicitação (SC)" if "Nº Solicitação (SC)" in df_sc.columns else (next((c for c in df_sc.columns if "SCM" in c.upper()), None))
         
         if col_busca_sc:
-            col_sc_real_limpa = df_sc[col_busca_sc].astype(str).str.split('.').str[0].str.lower().str.strip()
-            res_sc = df_sc[(col_sc_real_limpa == t) | (col_sc_real_limpa == t_puro) | (col_sc_real_limpa == t_6) | (col_sc_real_limpa == t_10)]
+            # Extrai e limpa a coluna de SC da aba SC para evitar quebras por células nulas ao redor
+            serie_sc_sc = df_sc[col_busca_sc].astype(str).str.split('.').str[0].str.lower().str.strip()
+            
+            # Faz o filtro focado direto na coluna alvo
+            res_sc = df_sc[(serie_sc_sc == t) | (serie_sc_sc == t_puro) | (serie_sc_sc == t_6) | (serie_sc_sc == t_10)]
             
             if not res_sc.empty:
                 df_final = res_sc.copy()
@@ -178,6 +185,7 @@ if busca:
             nome_exibicao_tela = col_config["tela"]
             tipo_campo = col_config["tipo"]
             
+            # Ajuste dinâmico para garantir que "Nº Solicitação (SC)" capture dados mesmo se a coluna na aba se chamar "SCM"
             col_real = nome_original_planilha
             if nome_original_planilha not in df_final.columns:
                 if "SOLICITACAO" in nome_original_planilha.upper() or "SC" in nome_original_planilha.upper():
@@ -203,7 +211,7 @@ if busca:
                 else:
                     df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
             else:
-                # Preenchimento seguro indexado para evitar desalinhamento de linhas fantasmas
+                # Preenchimento de segurança indexado para colunas ausentes (Ex: datas na aba SC)
                 if nome_exibicao_tela == "Nº Solicitação (SC)":
                     df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
                 elif tipo_campo in ["moeda", "numero"]:
@@ -211,7 +219,7 @@ if busca:
                 else:
                     df_painel[nome_exibicao_tela] = ""
 
-        # REGRA ATIVADA: Se os dados vierem da aba de Solicitações (SC), o status assume obrigatoriamente "EM COTAÇÃO"
+        # REGRA ATIVADA: Se os dados vierem da aba de Solicitações (SC), força o status para "EM COTAÇÃO"
         if origem.startswith("Planilha de Solicitações") and "STATUS" in df_painel.columns:
             df_painel["STATUS"] = "EM COTAÇÃO"
 
@@ -243,7 +251,7 @@ if busca:
             if col_data in df_painel.columns:
                 df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
 
-        # Remove linhas que estejam completamente nulas antes de plotar
+        # Remove linhas totalmente vazias da memória
         df_painel = df_painel.dropna(how='all')
 
         st.markdown(f'<div class="status-box">🟢 {origem}</div>', unsafe_allow_html=True)
