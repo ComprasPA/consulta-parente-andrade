@@ -150,6 +150,14 @@ st.markdown(f"""
         width: 100%;
     }}
     
+    /* Remove a borda e contorno do sub-formulario interno dos filtros */
+    div[data-testid="stForm"] {{
+        border: none !important;
+        padding: 0px !important;
+        box-shadow: none !important;
+        background-color: transparent !important;
+    }}
+    
     /* Caixa padrao de sucesso (Registro Localizado) */
     .status-card {{ 
         background: #ffffff; 
@@ -262,7 +270,6 @@ st.markdown('</div>', unsafe_allow_html=True)
 if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
-    # CORREÇÃO CRUCIAL (SILVIO): Inicializando como lista contendo [None, None] para forçar o modo Range aberto e vazio
     st.session_state.filtro_data_val = [None, None]
 
 
@@ -270,26 +277,35 @@ if "filtro_data_val" not in st.session_state:
 # GAVETA RETRÁTIL OPERACIONAL - TOTALMENTE CLEAN E SEM BORDAS
 # ==========================================
 with st.expander("Filtros Avançados", expanded=False):
-    f_col1, f_col2, f_col3 = st.columns([4.0, 4.0, 2.0])
-    
-    with f_col1:
-        col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
-        if col_status_verificacao:
-            lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
-        else:
-            lista_status = ["Todos"]
+    # Encapsulamento em Form para reter a re-execução automática do Streamlit ao clicar na data
+    with st.form("form_filtros", clear_on_submit=False):
+        f_col1, f_col2, f_col3 = st.columns([4.0, 4.0, 2.0])
+        
+        with f_col1:
+            col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
+            if col_status_verificacao:
+                lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
+            else:
+                lista_status = ["Todos"]
+                
+            idx_padrao = lista_status.index(st.session_state.filtro_status_val) if st.session_state.filtro_status_val in lista_status else 0
+            filtro_status = st.selectbox("Filtrar por Status Operacional:", options=lista_status, index=idx_padrao)
             
-        idx_padrao = lista_status.index(st.session_state.filtro_status_val) if st.session_state.filtro_status_val in lista_status else 0
-        filtro_status = st.selectbox("Filtrar por Status Operacional:", options=lista_status, index=idx_padrao)
-        st.session_state.filtro_status_val = filtro_status
-        
-    with f_col2:
-        # O value recebe [None, None], abrindo em branco e permitindo selecionar Início e Fim sem fechar sozinho
-        filtro_data = st.date_input("Filtrar por Período de Emissão:", value=st.session_state.filtro_data_val, format="DD/MM/YYYY")
-        st.session_state.filtro_data_val = filtro_data
-        
-    with f_col3:
-        st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
+        with f_col2:
+            # Mantém a caixa 100% vazia abrindo o Range completo sem recarregar a página no meio da escolha
+            filtro_data = st.date_input("Filtrar por Período de Emissão:", value=st.session_state.filtro_data_val, format="DD/MM/YYYY")
+            
+        with f_col3:
+            st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
+            # MODIFICAÇÃO INCLUSIVA: Botão de submissão do formulário que dispara a pesquisa de uma vez só
+            btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True)
+            if btn_pesquisar:
+                st.session_state.filtro_status_val = filtro_status
+                st.session_state.filtro_data_val = filtro_data
+    
+    # Botão de limpeza posicionado fora do escopo do congelamento para resetar a tela de forma instantânea
+    sub_c1, sub_c2, sub_c3 = st.columns([4.0, 4.0, 2.0])
+    with sub_c3:
         if st.button("❌ Limpar Filtros", use_container_width=True):
             st.session_state.filtro_status_val = "Todos"
             st.session_state.filtro_data_val = [None, None]
@@ -386,9 +402,7 @@ if busca:
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
-            # FILTRAGEM CONDICIONAL: Só intercepta a base se a tupla/lista contiver de fato os 2 elementos selecionados (Início e Fim)
             if not df_final.empty and st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
-                # Garante que nenhum dos dois pontos do range seja nulo antes de rodar a query
                 if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
                     col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
                     if col_emissao_original:
