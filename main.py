@@ -56,14 +56,13 @@ with c3:
         st.cache_data.clear()
         st.rerun()
 with c4:
-    busca = st.text_input("", placeholder="🔍 Digite SC ou Pedido...", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Digite o número da SC...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
 # 5. ESTRUTURA DE COLUNAS CORRIGIDA (TEXTO EXATO)
 # ==========================================
-# O formato abaixo casa EXATAMENTE com a lista que você passou, limpando espaços invisíveis.
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "Envio", "tela": "Envio", "tipo": "data"},
@@ -72,7 +71,7 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "Entrega", "tela": "Entrega", "tipo": "data"},
     {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
     {"planilha": "Nº Solicitação (SC)", "tela": "Nº Solicitação (SC)", "tipo": "texto"},
-    {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"}, # Preenchimento automático de zeros à esquerda
+    {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"}, 
     {"planilha": "Fornecedor", "tela": "Fornecedor", "tipo": "texto"},
     {"planilha": "Centro de Custo (CC)", "tela": "Centro de Custo (CC)", "tipo": "texto"},
     {"planilha": "Produto", "tela": "Produto", "tipo": "texto"},
@@ -98,12 +97,11 @@ def carregar_dados_seguros():
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
         
-        # Carrega a aba de Pedidos (PC)
+        # Carrega a primeira aba (Pedidos / PC)
         df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
-        # Limpa os espaços invisíveis antes e depois dos nomes das colunas da planilha original
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
         
-        # Carrega a aba de Solicitações (SC)
+        # Carrega a segunda aba (Solicitações / SC)
         aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
         df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
         df_sc.columns = [str(c).strip() for c in df_sc.columns]
@@ -116,31 +114,42 @@ df_pc, df_sc = carregar_dados_seguros()
 
 
 # ==========================================
-# 6. LÓGICA DE BUSCA E MONTAGEM DA TABELA
+# 6. LÓGICA DE PROCV COM PRIORIDADE DE GUIA (PC -> SC)
 # ==========================================
 if busca:
     t = busca.lower().strip()
     
-    # Tratamento automático para casar buscas curtas com os códigos de 10 dígitos com zeros à esquerda
+    # Tratamento para casar o termo digitado com os formatos de salvamento (com ou sem zeros à esquerda)
     t_10 = t.zfill(10) if t.isdigit() else t
     
-    # Realiza a pesquisa abrangente na aba de Pedidos (PC)
-    res_pc = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any() or r.astype(str).str.lower().str.contains(t_10, na=False).any(), axis=1)]
+    df_final = pd.DataFrame()
+    origem = ""
     
-    if not res_pc.empty:
-        df_final = res_pc.copy()
-        origem = "Planilha de Pedidos (PC)"
-    else:
-        # Se não encontrar na PC, recorre à aba de Solicitações (SC)
-        res_sc = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
-        if not res_sc.empty:
-            df_final = res_sc.copy()
-            origem = "Planilha de Solicitações (SC)"
-        else:
-            df_final = pd.DataFrame()
+    # ---- 1º PASSO: PROCV NA PLANILHA DE PEDIDOS (PC) ----
+    # Procura o termo inserido especificamente dentro da coluna "Nº Solicitação (SC)"
+    if not df_pc.empty and "Nº Solicitação (SC)" in df_pc.columns:
+        col_sc_pc = df_pc["Nº Solicitação (SC)"].astype(str).str.lower().str.strip()
+        res_pc = df_pc[(col_sc_pc == t) | (col_sc_pc == t_10)]
+        
+        if not res_pc.empty:
+            df_final = res_pc.copy()
+            origem = "Planilha de Pedidos (PC) - Registro Localizado"
 
+    # ---- 2º PASSO: SE NÃO HOUVER DADOS NA PC, BUSCA NA PLANILHA DE SOLICITAÇÕES (SC) ----
+    if df_final.empty and not df_sc.empty:
+        # Tenta mapear o termo pela coluna padrão ou pela variação "SCM" se existir na tabela de SC
+        col_busca_sc = "Nº Solicitação (SC)" if "Nº Solicitação (SC)" in df_sc.columns else (next((c for c in df_sc.columns if "SCM" in c.upper()), None))
+        
+        if col_busca_sc:
+            col_sc_real = df_sc[col_busca_sc].astype(str).str.lower().str.strip()
+            res_sc = df_sc[(col_sc_real == t) | (col_sc_real == t_10)]
+            
+            if not res_sc.empty:
+                df_final = res_sc.copy()
+                origem = "Planilha de Solicitações (SC) - Registro Localizado"
+
+    # ---- MONTAGEM DA LISTA TRATADA PARA EXIBIÇÃO ----
     if not df_final.empty:
-        # Inicializa o painel espelhando a estrutura correta de index do resultado encontrado
         df_painel = pd.DataFrame(index=df_final.index)
         
         for col_config in DICIONARIO_COLUNAS_EXATAS:
@@ -148,38 +157,45 @@ if busca:
             nome_exibicao_tela = col_config["tela"]
             tipo_campo = col_config["tipo"]
             
-            # Executa o mapeamento direto baseado no nome exato do cabeçalho
-            if nome_original_planilha in df_final.columns:
-                valores_originais = df_final[nome_original_planilha]
+            # Tratamento flexível de cabeçalho para unificar a visualização de "Nº Solicitação (SC)" e "SCM"
+            col_real = nome_original_planilha
+            if nome_original_planilha not in df_final.columns:
+                if "SOLICITACAO" in nome_original_planilha.upper() or "SC" in nome_original_planilha.upper():
+                    col_real = next((c for c in df_final.columns if "SCM" in c.upper() or "SC" in c.upper()), nome_original_planilha)
+
+            if col_real in df_final.columns:
+                valores_originais = df_final[col_real]
                 
                 if tipo_campo == "data":
-                    # Limpeza e formatação de datas padrão nacional (DD/MM/AA)
+                    # Limpeza e padronização para o formato brasileiro (DD/MM/AA)
                     datas_limpas = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
                     datas_limpas = datas_limpas.replace(['nan', 'NONE', '', '0'], '')
                     df_painel[nome_exibicao_tela] = pd.to_datetime(datas_limpas, errors='coerce', format='mixed').dt.strftime('%d/%m/%y').fillna('')
                 
                 elif tipo_campo == "pedido":
-                    # Aplica a regra de negócio dos 10 dígitos com zeros à esquerda
+                    # Aplica o preenchimento de zeros à esquerda se faltar caracteres
                     df_painel[nome_exibicao_tela] = valores_originais.apply(formatar_codigo_10_digitos)
                 
                 else:
-                    # Texto comum (Remove resquícios de formatação flutuante do Excel)
                     df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
             else:
-                # Caso a coluna não exista fisicamente na aba consultada, mantém limpo para não quebrar
-                df_painel[nome_exibicao_tela] = ""
+                # Se cair no fallback da SC (que não tem informações de fechamento), preenche com vazio ordenadamente
+                if nome_exibicao_tela == "Nº Solicitação (SC)":
+                    df_painel[nome_exibicao_tela] = busca.strip()
+                else:
+                    df_painel[nome_exibicao_tela] = ""
 
-        # Inteligência de Status emergencial se os dados vierem da aba de solicitações pendentes
-        if origem == "Planilha de Solicitações (SC)" and "STATUS" in df_painel.columns:
+        # Força o status correto se a informação vier de uma requisição que ainda não virou pedido
+        if origem.startswith("Planilha de Solicitações") and "STATUS" in df_painel.columns:
             df_painel["STATUS"] = df_painel["STATUS"].replace('', 'SC ABERTA')
 
-        # Remove linhas fantasmas do processamento final
+        # Elimina linhas totalmente em branco
         df_painel = df_painel.dropna(how='all')
 
-        st.markdown(f'<div class="status-box">🟢 Dados Vinculados de: {origem}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="status-box">🟢 {origem}</div>', unsafe_allow_html=True)
         st.write("")
         
-        # Estruturação para Download em Excel local
+        # Preparação do arquivo final para extração local
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
             df_painel.to_excel(wr, index=False)
@@ -191,11 +207,11 @@ if busca:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
         
-        # Renderização final estável na tela do usuário
+        # Plota os dados organizados na tela
         st.dataframe(df_painel, use_container_width=True, hide_index=True)
     else:
-        st.warning(f"⚠️ Nenhum registro localizado para o termo pesquisado: '{busca}'")
+        st.warning(f"⚠️ Nenhuma informação localizada para a SC: '{busca}' nas planilhas do sistema.")
 else:
-    st.info("💡 Digite o número da SC ou Pedido para iniciar. O motor faz a verificação inteligente em todas as colunas.")
+    st.info("💡 Digite o número da SC para iniciar. O motor buscará o histórico completo em Pedidos (PC) antes de recorrer às Solicitações (SC).")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
