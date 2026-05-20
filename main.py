@@ -292,7 +292,8 @@ if busca:
             if valor_numerico_inteiro >= 170000:
                 col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
             else:
-                col_busca_pc = next((c automatizada for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
+                # CORREÇÃO: Removida a palavra solta 'automatizada' que gerava o SyntaxError
+                col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
                 
             if not col_busca_pc:
                 col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), df_pc.columns[0])
@@ -430,7 +431,7 @@ if busca:
         else:
             st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!</div>', unsafe_allow_html=True)
 else:
-    # REGRA AJUSTADA: Substituição da caixa informativa pela saudação inicial limpa
+    # SAUDAÇÃO INICIAL EXCLUSIVA DO PORTAL
     st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
 
 st.markdown("<div style='text-align:center; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;'><p style='color:#64748b; font-size:13px; font-weight:600;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
