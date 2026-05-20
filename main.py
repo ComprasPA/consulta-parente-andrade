@@ -261,7 +261,7 @@ def formatar_para_dd_mm_aa(valor):
 
 
 # ==========================================
-# 6. MOTOR DE BUSCA DIRECIONADO OPERACIONAL COM COMBINAÇÃO DE FILTRO DE STATUS
+# 6. MOTOR DE BUSCA DIRECIONADO OPERACIONAL COM COMBINAÇÃO DE FILTROS
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -299,7 +299,7 @@ if busca:
             if not res_pc.empty:
                 df_final = res_pc.copy()
 
-        # MOTOR DE FILTRAGEM DE STATUS ADICIONADO: Se o seletor não estiver em "Todos", filtra o dataframe resultante
+        # Filtro Adicional 1: Status (Seletor do Cabeçalho)
         if not df_final.empty and filtro_status != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == filtro_status]
 
@@ -362,55 +362,69 @@ if busca:
             if col_data in df_painel.columns:
                 df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
 
+        # ==========================================
+        # REGRA ADICIONADA (SILVIO): Ocultar linhas onde a Condição de Pagamento for "PAGO"
+        # ==========================================
+        if "Condição Pagamento" in df_painel.columns:
+            # Mantém apenas as linhas cujo texto da Condição de Pagamento NÃO contenha a palavra "PAGO"
+            df_painel = df_painel[~df_painel["Condição Pagamento"].astype(str).str.upper().str.contains("PAGO", na=False)]
+
         df_painel = df_painel.dropna(how='all')
 
-        txt_status = f"🔍 Registros Filtrados para o Centro de Custo: {termo_busca}" if modo_centro_custo else "🔍 Registro Localizado na Base de Pedidos Firme"
-        if filtro_status != "Todos":
-            txt_status += f" (Filtrado por Status: {filtro_status})"
+        # Se após a ocultação dos pagos a tabela ficar vazia, tratamos como se não houvesse registros ativos
+        if not df_painel.empty:
+            txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}" if modo_centro_custo else "🔍 Registro Localizado na Base de Pedidos Firme"
+            if filtro_status != "Todos":
+                txt_status += f" (Filtrado por Status: {filtro_status})"
+                
+            st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
             
-        st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
-        
-        c_down, _ = st.columns([2.5, 7.5])
-        with c_down:
-            out = BytesIO()
-            with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
-                df_painel.to_excel(wr, index=False)
-            st.download_button(
-                label="📥 Extrair Relatório Operacional",
-                data=out.getvalue(),
-                file_name=f"Relatorio_Compras_{termo_busca}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
-        st.write("")
+            c_down, _ = st.columns([2.5, 7.5])
+            with c_down:
+                out = BytesIO()
+                with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
+                    df_painel.to_excel(wr, index=False)
+                st.download_button(
+                    label="📥 Extrair Relatório Operacional",
+                    data=out.getvalue(),
+                    file_name=f"Relatorio_Compras_{termo_busca}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+            st.write("")
 
-        # ---- 7. CONFIGURAÇÃO VISUAL DE ALINHAMENTO E DINÂMICA DE MAIOR COMPRIMENTO ----
-        configuracao_colunas_tela = {}
-        for col_config in DICIONARIO_COLUNAS_EXATAS:
-            nome_tela = col_config["tela"]
-            tipo_campo = col_config["tipo"]
-            
-            if nome_tela == "STATUS":
-                configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center", width=None)
-            elif tipo_campo == "moeda":
-                configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right", width=None)
-            elif tipo_campo == "numero":
-                configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right", width=None)
-            else:
-                if nome_tela in ["Fornecedor", "Descrição"]:
-                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="left", width=None)
+            # ---- 7. CONFIGURAÇÃO VISUAL DE ALINHAMENTO E DINÂMICA DE MAIOR COMPRIMENTO ----
+            configuracao_colunas_tela = {}
+            for col_config in DICIONARIO_COLUNAS_EXATAS:
+                nome_tela = col_config["tela"]
+                tipo_campo = col_config["tipo"]
+                
+                if nome_tela == "STATUS":
+                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center", width=None)
+                elif tipo_campo == "moeda":
+                    configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right", width=None)
+                elif tipo_campo == "numero":
+                    configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right", width=None)
                 else:
-                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right", width=None)
+                    if nome_tela in ["Fornecedor", "Descrição"]:
+                        configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="left", width=None)
+                    else:
+                        configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right", width=None)
 
-        # Estilização absoluta via Pandas Styler para centralizar cabeçalho e dados de STATUS
-        tabela_estilizada = df_painel.style.set_table_styles([
-            {'selector': 'th.col_heading.level0.col0', 'props': [('text-align', 'center !important'), ('justify-content', 'center !important')]},
-            {'selector': 'td.col0', 'props': [('text-align', 'center !important')]}
-        ], overwrite=False)
-        
-        st.dataframe(tabela_estilizada, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
+            # Estilização absoluta via Pandas Styler para centralizar cabeçalho e dados de STATUS
+            tabela_estilizada = df_painel.style.set_table_styles([
+                {'selector': 'th.col_heading.level0.col0', 'props': [('text-align', 'center !important'), ('justify-content', 'center !important')]},
+                {'selector': 'td.col0', 'props': [('text-align', 'center !important')]}
+            ], overwrite=False)
+            
+            st.dataframe(tabela_estilizada, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
+        else:
+            if modo_centro_custo:
+                st.markdown(f'<div class="custom-info-blue">ℹ️ Os registros encontrados para este Centro de Custo já constam como PAGO e foram filtrados.</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="custom-info-blue">ℹ️ Este registro já consta como PAGO e foi arquivado do painel de pendências.</div>', unsafe_allow_html=True)
     else:
-        # GESTÃO VISUAL DE ALERTAS CONDICIONAIS SEGUNDO AS TRÊS REGRAS NUMÉRICAS
+        # GESTÃO VISUAL DE ALERTAS CONDICIONAIS
         if modo_centro_custo:
             st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros com o status \'{filtro_status}\' pendentes.</div>', unsafe_allow_html=True)
         elif valor_numerico_inteiro >= 170000:
@@ -418,6 +432,6 @@ if busca:
         else:
             st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!</div>', unsafe_allow_html=True)
 else:
-    st.markdown('<div class="custom-welcome-info">💡 Insira o número da SC, Pedido de Compras ou Centro de Custo (4 dígitos) para rastrear o status. Utilize o filtro de Status ao lado para refinar os resultados.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="custom-welcome-info">💡 Insira o número da SC, Pedido de Compras ou Centro de Custo (4 dígitos) para rastrear o status. Itens liquidados como PAGO são ocultados automaticamente.</div>', unsafe_allow_html=True)
 
 st.markdown("<div style='text-align:center; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;'><p style='color:#64748b; font-size:13px; font-weight:600;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
