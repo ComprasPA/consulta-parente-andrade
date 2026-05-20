@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit st
 import pandas as pd
 import base64
 import re
@@ -215,10 +215,10 @@ with c4:
         lista_status = ["Todos"]
     filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed")
 with c5:
-    # SOLUÇÃO COMPATÍVEL PYTHON 3.14: Definindo intervalo padrão seguro dos últimos 30 dias para evitar exceções de tipagem
+    # AJUSTE ATIVADO: Configurado formato padrão DD/MM/YYYY explicitamente para travar na máscara brasileira
     data_hoje = datetime.now().date()
     trinta_dias_atras = data_hoje - timedelta(days=30)
-    filtro_data = st.date_input("", value=(trinta_dias_atras, data_hoje), label_visibility="collapsed")
+    filtro_data = st.date_input("", value=(trinta_dias_atras, data_hoje), format="DD/MM/YYYY", label_visibility="collapsed")
 with c6:
     # FILTRO 3: Caixa Geral de Texto (SC, PC ou CC)
     busca = st.text_input("", placeholder="🔍 Localizar SC, Pedido ou CC...", label_visibility="collapsed")
@@ -442,10 +442,8 @@ if busca:
             st.dataframe(tabela_estilizada, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
         else:
             st.markdown('<div class="custom-info-blue">ℹ️ Nenhum registro ativo atende aos critérios de busca e aos filtros de data/status selecionados.</div>', unsafe_allow_html=True)
-    else:
-        # GESTÃO VISUAL DE ALERTAS CONDICIONAIS
-        if modo_centro_custo:
-            st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes com os filtros aplicados.</div>', unsafe_allow_html=True)
+    except Exception as e:
+        st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes com os filtros aplicados.</div>', unsafe_allow_html=True)
         elif valor_numerico_inteiro >= 170000:
             st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado com as configurações selecionadas, entre em contato com o comprador.</div>', unsafe_allow_html=True)
         else:
