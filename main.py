@@ -61,7 +61,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
-# 5. ESTRUTURA DE COLUNAS CORRIGIDA (TEXTO EXATO)
+# 5. ESTRUTURA DE COLUNAS COM TRATAMENTO DE CAMPOS
 # ==========================================
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
@@ -71,10 +71,11 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "Entrega", "tela": "Entrega", "tipo": "data"},
     {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
     {"planilha": "Nº Solicitação (SC)", "tela": "Nº Solicitação (SC)", "tipo": "texto"},
-    {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"}, 
+    {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"},   # Regra: 6 caracteres (item ajustado)
+    {"planilha": "Cod Fornecedor", "tela": "Cod Fornecedor", "tipo": "texto"},
     {"planilha": "Fornecedor", "tela": "Fornecedor", "tipo": "texto"},
     {"planilha": "Centro de Custo (CC)", "tela": "Centro de Custo (CC)", "tipo": "texto"},
-    {"planilha": "Produto", "tela": "Produto", "tipo": "texto"},
+    {"planilha": "Produto", "tela": "Produto", "tipo": "produto"},                 # Regra: 10 caracteres (item ajustado)
     {"planilha": "Descricao", "tela": "Descrição", "tipo": "texto"},
     {"planilha": "UM", "tela": "UM", "tipo": "texto"},
     {"planilha": "Qtd", "tela": "Qtd", "tipo": "texto"},
@@ -84,11 +85,11 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "Data Liberação", "tela": "Data Liberação", "tipo": "data"}
 ]
 
-# Inteligência de formatação para garantir os 10 dígitos do padrão Protheus
-def formatar_codigo_10_digitos(valor):
-    val_limpo = str(valor).split('.')[0].strip() # Remove pontuações ou .0 do Excel
+# Formata strings numéricas limpando flutuantes .0 do Excel e preenchendo zeros à esquerda
+def ajustar_zeros_protheus(valor, tamanho_alvo):
+    val_limpo = str(valor).split('.')[0].strip()
     if val_limpo and val_limpo.lower() != 'nan' and val_limpo != '0':
-        return val_limpo.zfill(10)
+        return val_limpo.zfill(tamanho_alvo)
     return val_limpo
 
 @st.cache_data(ttl=60)
@@ -119,30 +120,29 @@ df_pc, df_sc = carregar_dados_seguros()
 if busca:
     t = busca.lower().strip()
     
-    # Tratamento para casar o termo digitado com os formatos de salvamento (com ou sem zeros à esquerda)
+    # Prepara variações de busca comuns do Protheus (com zeros à esquerda) para garantir o cruzamento
+    t_6 = t.zfill(6) if t.isdigit() else t
     t_10 = t.zfill(10) if t.isdigit() else t
     
     df_final = pd.DataFrame()
     origem = ""
     
     # ---- 1º PASSO: PROCV NA PLANILHA DE PEDIDOS (PC) ----
-    # Procura o termo inserido especificamente dentro da coluna "Nº Solicitação (SC)"
     if not df_pc.empty and "Nº Solicitação (SC)" in df_pc.columns:
         col_sc_pc = df_pc["Nº Solicitação (SC)"].astype(str).str.lower().str.strip()
-        res_pc = df_pc[(col_sc_pc == t) | (col_sc_pc == t_10)]
+        res_pc = df_pc[(col_sc_pc == t) | (col_sc_pc == t_6) | (col_sc_pc == t_10)]
         
         if not res_pc.empty:
             df_final = res_pc.copy()
             origem = "Planilha de Pedidos (PC) - Registro Localizado"
 
-    # ---- 2º PASSO: SE NÃO HOUVER DADOS NA PC, BUSCA NA PLANILHA DE SOLICITAÇÕES (SC) ----
+    # ---- 2º PASSO: FALLBACK PARA A PLANILHA DE SOLICITAÇÕES (SC) ----
     if df_final.empty and not df_sc.empty:
-        # Tenta mapear o termo pela coluna padrão ou pela variação "SCM" se existir na tabela de SC
         col_busca_sc = "Nº Solicitação (SC)" if "Nº Solicitação (SC)" in df_sc.columns else (next((c for c in df_sc.columns if "SCM" in c.upper()), None))
         
         if col_busca_sc:
             col_sc_real = df_sc[col_busca_sc].astype(str).str.lower().str.strip()
-            res_sc = df_sc[(col_sc_real == t) | (col_sc_real == t_10)]
+            res_sc = df_sc[(col_sc_real == t) | (col_sc_real == t_6) | (col_sc_real == t_10)]
             
             if not res_sc.empty:
                 df_final = res_sc.copy()
@@ -157,7 +157,7 @@ if busca:
             nome_exibicao_tela = col_config["tela"]
             tipo_campo = col_config["tipo"]
             
-            # Tratamento flexível de cabeçalho para unificar a visualização de "Nº Solicitação (SC)" e "SCM"
+            # Ajuste de cabeçalho dinâmico para conciliação automática entre "Nº Solicitação (SC)" e "SCM"
             col_real = nome_original_planilha
             if nome_original_planilha not in df_final.columns:
                 if "SOLICITACAO" in nome_original_planilha.upper() or "SC" in nome_original_planilha.upper():
@@ -167,29 +167,30 @@ if busca:
                 valores_originais = df_final[col_real]
                 
                 if tipo_campo == "data":
-                    # Limpeza e padronização para o formato brasileiro (DD/MM/AA)
                     datas_limpas = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
                     datas_limpas = datas_limpas.replace(['nan', 'NONE', '', '0'], '')
                     df_painel[nome_exibicao_tela] = pd.to_datetime(datas_limpas, errors='coerce', format='mixed').dt.strftime('%d/%m/%y').fillna('')
                 
                 elif tipo_campo == "pedido":
-                    # Aplica o preenchimento de zeros à esquerda se faltar caracteres
-                    df_painel[nome_exibicao_tela] = valores_originais.apply(formatar_codigo_10_digitos)
+                    # Força 6 caracteres com zeros à esquerda
+                    df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: ajustar_zeros_protheus(val, 6))
+                
+                elif tipo_campo == "produto":
+                    # Força 10 caracteres com zeros à esquerda
+                    df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: ajustar_zeros_protheus(val, 10))
                 
                 else:
                     df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
             else:
-                # Se cair no fallback da SC (que não tem informações de fechamento), preenche com vazio ordenadamente
                 if nome_exibicao_tela == "Nº Solicitação (SC)":
                     df_painel[nome_exibicao_tela] = busca.strip()
                 else:
                     df_painel[nome_exibicao_tela] = ""
 
-        # Força o status correto se a informação vier de uma requisição que ainda não virou pedido
+        # Força o status correto se a informação vier de uma requisição pendente
         if origem.startswith("Planilha de Solicitações") and "STATUS" in df_painel.columns:
             df_painel["STATUS"] = df_painel["STATUS"].replace('', 'SC ABERTA')
 
-        # Elimina linhas totalmente em branco
         df_painel = df_painel.dropna(how='all')
 
         st.markdown(f'<div class="status-box">🟢 {origem}</div>', unsafe_allow_html=True)
@@ -207,7 +208,7 @@ if busca:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
         
-        # Plota os dados organizados na tela
+        # Renderização estável na tela
         st.dataframe(df_painel, use_container_width=True, hide_index=True)
     else:
         st.warning(f"⚠️ Nenhuma informação localizada para a SC: '{busca}' nas planilhas do sistema.")
