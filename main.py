@@ -214,7 +214,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
-# 5. ESTRUTURA DE COLUNAS REORGANIZADA (NOVA POSIÇÃO CRONOLÓGICA)
+# 5. ESTRUTURA DE COLUNAS REORGANIZADA (NOME ENCURTADO ATIVADO)
 # ==========================================
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
@@ -223,9 +223,9 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"},   
     {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
     
-    # REGRA 1 E 2 ATIVADAS: Colunas movidas para pós-condição de pagamento e alteração de "Data Liberação" para "Data de aprovação"
-    {"planilha": "Data Emissao", "tela": "Data Emissão", "tipo": "data"},
-    {"planilha": "Data Liberação", "tela": "Data de aprovação", "tipo": "data"},
+    # AJUSTE SOLICITADO: Nomes encurtados apenas para "Emissão" e "Aprovação"
+    {"planilha": "Data Emissao", "tela": "Emissão", "tipo": "data"},
+    {"planilha": "Data Liberação", "tela": "Aprovação", "tipo": "data"},
     
     {"planilha": "Envio", "tela": "Envio", "tipo": "data"},
     {"planilha": "Pagamento", "tela": "Pagamento", "tipo": "texto"}, 
@@ -362,8 +362,8 @@ if busca:
             )
             df_painel.loc[mascara_na, "Pagamento"] = "N/A"
 
-        # Inclusão da nova chave renomeada na formatação de datas
-        colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Data Emissão", "Data de aprovação"]
+        # Atualização das chaves na formatação de datas conforme novos cabeçalhos
+        colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]
         for col_data in colunas_para_formatar:
             if col_data in df_painel.columns:
                 df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
