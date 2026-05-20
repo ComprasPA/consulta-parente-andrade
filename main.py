@@ -1,4 +1,4 @@
-import streamlit as st  # <-- Corrigido aqui!
+import streamlit as st
 import pandas as pd
 import base64
 import re
@@ -70,7 +70,7 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"},   
     {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
     {"planilha": "Envio", "tela": "Envio", "tipo": "data"},
-    {"planilha": "Pagamento", "tela": "Pagamento", "tipo": "data"},
+    {"planilha": "Pagamento", "tela": "Pagamento", "tipo": "texto"}, # Mudado para texto para aceitar com segurança a string "N/A"
     {"planilha": "Previsão de entrega", "tela": "Previsão de entrega", "tipo": "data"},
     {"planilha": "Entrega", "tela": "Entrega", "tipo": "data"},
     {"planilha": "Fornecedor", "tela": "Fornecedor", "tipo": "texto"},
@@ -200,6 +200,33 @@ if busca:
         if origem.startswith("Planilha de Solicitações") and "STATUS" in df_painel.columns:
             df_painel["STATUS"] = df_painel["STATUS"].replace('', 'SC ABERTA')
 
+        # ==========================================
+        # REGRAS OPERACIONAIS INTER-COLUNAS
+        # ==========================================
+        
+        # REGRA 1: Replicar Entrega para Previsão se Previsão estiver vazia
+        if "Previsão de entrega" in df_painel.columns and "Entrega" in df_painel.columns:
+            mascara_vazia = (df_painel["Previsão de entrega"] == "") | (df_painel["Previsão de entrega"].isna())
+            df_painel.loc[mascara_vazia, "Previsão de entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
+
+        # REGRA 2: Forçar N/A em Pagamento baseado na nova regra refinada
+        if "Pagamento" in df_painel.columns and "Condição Pagamento" in df_painel.columns:
+            condicao_normalizada = df_painel["Condição Pagamento"].astype(str).str.upper().str.strip()
+            
+            # Condições de ativação do N/A:
+            # 1. Não pode conter a expressão exata "A VISTA"
+            # 2. Não pode conter o termo abreviado "ENT" (Ex: ENT +1PARC, ENTR + 1 PARC, ENT+3PARC)
+            # 3. Não pode conter a palavra "VENCIDO"
+            # 4. Não pode conter a palavra "PAGO"
+            # Se for verdadeiro para TODOS esses critérios excludentes, a data de pagamento deve virar "N/A"
+            mascara_na = (
+                (~condicao_normalizada.str.contains("A VISTA", na=False)) & 
+                (~condicao_normalizada.str.contains("ENT", na=False)) & 
+                (~condicao_normalizada.str.contains("VENCIDO", na=False)) & 
+                (~condicao_normalizada.str.contains("PAGO", na=False))
+            )
+            df_painel.loc[mascara_na, "Pagamento"] = "N/A"
+
         df_painel = df_painel.dropna(how='all')
 
         st.markdown(f'<div class="status-box">🟢 {origem}</div>', unsafe_allow_html=True)
@@ -238,7 +265,7 @@ if busca:
                     alignment="right"
                 )
             else:
-                # Alinhamento à esquerda mantido apenas para Fornecedor e Descrição
+                # Mantém alinhamento à esquerda apenas para Fornecedor e Descrição
                 if nome_tela in ["Fornecedor", "Descrição"]:
                     configuracao_colunas_tela[nome_tela] = st.column_config.TextColumn(
                         nome_tela,
