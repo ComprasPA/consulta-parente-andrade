@@ -24,7 +24,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Ajustes de cores fixas para a gaveta aberta/fechada e alinhamentos)
+# 3. CSS MODERNIZADO (Ajustes de cores fixas, remoção absoluta de bordas e alinhamentos)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -100,22 +100,26 @@ st.markdown(f"""
         border-color: #478c3b !important;
     }}
     
-    /* BLINDAGEM VISUAL DA GAVETA (ABERTA OU FECHADA) - SEM BORDAS E COR FIXA */
+    /* REMOÇÃO TOTAL DA LINHA DE CONTORNO (FECHADA OU ABERTA) */
     div[data-testid="stExpander"], 
     div[data-testid="stExpander"] > div,
     div[data-testid="stExpander"][data-open="true"],
-    div[data-testid="stExpander"][data-open="false"] {{
-        background-color: #ffffff !important;
+    div[data-testid="stExpander"][data-open="false"],
+    .stElementContainer:has(div[data-testid="stExpander"]) {{
+        background-color: transparent !important;
         border: none !important;
+        border-width: 0px !important;
         box-shadow: none !important;
         outline: none !important;
     }}
     
-    /* Trava o fundo branco e remove contornos na barra de clique da gaveta */
+    /* Remove contornos residuais e força fundo limpo na barra do expander */
     div[data-testid="stExpander"] summary,
-    div[data-testid="stExpander"] [role="button"] {{
-        background-color: #ffffff !important;
+    div[data-testid="stExpander"] [role="button"],
+    .streamlit-expanderHeader {{
+        background-color: transparent !important;
         border: none !important;
+        border-width: 0px !important;
         outline: none !important;
         box-shadow: none !important;
     }}
@@ -247,7 +251,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
-# GAVETA RETRÁTIL OPERACIONAL - TOTALMENTE CLEAN E DE ALTA VISIBILIDADE
+# GAVETA RETRÁTIL OPERACIONAL - TOTALMENTE CLEAN E SEM BORDAS
 # ==========================================
 with st.expander("⚙️ Filtros Avançados (Status, Emissão e Atualização)", expanded=False):
     f_col1, f_col2, f_col3 = st.columns([3.5, 3.5, 3.0])
