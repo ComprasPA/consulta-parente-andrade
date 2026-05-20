@@ -287,7 +287,7 @@ if busca:
         if valor_numerico_inteiro >= 170000:
             st.error("⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.")
         else:
-            st.info("ℹ️ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!")
+            st.info("ℹ️ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!")
 else:
     st.info("💡 Digite o número da SC ou do Pedido para iniciar o acompanhamento operacional.")
 
