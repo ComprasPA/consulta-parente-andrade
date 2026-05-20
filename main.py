@@ -56,7 +56,7 @@ with c3:
         st.cache_data.clear()
         st.rerun()
 with c4:
-    busca = st.text_input("", placeholder="🔍 Digite o número da SC...", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Digite SC ou Pedido...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -135,6 +135,9 @@ if busca:
     termo_busca = busca.strip()
     termo_numerico = re.sub(r'[^0-9]', '', termo_busca)
     
+    # Guarda o valor inteiro digitado para realizar a validação de faixa do Protheus
+    valor_numerico_inteiro = int(termo_numerico) if termo_numerico else 0
+    
     if termo_numerico:
         padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
     else:
@@ -142,13 +145,21 @@ if busca:
         
     df_final = pd.DataFrame()
     
-    # Executa a busca direcionada focando na coluna de SC da aba PC
+    # Varre a planilha cruzando o termo focado na coluna de Solicitação ou na de Pedidos (caso seja número grande)
     if not df_pc.empty:
-        col_sc_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
-        if col_sc_pc:
-            res_pc = df_pc[df_pc[col_sc_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)]
-            if not res_pc.empty:
-                df_final = res_pc.copy()
+        # Se for número de pedido (>= 170000), busca na coluna de Pedido, senão busca na de SC
+        if valor_numerico_inteiro >= 170000:
+            col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
+        else:
+            col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
+            
+        if not col_busca_pc:
+            # Fallback secundário abrangente se as colunas exatas sumirem por renomeação acidental na planilha
+            col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), df_pc.columns[0])
+
+        res_pc = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)]
+        if not res_pc.empty:
+            df_final = res_pc.copy()
 
     # ---- MONTAGEM DA LISTA TRATADA PARA EXIBIÇÃO ----
     if not df_final.empty:
@@ -180,7 +191,9 @@ if busca:
                 else:
                     df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
             else:
-                if nome_exibicao_tela == "Nº Solicitação (SC)":
+                if nome_exibicao_tela == "Nº Solicitação (SC)" and valor_numerico_inteiro < 170000:
+                    df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
+                elif nome_exibicao_tela == "Nº Pedido (PC)" and valor_numerico_inteiro >= 170000:
                     df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
                 else:
                     df_painel[nome_exibicao_tela] = ""
@@ -270,9 +283,12 @@ if busca:
             column_config=configuracao_colunas_tela
         )
     else:
-        # NOVA REGRA: Se a SC não foi localizada na aba PC, exibe o aviso customizado em uma caixa informativa amarela
-        st.info("ℹ️ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!")
+        # NOVA REGRA DE NEGÓCIO CONDICIONAL DE ERRO (SILVIO)
+        if valor_numerico_inteiro >= 170000:
+            st.error("⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.")
+        else:
+            st.info("ℹ️ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!")
 else:
-    st.info("💡 Digite o número da SC para iniciar o acompanhamento operacional.")
+    st.info("💡 Digite o número da SC ou do Pedido para iniciar o acompanhamento operacional.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
