@@ -78,9 +78,10 @@ st.markdown(f"""
         white-space: nowrap;
     }}
     
-    /* Customização fina para campos de input, seletores e botões */
+    /* Customização fina para campos de input, seletores, botões e campos de data */
     div[data-testid="stVerticalBlock"] > div:has(input), 
-    div[data-testid="stVerticalBlock"] > div:has(select) {{
+    div[data-testid="stVerticalBlock"] > div:has(select),
+    div[data-testid="stVerticalBlock"] > div:has(button) {{
         background-color: #ffffff; 
         padding: 2px 6px !important; 
         border-radius: 8px; 
@@ -92,6 +93,11 @@ st.markdown(f"""
     div[data-testid="stVerticalBlock"] > div:has(input):focus-within,
     div[data-testid="stVerticalBlock"] > div:has(select):focus-within {{
         border-color: #478c3b !important;
+    }}
+    
+    /* Ajuste específico para o container de inputs de data nativos */
+    div[data-testid="stDateInput"] {{
+        width: 100%;
     }}
     
     /* Caixa padrão de sucesso (Registro Localizado) */
@@ -185,10 +191,11 @@ df_pc = carregar_dados_seguros()
 
 
 # ==========================================
-# 4. CABEÇALHO INTEGRADO COM DUPLO FILTRO (MANTENDO EM UMA LINHA)
+# 4. CABEÇALHO INTEGRADO COM MÚLTIPLOS FILTROS (MANTENDO EM UMA LINHA)
 # ==========================================
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
-c1, c2, c3, c4, c5 = st.columns([1.1, 4.0, 1.3, 1.6, 2.0])
+# Ajuste fino da largura das colunas para comportar o novo filtro de data perfeitamente
+c1, c2, c3, c4, c5, c6 = st.columns([1.1, 3.2, 1.2, 1.3, 1.6, 1.8])
 
 with c1:
     if base64_logo: 
@@ -200,21 +207,24 @@ with c3:
         st.cache_data.clear()
         st.rerun()
 with c4:
-    # CAPTURA DOS STATUS EXISTENTES NA COLUNA 'STATUS' PARA O FILTRO DINÂMICO
+    # FILTRO 1: Status Operacional
     col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
     if col_status_verificacao:
         lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
     else:
         lista_status = ["Todos"]
-        
     filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed")
 with c5:
+    # FILTRO 2 ADICIONADO: Pesquisa e Filtro por Intervalo de Datas
+    filtro_data = st.date_input("", value=(), placeholder="📅 Filtrar por Emissão...", label_visibility="collapsed")
+with c6:
+    # FILTRO 3: Caixa Geral de Texto (SC, PC ou CC)
     busca = st.text_input("", placeholder="🔍 Localizar SC, Pedido ou CC...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
-# 5. ESTRUTURA DE COLUNAS REORGANIZADA (NOME ENCURTADO ATIVADO)
+# 5. ESTRUTURA DE COLUNAS REORGANIZADA
 # ==========================================
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
@@ -222,11 +232,8 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "Nº Solicitação (SC)", "tela": "Nº Solicitação (SC)", "tipo": "texto"},
     {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"},   
     {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
-    
-    # AJUSTE SOLICITADO: Nomes encurtados apenas para "Emissão" e "Aprovação"
     {"planilha": "Data Emissao", "tela": "Emissão", "tipo": "data"},
     {"planilha": "Data Liberação", "tela": "Aprovação", "tipo": "data"},
-    
     {"planilha": "Envio", "tela": "Envio", "tipo": "data"},
     {"planilha": "Pagamento", "tela": "Pagamento", "tipo": "texto"}, 
     {"planilha": "Previsão de entrega", "tela": "Previsão de entrega", "tipo": "data"},
@@ -304,9 +311,19 @@ if busca:
             if not res_pc.empty:
                 df_final = res_pc.copy()
 
-        # Filtro Adicional 1: Status (Seletor do Cabeçalho)
+        # Filtro de Status (Seletor do Cabeçalho)
         if not df_final.empty and filtro_status != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == filtro_status]
+
+        # MOTOR DE FILTRAGEM POR DATA ADICIONADO: Filtra pela coluna 'Data Emissao' caso o intervalo esteja completo
+        if not df_final.empty and len(filtro_data) == 2:
+            col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper() or "EMISSAO" in c.upper()), None)
+            if col_emissao_original:
+                # Converte as colunas temporariamente para datetime para fazer o cruzamento lógico preciso
+                datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed')
+                data_inicio = pd.to_datetime(filtro_data[0])
+                data_fim = pd.to_datetime(filtro_data[1])
+                df_final = df_final[(datas_convertidas >= data_inicio) & (datas_convertidas <= data_fim)]
 
     # ---- MONTAGEM DA LISTA TRATADA PARA EXIBIÇÃO ----
     if not df_final.empty:
@@ -362,7 +379,7 @@ if busca:
             )
             df_painel.loc[mascara_na, "Pagamento"] = "N/A"
 
-        # Atualização das chaves na formatação de datas conforme novos cabeçalhos
+        # Formatação das colunas de datas para exibição em tela
         colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]
         for col_data in colunas_para_formatar:
             if col_data in df_painel.columns:
@@ -377,7 +394,9 @@ if busca:
         if not df_painel.empty:
             txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}" if modo_centro_custo else "🔍 Registro Localizado na Base de Pedidos Firme"
             if filtro_status != "Todos":
-                txt_status += f" (Filtrado por Status: {filtro_status})"
+                txt_status += f" (Status: {filtro_status})"
+            if len(filtro_data) == 2:
+                txt_status += f" (Período: {filtro_data[0].strftime('%d/%m/%y')} até {filtro_data[1].strftime('%d/%m/%y')})"
                 
             st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
             
@@ -421,18 +440,15 @@ if busca:
             
             st.dataframe(tabela_estilizada, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
         else:
-            if modo_centro_custo:
-                st.markdown(f'<div class="custom-info-blue">ℹ️ Os registros encontrados para este Centro de Custo já constam como PAGO e foram filtrados.</div>', unsafe_allow_html=True)
-            else:
-                st.markdown('<div class="custom-info-blue">ℹ️ Este registro já consta como PAGO e foi arquivado do painel de pendências.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="custom-info-blue">ℹ️ Nenhum registro ativo atende aos critérios de busca e aos filtros de data/status selecionados.</div>', unsafe_allow_html=True)
     else:
         # GESTÃO VISUAL DE ALERTAS CONDICIONAIS
         if modo_centro_custo:
-            st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros com o status \'{filtro_status}\' pendentes.</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes com os filtros aplicados.</div>', unsafe_allow_html=True)
         elif valor_numerico_inteiro >= 170000:
             st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado com as configurações selecionadas, entre em contato com o comprador.</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!</div>', unsafe_allow_html=True)
+            st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
 else:
     # SAUDAÇÃO INICIAL EXCLUSIVA DO PORTAL
     st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
