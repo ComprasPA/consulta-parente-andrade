@@ -70,7 +70,7 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"},   
     {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
     {"planilha": "Envio", "tela": "Envio", "tipo": "data"},
-    {"planilha": "Pagamento", "tela": "Pagamento", "tipo": "texto"}, # Mudado para texto para aceitar com segurança a string "N/A"
+    {"planilha": "Pagamento", "tela": "Pagamento", "tipo": "texto"}, # Mantido como texto devido ao "N/A"
     {"planilha": "Previsão de entrega", "tela": "Previsão de entrega", "tipo": "data"},
     {"planilha": "Entrega", "tela": "Entrega", "tipo": "data"},
     {"planilha": "Fornecedor", "tela": "Fornecedor", "tipo": "texto"},
@@ -100,6 +100,17 @@ def converter_para_numerico(valor):
         return float(dado)
     except:
         return 0.0
+
+# Formata qualquer string ou objeto de data estritamente para DD/MM/AA
+def formatar_para_dd_mm_aa(valor):
+    txt = str(valor).strip()
+    if txt == "" or txt.lower() in ["nan", "none", "0", "n/a"]:
+        return txt
+    try:
+        # Força o pandas a interpretar de forma flexível e cospe no formato DD/MM/AA
+        return pd.to_datetime(txt, errors='coerce', format='mixed').strftime('%d/%m/%y')
+    except:
+        return txt
 
 @st.cache_data(ttl=60)
 def carregar_dados_seguros():
@@ -176,7 +187,7 @@ if busca:
                 if tipo_campo == "data":
                     datas_limpas = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
                     datas_limpas = datas_limpas.replace(['nan', 'NONE', '', '0'], '')
-                    df_painel[nome_exibicao_tela] = pd.to_datetime(datas_limpas, errors='coerce', format='mixed').dt.strftime('%d/%m/%y').fillna('')
+                    df_painel[nome_exibicao_tela] = datas_limpas
                 
                 elif tipo_campo == "pedido":
                     df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: ajustar_zeros_protheus(val, 6))
@@ -209,16 +220,9 @@ if busca:
             mascara_vazia = (df_painel["Previsão de entrega"] == "") | (df_painel["Previsão de entrega"].isna())
             df_painel.loc[mascara_vazia, "Previsão de entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
 
-        # REGRA 2: Forçar N/A em Pagamento baseado na nova regra refinada
+        # REGRA 2: Forçar N/A em Pagamento baseado no critério excludente
         if "Pagamento" in df_painel.columns and "Condição Pagamento" in df_painel.columns:
             condicao_normalizada = df_painel["Condição Pagamento"].astype(str).str.upper().str.strip()
-            
-            # Condições de ativação do N/A:
-            # 1. Não pode conter a expressão exata "A VISTA"
-            # 2. Não pode conter o termo abreviado "ENT" (Ex: ENT +1PARC, ENTR + 1 PARC, ENT+3PARC)
-            # 3. Não pode conter a palavra "VENCIDO"
-            # 4. Não pode conter a palavra "PAGO"
-            # Se for verdadeiro para TODOS esses critérios excludentes, a data de pagamento deve virar "N/A"
             mascara_na = (
                 (~condicao_normalizada.str.contains("A VISTA", na=False)) & 
                 (~condicao_normalizada.str.contains("ENT", na=False)) & 
@@ -226,6 +230,15 @@ if busca:
                 (~condicao_normalizada.str.contains("PAGO", na=False))
             )
             df_painel.loc[mascara_na, "Pagamento"] = "N/A"
+
+        # ==========================================
+        # FORMATAÇÃO COMPACTA UNIFICADA (DD/MM/AA)
+        # ==========================================
+        # Garante de forma absoluta o formato DD/MM/AA em todas as colunas de data (e na de Pagamento se contiver data)
+        colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Data Emissão", "Data Liberação"]
+        for col_data in colunas_para_formatar:
+            if col_data in df_painel.columns:
+                df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
 
         df_painel = df_painel.dropna(how='all')
 
@@ -265,7 +278,6 @@ if busca:
                     alignment="right"
                 )
             else:
-                # Mantém alinhamento à esquerda apenas para Fornecedor e Descrição
                 if nome_tela in ["Fornecedor", "Descrição"]:
                     configuracao_colunas_tela[nome_tela] = st.column_config.TextColumn(
                         nome_tela,
