@@ -72,7 +72,6 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
     {"planilha": "Nº Solicitação (SC)", "tela": "Nº Solicitação (SC)", "tipo": "texto"},
     {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"},   # Regra: 6 caracteres (item ajustado)
-    {"planilha": "Cod Fornecedor", "tela": "Cod Fornecedor", "tipo": "texto"},
     {"planilha": "Fornecedor", "tela": "Fornecedor", "tipo": "texto"},
     {"planilha": "Centro de Custo (CC)", "tela": "Centro de Custo (CC)", "tipo": "texto"},
     {"planilha": "Produto", "tela": "Produto", "tipo": "produto"},                 # Regra: 10 caracteres (item ajustado)
