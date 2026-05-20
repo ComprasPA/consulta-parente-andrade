@@ -24,7 +24,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Alinhamento do título da gaveta à direita)
+# 3. CSS MODERNIZADO (Alinhamento do título da gaveta à direita com rotação de seta)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -126,7 +126,15 @@ st.markdown(f"""
         /* ALINHAMENTO DO TÍTULO À DIREITA */
         display: flex !important;
         justify-content: flex-end !important;
+        flex-direction: row !important; /* Mantém a leitura natural do texto e da seta ao lado */
         text-align: right !important;
+        gap: 8px !important;
+    }}
+    
+    /* AJUSTE DO ÍCONE NATIVO: Garante que a seta acompanhe perfeitamente o texto à direita */
+    div[data-testid="stExpander"] summary svg {{
+        order: 2 !important; /* Move o ícone de seta para depois do texto */
+        transition: transform 0.2s ease !important;
     }}
     
     /* Garante cor estável de alta visibilidade (Grafite) independente do estado */
@@ -137,7 +145,8 @@ st.markdown(f"""
         color: #1e293b !important;
         font-weight: 700 !important;
         font-size: 16px !important;
-        margin: 0 !important; /* Remove margens para perfeito alinhamento vertical */
+        margin: 0 !important;
+        order: 1 !important;
     }}
     
     /* Mudança suave para verde apenas no hover */
@@ -277,7 +286,6 @@ if "filtro_data_val" not in st.session_state:
 # GAVETA RETRÁTIL OPERACIONAL - TOTALMENTE ALINHADA E SEM QUEBRAS
 # ==========================================
 with st.expander("Filtros Avançados", expanded=False):
-    # CORREÇÃO DA API: O st.form envelopa externamente todo o grid de colunas para blindar os botões de submit
     with st.form("form_filtros", clear_on_submit=False):
         f_col1, f_col2, f_col3, f_col4 = st.columns([3.5, 3.5, 2.5, 2.5])
         
@@ -305,7 +313,6 @@ with st.expander("Filtros Avançados", expanded=False):
 
         with f_col4:
             st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
-            # Mudança estratégica: Utilização de um botão submit interno mas com gatilho condicional isolado para limpar
             btn_limpar = st.form_submit_button("❌ Limpar Filtros", use_container_width=True)
             
             if btn_limpar:
