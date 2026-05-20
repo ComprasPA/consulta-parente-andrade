@@ -23,7 +23,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Ajustes visuais, cores e controle rígido de largura máxima/mínima das colunas)
+# 3. CSS MODERNIZADO (Ajustes visuais, cores e controle rígido de alinhamentos e larguras)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -154,10 +154,17 @@ st.markdown(f"""
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
     }}
     
-    /* CSS Injetado para impedir quebras de palavras e truncamento nos títulos das colunas do Streamlit */
+    /* Impedir quebras de palavras e truncamento nos títulos das colunas */
     div[data-testid="stDataFrame"] data-testid="stTable" th {{
         white-space: nowrap !important;
         min-width: max-content !important;
+    }}
+
+    /* REGRA DE CSS INJETADA: Força o cabeçalho específico da coluna STATUS a alinhar estritamente ao meio (center) */
+    div[data-testid="stDataFrame"] th[data-field="STATUS"], 
+    div[data-testid="stDataFrame"] th[data-field="status"] {{
+        text-align: center !important;
+        justify-content: center !important;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -351,7 +358,7 @@ if busca:
             tipo_campo = col_config["tipo"]
             
             if nome_tela == "STATUS":
-                # REGRA SOLICITADA: Força estritamente o alinhamento da coluna STATUS ao meio (centralizado)
+                # REGRA SOLICITADA: Força estritamente o alinhamento da célula do STATUS ao meio
                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center", width=None)
             elif tipo_campo == "moeda":
                 configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right", width=None)
@@ -370,7 +377,7 @@ if busca:
         if valor_numerico_inteiro >= 170000:
             st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
+            st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!</div>', unsafe_allow_html=True)
 else:
     st.markdown('<div class="custom-welcome-info">💡 Insira o número da SC ou do Pedido de Compras no campo superior direito para rastrear o status.</div>', unsafe_allow_html=True)
 
