@@ -57,7 +57,7 @@ st.markdown(f"""
     }}
     .portal-title {{ 
         color: #1e293b !important; 
-        font-size: 28px !important; 
+        font-size: 20px !important; /* Alterado estritamente para tamanho 20 conforme solicitado */
         font-weight: 700 !important; 
         margin: 0 !important;
         letter-spacing: -0.5px;
