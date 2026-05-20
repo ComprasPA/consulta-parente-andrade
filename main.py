@@ -137,7 +137,7 @@ st.markdown(f"""
         color: #1e293b !important;
         font-weight: 700 !important;
         font-size: 16px !important;
-        margin: 0 !important;
+        margin: 0 !important; /* Remove margens para perfeito alinhamento vertical */
     }}
     
     /* Mudança suave para verde apenas no hover */
@@ -262,7 +262,8 @@ st.markdown('</div>', unsafe_allow_html=True)
 if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
-    st.session_state.filtro_data_val = ()
+    # CORREÇÃO CRUCIAL (SILVIO): Inicializando como lista contendo [None, None] para forçar o modo Range aberto e vazio
+    st.session_state.filtro_data_val = [None, None]
 
 
 # ==========================================
@@ -283,7 +284,7 @@ with st.expander("Filtros Avançados", expanded=False):
         st.session_state.filtro_status_val = filtro_status
         
     with f_col2:
-        # AJUSTE: Passando uma tupla vazia para abrir totalmente limpo sem data preenchida
+        # O value recebe [None, None], abrindo em branco e permitindo selecionar Início e Fim sem fechar sozinho
         filtro_data = st.date_input("Filtrar por Período de Emissão:", value=st.session_state.filtro_data_val, format="DD/MM/YYYY")
         st.session_state.filtro_data_val = filtro_data
         
@@ -291,7 +292,7 @@ with st.expander("Filtros Avançados", expanded=False):
         st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
         if st.button("❌ Limpar Filtros", use_container_width=True):
             st.session_state.filtro_status_val = "Todos"
-            st.session_state.filtro_data_val = ()
+            st.session_state.filtro_data_val = [None, None]
             st.rerun()
 
 
@@ -385,14 +386,16 @@ if busca:
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
-            # AJUSTE CONDICIONAL: A filtragem do intervalo (Range) só roda se contiver as duas datas (Início e Fim) preenchidas
+            # FILTRAGEM CONDICIONAL: Só intercepta a base se a tupla/lista contiver de fato os 2 elementos selecionados (Início e Fim)
             if not df_final.empty and st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
-                col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
-                if col_emissao_original:
-                    datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed').dt.date
-                    data_inicio = st.session_state.filtro_data_val[0]
-                    data_fim = st.session_state.filtro_data_val[1]
-                    df_final = df_final[(datas_convertidas >= data_inicio) & (datas_convertidas <= data_fim)]
+                # Garante que nenhum dos dois pontos do range seja nulo antes de rodar a query
+                if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
+                    col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
+                    if col_emissao_original:
+                        datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed').dt.date
+                        data_inicio = st.session_state.filtro_data_val[0]
+                        data_fim = st.session_state.filtro_data_val[1]
+                        df_final = df_final[(datas_convertidas >= data_inicio) & (datas_convertidas <= data_fim)]
 
         if not df_final.empty:
             df_painel = pd.DataFrame(index=df_final.index)
@@ -460,7 +463,7 @@ if busca:
                 txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}" if modo_centro_custo else "🔍 Registro Localizado na Base de Pedidos Firme"
                 if st.session_state.filtro_status_val != "Todos":
                     txt_status += f" (Status: {st.session_state.filtro_status_val})"
-                if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
+                if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2 and st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
                     txt_status += f" (Período: {st.session_state.filtro_data_val[0].strftime('%d/%m/%y')} até {st.session_state.filtro_data_val[1].strftime('%d/%m/%y')})"
                     
                 st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
