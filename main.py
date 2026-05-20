@@ -46,7 +46,7 @@ st.markdown(f"""
     /* Topo moderno sem recortes ou espaços extras */
     .header-modern {{
         background: #ffffff;
-        padding: 20px 24px;
+        padding: 24px;
         border-radius: 12px;
         display: flex;
         align-items: center;
@@ -57,11 +57,11 @@ st.markdown(f"""
     }}
     .portal-title {{ 
         color: #1e293b !important; 
-        font-size: 20px !important; /* Alterado estritamente para tamanho 20 conforme solicitado */
-        font-weight: 700 !important; 
+        font-size: 60px !important; /* Ampliado estritamente para 60px conforme solicitado */
+        font-weight: 800 !important; 
         margin: 0 !important;
-        letter-spacing: -0.5px;
-        line-height: 1.2;
+        letter-spacing: -1.5px;
+        line-height: 1.1;
     }}
     
     /* Customização fina para campos de input e botões */
