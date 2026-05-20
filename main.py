@@ -226,7 +226,7 @@ st.markdown(f"""
         min-width: max-content !important;
     }}
 
-    /* ASSINATURA SILVIO: Fixada de forma sutil no canto inferior esquerdo */
+    /* ASSINATURA SILVIO: Fixada no canto inferior esquerdo */
     .system-signature {{
         position: fixed;
         bottom: 8px;
@@ -361,68 +361,67 @@ if not df_pc.empty:
     else:
         df_final = df_pc.copy()
 
+
 # ==========================================
 # GAVETA RETRÁTIL OPERACIONAL - POSICIONADA À DIREITA ABAIXO DA BUSCA
 # ==========================================
 sub_c1, sub_c2 = st.columns([8.0, 2.0])
 with sub_c2:
+    # CORREÇÃO DEFINITIVA: Todos os componentes agora herdam a árvore interna do Expander
     with st.expander("⚙️ Filtros Avançados", expanded=False):
-        pass
+        col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
+        if col_status_verificacao:
+            lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
+        else:
+            lista_status = ["Todos"]
 
-# Renderização do bloco interno de filtros estruturado em colunas normais
-with st.container():
-    col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
-    if col_status_verificacao:
-        lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
-    else:
-        lista_status = ["Todos"]
+        data_hoje = datetime.now().date()
+        trinta_dias_atras = data_hoje - timedelta(days=30)
 
-    data_hoje = datetime.now().date()
-    trinta_dias_atras = data_hoje - timedelta(days=30)
+        df_excel_ready = pd.DataFrame()
+        if not df_final.empty:
+            df_excel_ready = pd.DataFrame(index=df_final.index)
+            for col_config in DICIONARIO_COLUNAS_EXATAS:
+                c_plan, c_tela, c_tipo = col_config["planilha"], col_config["tela"], col_config["tipo"]
+                if c_plan in df_final.columns:
+                    if c_tipo == "data":
+                        df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace(['nan', 'NONE', '', '0'], '')
+                    elif c_tipo == "pedido":
+                        df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 6))
+                    elif c_tipo == "produto":
+                        df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 10))
+                    elif c_tipo in ["moeda", "numero"]:
+                        df_excel_ready[c_tela] = df_final[c_plan].apply(converter_para_numerico)
+                    else:
+                        df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
+            
+            for col_data in ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]:
+                if col_data in df_excel_ready.columns:
+                    df_excel_ready[col_data] = df_excel_ready[col_data].apply(formatar_para_dd_mm_aa)
 
-    df_excel_ready = pd.DataFrame()
-    if not df_final.empty:
-        df_excel_ready = pd.DataFrame(index=df_final.index)
-        for col_config in DICIONARIO_COLUNAS_EXATAS:
-            c_plan, c_tela, c_tipo = col_config["planilha"], col_config["tela"], col_config["tipo"]
-            if c_plan in df_final.columns:
-                if c_tipo == "data":
-                    df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace(['nan', 'NONE', '', '0'], '')
-                elif c_tipo == "pedido":
-                    df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 6))
-                elif c_tipo == "produto":
-                    df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 10))
-                elif c_tipo in ["moeda", "numero"]:
-                    df_excel_ready[c_tela] = df_final[c_plan].apply(converter_para_numerico)
-                else:
-                    df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
-        
-        for col_data in ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]:
-            if col_data in df_excel_ready.columns:
-                df_excel_ready[col_data] = df_excel_ready[col_data].apply(formatar_para_dd_mm_aa)
+        out = BytesIO()
+        with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
+            df_excel_ready.to_excel(wr, index=False)
 
-    out = BytesIO()
-    with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
-        df_excel_ready.to_excel(wr, index=False)
-
-    f_col1, f_col2, f_col3, f_col4 = st.columns([3.0, 3.0, 3.5, 2.5])
-    with f_col1:
-        filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed", key="status_gaveta")
-    with f_col2:
-        filtro_data = st.date_input("", value=(trinta_dias_atras, data_hoje), format="DD/MM/YYYY", label_visibility="collapsed", key="data_gaveta")
-    with f_col3:
-        st.download_button(
-            label="📥 Exportar Excel",
-            data=out.getvalue(),
-            file_name=f"Relatorio_Compras_{termo_busca if termo_busca else 'Geral'}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-            key="excel_gaveta"
-        )
-    with f_col4:
-        if st.button("🔄 Sincronizar Base", use_container_width=True, key="sinc_gaveta"):
-            st.cache_data.clear()
-            st.rerun()
+        # Renderização simétrica das 4 colunas planas dentro do expander
+        f_col1, f_col2, f_col3, f_col4 = st.columns([3.0, 3.0, 3.5, 2.5])
+        with f_col1:
+            filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed", key="status_gaveta")
+        with f_col2:
+            filtro_data = st.date_input("", value=(trinta_dias_atras, data_hoje), format="DD/MM/YYYY", label_visibility="collapsed", key="data_gaveta")
+        with f_col3:
+            st.download_button(
+                label="📥 Exportar Excel",
+                data=out.getvalue(),
+                file_name=f"Relatorio_Compras_{termo_busca if termo_busca else 'Geral'}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key="excel_gaveta"
+            )
+        with f_col4:
+            if st.button("🔄 Sincronizar Base", use_container_width=True, key="sinc_gaveta"):
+                st.cache_data.clear()
+                st.rerun()
 
 
 # ==========================================
@@ -540,5 +539,5 @@ else:
 
 st.markdown("<div style='text-align:center; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;'><p style='color:#64748b; font-size:13px; font-weight:600;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
 
-# 7. ASSINATURA INJETADA NO DO CANTO INFERIOR ESQUERDO
+# 7. ASSINATURA INJETADA NO CANTO INFERIOR ESQUERDO
 st.markdown('<div class="system-signature">System created by SS</div>', unsafe_allow_html=True)
