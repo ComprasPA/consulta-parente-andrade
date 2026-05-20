@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import base64
 import re
+from datetime import datetime, timedelta
 from io import BytesIO
 
 # 1. CONFIGURAÇÃO DA PÁGINA (Interface limpa com barra recolhida)
@@ -214,8 +215,10 @@ with c4:
         lista_status = ["Todos"]
     filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed")
 with c5:
-    # SOLUÇÃO COMPATÍVEL PYTHON 3.14: Inicialização com lista vazia fixa [] para impedir quebras de Type do Streamlit
-    filtro_data = st.date_input("", value=[], placeholder="📅 Filtrar por Emissão...", label_visibility="collapsed")
+    # SOLUÇÃO COMPATÍVEL PYTHON 3.14: Definindo intervalo padrão seguro dos últimos 30 dias para evitar exceções de tipagem
+    data_hoje = datetime.now().date()
+    trinta_dias_atras = data_hoje - timedelta(days=30)
+    filtro_data = st.date_input("", value=(trinta_dias_atras, data_hoje), label_visibility="collapsed")
 with c6:
     # FILTRO 3: Caixa Geral de Texto (SC, PC ou CC)
     busca = st.text_input("", placeholder="🔍 Localizar SC, Pedido ou CC...", label_visibility="collapsed")
@@ -318,9 +321,9 @@ if busca:
         if not df_final.empty and filtro_data and len(filtro_data) == 2:
             col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
             if col_emissao_original:
-                datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed')
-                data_inicio = pd.to_datetime(filtro_data[0])
-                data_fim = pd.to_datetime(filtro_data[1])
+                datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed').dt.date
+                data_inicio = filtro_data[0]
+                data_fim = filtro_data[1]
                 df_final = df_final[(datas_convertidas >= data_inicio) & (datas_convertidas <= data_fim)]
 
     # ---- MONTAGEM DA LISTA TRATADA PARA EXIBIÇÃO ----
