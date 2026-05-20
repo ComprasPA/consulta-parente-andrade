@@ -24,7 +24,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Controles visuais e destaque do Expander de Filtros)
+# 3. CSS MODERNIZADO (Controles visuais e estilo clean sem bordas no expander)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -96,23 +96,23 @@ st.markdown(f"""
         border-color: #478c3b !important;
     }}
     
-    /* MODIFICAÇÃO ATIVADA (SILVIO): Destaque absoluto no título do Expander */
+    /* MODIFICAÇÃO ATIVADA (SILVIO): Remoção total de contorno/bordas (Visual Clean) */
     div[data-testid="stExpander"] {{
-        background: #ffffff !important;
-        border: 1px solid #e2e8f0 !important;
-        border-radius: 8px !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.02) !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
         margin-bottom: 24px;
     }}
     
-    /* Força a cor do texto do cabeçalho do expander para alta visibilidade */
-    div[data-testid="stExpander"] summary p {{
+    /* Garante cor estável de alta visibilidade e peso da fonte ao expandir ou fechar */
+    div[data-testid="stExpander"] summary p,
+    div[data-testid="stExpander"] [data-open="true"] summary p {{
         color: #0f172a !important;
         font-weight: 700 !important;
         font-size: 16px !important;
     }}
     
-    /* Cor de destaque quando o usuário passa o mouse por cima do botão de filtros */
+    /* Cor verde operacional no hover para indicar clique */
     div[data-testid="stExpander"] summary:hover p {{
         color: #478c3b !important;
     }}
@@ -229,7 +229,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
-# GAVETA RETRÁTIL OPERACIONAL COM CABEÇALHO DESTACADO VIA CSS
+# GAVETA RETRÁTIL OPERACIONAL - TOTALMENTE CLEAN E DE ALTA VISIBILIDADE
 # ==========================================
 with st.expander("⚙️ Filtros Avançados (Status, Emissão e Atualização)", expanded=False):
     f_col1, f_col2, f_col3 = st.columns([3.5, 3.5, 3.0])
