@@ -24,7 +24,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Controles visuais e estilo clean sem bordas no expander)
+# 3. CSS MODERNIZADO (Controles visuais rústicos, remoção de bordas verdes e alinhamentos)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -64,22 +64,26 @@ st.markdown(f"""
         justify-content: center;
     }}
     
-    /* Alinha o titulo a esquerda dentro da sua respectiva coluna */
-    div[data-testid="column"]:nth-child(2) {{
-        justify-content: flex-start !important;
+    /* ALINHAMENTO DO TÍTULO AO MEIO DA PÁGINA */
+    .center-title-container {{
+        width: 100%;
+        text-align: center;
+        display: flex;
+        justify-content: center;
+        align-items: center;
     }}
     
     .portal-title {{ 
         color: #1e293b !important; 
-        font-size: 40px !important; 
+        font-size: 38px !important; 
         font-weight: 800 !important; 
-        margin: 0 !important;
+        margin: 0 auto !important;
         letter-spacing: -1px;
         line-height: 1;
         white-space: nowrap;
     }}
     
-    /* Customizacao fina para campos de input, seletores, botoes e expander de filtros */
+    /* Customizacao fina para campos de input, seletores, botoes */
     div[data-testid="stVerticalBlock"] > div:has(input), 
     div[data-testid="stVerticalBlock"] > div:has(select),
     div[data-testid="stVerticalBlock"] > div:has(button) {{
@@ -96,23 +100,30 @@ st.markdown(f"""
         border-color: #478c3b !important;
     }}
     
-    /* MODIFICAÇÃO ATIVADA (SILVIO): Remoção total de contorno/bordas (Visual Clean) */
-    div[data-testid="stExpander"] {{
-        background: transparent !important;
+    /* REMOÇÃO DA BORDA VERDE E FILTROS MAIS SÓLIDOS CLEAN DO EXPANDER */
+    div[data-testid="stExpander"], div[data-testid="stExpander"] > div {{
         border: none !important;
         box-shadow: none !important;
-        margin-bottom: 24px;
+        outline: none !important;
+    }}
+    
+    /* Correção de cor sólida permanente e sem contorno do expander */
+    div[data-testid="stExpander"] summary {{
+        border: none !important;
+        outline: none !important;
+        box-shadow: none !important;
     }}
     
     /* Garante cor estável de alta visibilidade e peso da fonte ao expandir ou fechar */
     div[data-testid="stExpander"] summary p,
-    div[data-testid="stExpander"] [data-open="true"] summary p {{
-        color: #0f172a !important;
+    div[data-testid="stExpander"] [data-open="true"] summary p,
+    .streamlit-expanderHeader p {{
+        color: #1e293b !important;
         font-weight: 700 !important;
         font-size: 16px !important;
     }}
     
-    /* Cor verde operacional no hover para indicar clique */
+    /* Mudança suave no hover */
     div[data-testid="stExpander"] summary:hover p {{
         color: #478c3b !important;
     }}
@@ -213,18 +224,19 @@ df_pc = carregar_dados_seguros()
 
 
 # ==========================================
-# 4. CABEÇALHO INTEGRADO (CAIXA DE BUSCA PRINCIPAL SEMPRE VISÍVEL)
+# 4. CABEÇALHO INTEGRADO (REDUÇÃO DA BUSCA E CENTRALIZAÇÃO DO TÍTULO)
 # ==========================================
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
-c1, c2, c3 = st.columns([1.1, 5.7, 3.2])
+# Redistribuição proporcional das colunas para centralizar o título e reduzir a busca à metade
+c1, c2, c3 = st.columns([1.5, 6.5, 2.0])
 
 with c1:
     if base64_logo: 
         st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:120px; display:block; margin:auto 0;">', unsafe_allow_html=True)
 with c2:
-    st.markdown('<p class="portal-title">Portal Gestão de Compras</p>', unsafe_allow_html=True)
+    st.markdown('<div class="center-title-container"><p class="portal-title">Portal Gestão de Compras</p></div>', unsafe_allow_html=True)
 with c3:
-    busca = st.text_input("", placeholder="🔍 Localizar SC, Pedido ou CC...", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Rastrear SC, PC ou CC...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -317,14 +329,12 @@ if busca:
     
     try:
         if not df_pc.empty:
-            # Passo 1: Varredura por Centro de Custo (4 dígitos)
             if tamanho_digitos == 4:
                 modo_centro_custo = True
                 col_busca_pc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
                 if col_busca_pc:
                     df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, regex=True, na=False)].copy()
             
-            # Passo 2: Varredura normal para Pedidos (PC) ou Solicitações (SC)
             else:
                 if termo_numerico:
                     padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
@@ -343,11 +353,9 @@ if busca:
                 if not res_pc.empty:
                     df_final = res_pc.copy()
 
-            # Execução dos Filtros da Gaveta Oculta (Status)
             if not df_final.empty and filtro_status != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == filtro_status]
 
-            # Execução dos Filtros da Gaveta Oculta (Datas de Emissão)
             if not df_final.empty and filtro_data and len(filtro_data) == 2:
                 col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
                 if col_emissao_original:
@@ -356,7 +364,6 @@ if busca:
                     data_fim = filtro_data[1]
                     df_final = df_final[(datas_convertidas >= data_inicio) & (datas_convertidas <= data_fim)]
 
-        # ---- MONTAGEM DA LISTA TRATADA PARA EXIBIÇÃO ----
         if not df_final.empty:
             df_painel = pd.DataFrame(index=df_final.index)
             
@@ -395,7 +402,6 @@ if busca:
                     else:
                         df_painel[nome_exibicao_tela] = ""
 
-            # ---- REGRAS OPERACIONAIS INTER-COLUNAS ----
             if "Previsão de entrega" in df_painel.columns and "Entrega" in df_painel.columns:
                 mascara_vazia = (df_painel["Previsão de entrega"] == "") | (df_painel["Previsão de entrega"].isna())
                 df_painel.loc[mascara_vazia, "Previsão de entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
@@ -410,13 +416,11 @@ if busca:
                 )
                 df_painel.loc[mascara_na, "Pagamento"] = "N/A"
 
-            # Formatacao das colunas de datas para o padrao resumido
             colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]
             for col_data in colunas_para_formatar:
                 if col_data in df_painel.columns:
                     df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
 
-            # Ocultar linhas de pagamento liquidado como "PAGO"
             if "Condição Pagamento" in df_painel.columns:
                 df_painel = df_painel[~df_painel["Condição Pagamento"].astype(str).str.upper().str.contains("PAGO", na=False)]
 
@@ -445,7 +449,6 @@ if busca:
                     )
                 st.write("")
 
-                # ---- 7. CONFIGURAÇÃO VISUAL DE ALINHAMENTO ----
                 configuracao_colunas_tela = {}
                 for col_config in DICIONARIO_COLUNAS_EXATAS:
                     nome_tela = col_config["tela"]
@@ -463,7 +466,6 @@ if busca:
                         else:
                             configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right", width=None)
 
-                # Estilização absoluta via Pandas Styler para centralizar cabeçalho e dados de STATUS
                 tabela_estilizada = df_painel.style.set_table_styles([
                     {'selector': 'th.col_heading.level0.col0', 'props': [('text-align', 'center !important'), ('justify-content', 'center !important')]},
                     {'selector': 'td.col0', 'props': [('text-align', 'center !important')]}
@@ -482,7 +484,6 @@ if busca:
     except Exception as e:
         st.markdown('<div class="custom-error-red">⚠️ Erro ao processar os dados da busca. Verifique as configurações dos filtros e tente novamente.</div>', unsafe_allow_html=True)
 else:
-    # SAUDAÇÃO INICIAL EXCLUSIVA DO PORTAL
     st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
 
 st.markdown("<div style='text-align:center; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;'><p style='color:#64748b; font-size:13px; font-weight:600;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
