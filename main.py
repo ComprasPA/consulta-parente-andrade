@@ -23,7 +23,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Alinhamento absoluto em linha e remoção de espaços)
+# 3. CSS MODERNIZADO (Cores customizadas para alertas em Azul/Branco e Vermelho/Vermelho Escuro)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -70,7 +70,7 @@ st.markdown(f"""
     
     .portal-title {{ 
         color: #1e293b !important; 
-        font-size: 40px !important; /* Ajustado estritamente para 40px conforme solicitado */
+        font-size: 40px !important; 
         font-weight: 800 !important; 
         margin: 0 !important;
         letter-spacing: -1px;
@@ -92,7 +92,7 @@ st.markdown(f"""
         border-color: #478c3b !important;
     }}
     
-    /* Estilização padrão para mensagens de status internas */
+    /* Caixa padrão de sucesso (Registro Localizado) */
     .status-card {{ 
         background: #ffffff; 
         color: #1e293b; 
@@ -103,6 +103,47 @@ st.markdown(f"""
         border-left: 5px solid #478c3b;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         margin-bottom: 16px;
+        width: 100%;
+    }}
+
+    /* CAIXA AZUL: Para informações positivas (Solicitação em Cotação) */
+    .custom-info-blue {{
+        background-color: #1e40af !important;
+        color: #ffffff !important;
+        padding: 16px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        margin-bottom: 16px;
+        width: 100%;
+        border-left: 5px solid #3b82f6;
+    }}
+
+    /* CAIXA VERMELHA: Para alertas/erros (Pedido Não Localizado) */
+    .custom-error-red {{
+        background-color: #fee2e2 !important;
+        color: #991b1b !important;
+        padding: 16px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        margin-bottom: 16px;
+        width: 100%;
+        border-left: 5px solid #ef4444;
+    }}
+
+    /* CAIXA CINZA: Boas-vindas operacional neutra inicial */
+    .custom-welcome-info {{
+        background-color: #ffffff;
+        color: #475569;
+        padding: 16px 24px;
+        border-radius: 8px;
+        font-weight: 500;
+        font-size: 15px;
+        border-left: 5px solid #94a3b8;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }}
     
     /* Ajustes na visualização das tabelas para acompanhar o design */
@@ -315,11 +356,12 @@ if busca:
         
         st.dataframe(df_painel, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
     else:
+        # GESTÃO VISUAL DE ALERTAS COM DIVS CUSTOMIZADAS (SILVIO)
         if valor_numerico_inteiro >= 170000:
-            st.error("⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.")
+            st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
         else:
-            st.warning("⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!")
+            st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
 else:
-    st.info("💡 Insira o número da SC ou do Pedido de Compras no campo superior direito para rastrear o status.")
+    st.markdown('<div class="custom-welcome-info">💡 Insira o número da SC ou do Pedido de Compras no campo superior direito para rastrear o status.</div>', unsafe_allow_html=True)
 
 st.markdown("<div style='text-align:center; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;'><p style='color:#64748b; font-size:13px; font-weight:600;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
