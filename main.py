@@ -24,7 +24,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Alinhamento limpo do título à direita e estilização de rodapé)
+# 3. CSS MODERNIZADO (Alinhamento limpo do título à direita e assinatura fixa)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -237,26 +237,17 @@ st.markdown(f"""
         min-width: max-content !important;
     }}
 
-    /* CONTAINER DO RODAPÉ DUPLO: Permite alinhar a autoria à esquerda e a empresa à direita */
-    .footer-container {{
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-top: 40px;
-        border-top: 1px solid #e2e8f0;
-        padding-top: 20px;
-        width: 100%;
-    }}
-    .footer-left {{
+    /* CEREJA DO BOLO (SILVIO): Assinatura travada e fixa no canto inferior esquerdo da tela */
+    .signature-fixed {{
+        position: fixed;
+        bottom: 12px;
+        left: 20px;
         color: #94a3b8;
-        font-size: 13px;
+        font-size: 11px;
         font-weight: 700;
         letter-spacing: 0.5px;
-    }}
-    .footer-right {{
-        color: #64748b;
-        font-size: 13px;
-        font-weight: 600;
+        z-index: 999999;
+        pointer-events: none;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -607,10 +598,8 @@ if busca:
 else:
     st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
 
-# 7. RODAPÉ DUPLO COM ASSINATURA EXCLUSIVA NO CANTO ESQUERDO
-st.markdown("""
-    <div class="footer-container">
-        <div class="footer-left">Created by SS.</div>
-        <div class="footer-right">Parente Andrade | Coordenação de Suprimentos</div>
-    </div>
-""", unsafe_allow_html=True)
+# 7. RODAPÉ INSTITUCIONAL CENTRALIZADO NO FLUXO DA PÁGINA
+st.markdown("<div style='text-align:center; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;'><p style='color:#64748b; font-size:13px; font-weight:600;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
+
+# 8. MARCA D'ÁGUA FIXA EXCLUSIVA DA AUTORIA NO CANTO INFERIOR ESQUERDO DA TELA
+st.markdown('<div class="signature-fixed">Created by SS.</div>', unsafe_allow_html=True)
