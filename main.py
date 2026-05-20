@@ -105,15 +105,17 @@ st.markdown(f"""
     div[data-testid="stExpander"] > div,
     div[data-testid="stExpander"][data-open="true"],
     div[data-testid="stExpander"][data-open="false"],
-    .stElementContainer:has(div[data-testid="stExpander"]) {{
+    .stElementContainer:has(div[data-testid="stExpander"]),
+    div[class*="st-emotion-cache"]:has(> div[data-testid="stExpander"]) {{
         background-color: transparent !important;
         border: none !important;
         border-width: 0px !important;
         box-shadow: none !important;
         outline: none !important;
+        margin-bottom: 0px !important;
     }}
     
-    /* Remove contornos residuais e força fundo limpo na barra do expander */
+    /* MODIFICAÇÃO ATIVADA: Força o alinhamento da gaveta nativa à direita da página */
     div[data-testid="stExpander"] summary,
     div[data-testid="stExpander"] [role="button"],
     .streamlit-expanderHeader {{
@@ -122,6 +124,11 @@ st.markdown(f"""
         border-width: 0px !important;
         outline: none !important;
         box-shadow: none !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+        flex-direction: row-reverse !important; /* Joga a setinha ao lado do texto */
+        gap: 8px !important;
+        text-align: right !important;
     }}
     
     /* Garante cor estável de alta visibilidade (Grafite) independente do estado */
@@ -132,6 +139,7 @@ st.markdown(f"""
         color: #1e293b !important;
         font-weight: 700 !important;
         font-size: 16px !important;
+        margin: 0 !important;
     }}
     
     /* Mudança suave para verde apenas no hover */
@@ -238,6 +246,7 @@ df_pc = carregar_dados_seguros()
 # 4. CABEÇALHO INTEGRADO (REDUÇÃO DA BUSCA E CENTRALIZAÇÃO DO TÍTULO)
 # ==========================================
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
+# Grid reorganizado para dar o alinhamento correto das colunas superiores
 c1, c2, c3 = st.columns([1.5, 6.5, 2.0])
 
 with c1:
@@ -251,9 +260,14 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
-# GAVETA RETRÁTIL OPERACIONAL - TOTALMENTE CLEAN E SEM BORDAS
+# GAVETA RETRÁTIL OPERACIONAL - TOTALMENTE CLEAN, SEM BORDAS E ALINHADA À DIREITA
 # ==========================================
-with st.expander("⚙️ Filtros Avançados (Status, Emissão e Atualização)", expanded=False):
+# Colunas auxiliares para empurrar o expander nativo milimetricamente para a direita, casando com o input superior
+sub_c1, sub_c2 = st.columns([8.0, 2.0])
+with sub_c2:
+    show_filters = st.expander("⚙️ Filtros Avançados (Status, Emissão e Atualização)", expanded=False)
+
+with show_filters:
     f_col1, f_col2, f_col3 = st.columns([3.5, 3.5, 3.0])
     
     with f_col1:
