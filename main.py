@@ -113,12 +113,7 @@ st.markdown(f"""
         outline: none !important;
     }}
     
-    /* Oculta a seta SVG nativa que quebra o alinhamento do layout */
-    div[data-testid="stExpander"] summary svg {{
-        display: none !important;
-    }}
-    
-    /* Força o alinhamento do container do cabeçalho à extrema direita */
+    /* Remove contornos residuais e força fundo limpo na barra do expander */
     div[data-testid="stExpander"] summary,
     div[data-testid="stExpander"] [role="button"],
     .streamlit-expanderHeader {{
@@ -127,9 +122,20 @@ st.markdown(f"""
         border-width: 0px !important;
         outline: none !important;
         box-shadow: none !important;
-        display: flex !important;
+        display: inline-flex !important;
         justify-content: flex-end !important;
+        flex-direction: row !important;  
+        float: right !important;
         text-align: right !important;
+        gap: 8px !important;
+        width: auto !important;
+    }}
+    
+    /* INTERAÇÃO DA SETA: Permite o giro nativo e suave do componente original */
+    div[data-testid="stExpander"] summary svg {{
+        transition: transform 0.2s ease-in-out !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }}
     
     /* Garante cor estável de alta visibilidade (Grafite) independente do estado */
@@ -375,43 +381,36 @@ def formatar_para_dd_mm_aa(valor):
 # ==========================================
 if busca:
     termo_busca = busca.strip()
-    tamanho_total_caracteres = len(termo_busca)
-    
-    # Extração numérica usada exclusivamente para regras de SC/PC
     termo_numerico = re.sub(r'[^0-9]', '', termo_busca)
     valor_numerico_inteiro = int(termo_numerico) if termo_numerico else 0
+    tamanho_digitos = len(termo_numerico)
+    tamanho_total_caracteres = len(termo_busca)
     
     df_final = pd.DataFrame()
     modo_centro_custo = False
-    modo_produto = False
     
     try:
         if not df_pc.empty:
-            # REGRA 1 (SILVIO): Código de Produto -> Exatos 10 caracteres iniciando obrigatoriamente com 0
-            if tamanho_total_caracteres == 10 and termo_busca.startswith("0"):
-                modo_produto = True
+            # ADICIONADO: Regra específica para busca por Código de Produto (10 caracteres exatos)
+            if tamanho_total_caracteres == 10:
                 col_busca_pc = next((c for c in df_pc.columns if "PRODUTO" in c.upper()), None)
                 if col_busca_pc:
                     df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, regex=True, na=False)].copy()
             
-            # REGRA 2: Centro de Custo -> Exatos 4 caracteres numéricos
-            elif len(termo_numerico) == 4 and tamanho_total_caracteres == 4:
+            elif tamanho_digitos == 4:
                 modo_centro_custo = True
                 col_busca_pc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
                 if col_busca_pc:
                     df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, regex=True, na=False)].copy()
             
-            # REGRA 3: Filtro Direcionado para Solicitações (SC) e Pedidos (PC) baseado no corte de 170000
             else:
                 if termo_numerico:
                     padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
                 else:
                     padrao_regex = re.escape(termo_busca)
                     
-                # Acima ou igual a 170000 -> Base de Pedidos Firme (PC)
                 if valor_numerico_inteiro >= 170000:
                     col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
-                # Abaixo de 170000 -> Base de Solicitações (SC)
                 else:
                     col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
                     
@@ -425,7 +424,7 @@ if busca:
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
-            if not df_final.empty && st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
+            if not df_final.empty and st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
                 if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
                     col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
                     if col_emissao_original:
@@ -463,9 +462,9 @@ if busca:
                     else:
                         df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
                 else:
-                    if nome_exibicao_tela == "Nº Solicitação (SC)" and valor_numerico_inteiro < 170000 and not modo_centro_custo and not modo_produto:
+                    if nome_exibicao_tela == "Nº Solicitação (SC)" and valor_numerico_inteiro < 170000 and not modo_centro_custo and tamanho_total_caracteres != 10:
                         df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
-                    elif nome_exibicao_tela == "Nº Pedido (PC)" and valor_numerico_inteiro >= 170000 and not modo_centro_custo and not modo_produto:
+                    elif nome_exibicao_tela == "Nº Pedido (PC)" and valor_numerico_inteiro >= 170000 and not modo_centro_custo and tamanho_total_caracteres != 10:
                         df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
                     elif nome_exibicao_tela == "Centro de Custo (CC)" and modo_centro_custo:
                         df_painel[nome_exibicao_tela] = busca.strip()
@@ -497,7 +496,7 @@ if busca:
             df_painel = df_painel.dropna(how='all')
 
             if not df_painel.empty:
-                if modo_produto:
+                if tamanho_total_caracteres == 10:
                     txt_status = f"🔍 Registros Ativos Localizados para o Código de Produto: {termo_busca}"
                 else:
                     txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}" if modo_centro_custo else "🔍 Registro Localizado na Base de Pedidos Firme"
@@ -549,7 +548,7 @@ if busca:
             else:
                 st.markdown('<div class="custom-info-blue">ℹ️ Nenhum registro ativo atende aos critérios de busca e aos filtros selecionados.</div>', unsafe_allow_html=True)
         else:
-            if modo_produto:
+            if tamanho_total_caracteres == 10:
                 st.markdown(f'<div class="custom-error-red">⚠️ O Código de Produto \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
             elif modo_centro_custo:
                 st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
