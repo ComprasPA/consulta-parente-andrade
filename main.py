@@ -150,10 +150,7 @@ if busca:
     
     # ---- 1º PASSO: PROCV NA PLANILHA DE PEDIDOS (PC) ----
     if not df_pc.empty and "Nº Solicitação (SC)" in df_pc.columns:
-        # Normaliza a coluna limpando resíduos de .0 e espaços antes da varredura
         col_sc_pc_limpa = df_pc["Nº Solicitação (SC)"].astype(str).str.split('.').str[0].str.lower().str.strip()
-        
-        # Executa o filtro contido tolerante
         res_pc = df_pc[(col_sc_pc_limpa == t) | (col_sc_pc_limpa == t_puro) | (col_sc_pc_limpa == t_6) | (col_sc_pc_limpa == t_10)]
         
         if not res_pc.empty:
@@ -162,7 +159,6 @@ if busca:
 
     # ---- 2º PASSO: FALLBACK PARA A PLANILHA DE SOLICITAÇÕES (SC) ----
     if df_final.empty and not df_sc.empty:
-        # Identifica dinamicamente se a coluna chama "Nº Solicitação (SC)" ou "SCM"
         col_busca_sc = "Nº Solicitação (SC)" if "Nº Solicitação (SC)" in df_sc.columns else (next((c for c in df_sc.columns if "SCM" in c.upper()), None))
         
         if col_busca_sc:
@@ -207,6 +203,7 @@ if busca:
                 else:
                     df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
             else:
+                # Preenchimento seguro indexado para evitar desalinhamento de linhas fantasmas
                 if nome_exibicao_tela == "Nº Solicitação (SC)":
                     df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
                 elif tipo_campo in ["moeda", "numero"]:
@@ -246,6 +243,7 @@ if busca:
             if col_data in df_painel.columns:
                 df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
 
+        # Remove linhas que estejam completamente nulas antes de plotar
         df_painel = df_painel.dropna(how='all')
 
         st.markdown(f'<div class="status-box">🟢 {origem}</div>', unsafe_allow_html=True)
