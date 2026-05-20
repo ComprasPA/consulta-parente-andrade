@@ -61,37 +61,34 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
-# 5. MAPEAMENTO DE POSIÇÃO INDEPENDENTE DE MUDANÇA DE NOME
+# 5. ESTRUTURA DE COLUNAS CORRIGIDA (TEXTO EXATO)
 # ==========================================
-# Mapeia o nome amigável diretamente para o índice físico real (Coluna A = 0, Coluna B = 1, etc.)
-# Baseado estritamente na sua lista de colunas fornecida.
-MAPEAMENTO_POSICIONAL = [
-    {"label": "STATUS", "index": 1, "tipo": "texto"},
-    {"label": "Data Envio", "index": 2, "tipo": "data"},
-    {"label": "Data Pgo (AVISTA)", "index": 3, "tipo": "data"},
-    {"label": "Data Prev de Entrega", "index": 4, "tipo": "data"},
-    {"label": "Data Entrega Real", "index": 5, "tipo": "data"},
-    {"label": "Condição de Pagamento", "index": 6, "tipo": "texto"}, # Corrigido item 1 (Índice 6 = CONDIÇÃO PGO)
-    {"label": "Nº Solicitação (SC)", "index": 7, "tipo": "texto"},
-    {"label": "Nº Pedido (PC)", "index": 8, "tipo": "pedido"},       # Inteligência de zeros à esquerda (item 3)
-    {"label": "Cód. Fornecedor", "index": 9, "tipo": "texto"},
-    {"label": "Fornecedor", "index": 10, "tipo": "texto"},          # Item 4 corrigido (Nome Fornece)
-    {"label": "Centro Custo", "index": 11, "tipo": "texto"},
-    {"label": "Produto", "index": 12, "tipo": "texto"},
-    {"label": "Descrição", "index": 13, "tipo": "texto"},
-    {"label": "UM", "index": 14, "tipo": "texto"},                   # Item 6 corrigido (Unidade)
-    {"label": "Quantidade", "index": 15, "tipo": "texto"},
-    {"label": "Preço Unitário", "index": 16, "tipo": "texto"},       # Item 6 corrigido (Prc Unitario)
-    {"label": "Valor Total", "index": 17, "tipo": "texto"},          # Item 6 corrigido (Vlr.Total)
-    {"label": "Data Emissão", "index": 18, "tipo": "data"},
-    {"label": "Data Liberação PC", "index": 19, "tipo": "data"},     # Item 7 corrigido (Dt Lib. PC)
-    {"label": "Data Baixa", "index": 30, "tipo": "data"},
-    {"label": "Observação", "index": 31, "tipo": "texto"}
+# O formato abaixo casa EXATAMENTE com a lista que você passou, limpando espaços invisíveis.
+DICIONARIO_COLUNAS_EXATAS = [
+    {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
+    {"planilha": "Envio", "tela": "Envio", "tipo": "data"},
+    {"planilha": "Pagamento", "tela": "Pagamento", "tipo": "data"},
+    {"planilha": "Previsão de entrega", "tela": "Previsão de entrega", "tipo": "data"},
+    {"planilha": "Entrega", "tela": "Entrega", "tipo": "data"},
+    {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
+    {"planilha": "Nº Solicitação (SC)", "tela": "Nº Solicitação (SC)", "tipo": "texto"},
+    {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"}, # Preenchimento automático de zeros à esquerda
+    {"planilha": "Cod Fornecedor", "tela": "Cod Fornecedor", "tipo": "texto"},
+    {"planilha": "Fornecedor", "tela": "Fornecedor", "tipo": "texto"},
+    {"planilha": "Centro de Custo (CC)", "tela": "Centro de Custo (CC)", "tipo": "texto"},
+    {"planilha": "Produto", "tela": "Produto", "tipo": "texto"},
+    {"planilha": "Descricao", "tela": "Descrição", "tipo": "texto"},
+    {"planilha": "UM", "tela": "UM", "tipo": "texto"},
+    {"planilha": "Qtd", "tela": "Qtd", "tipo": "texto"},
+    {"planilha": "Preço Unitário", "tela": "Preço Unitário", "tipo": "texto"},
+    {"planilha": "Valor Total", "tela": "Valor Total", "tipo": "texto"},
+    {"planilha": "Data Emissao", "tela": "Data Emissão", "tipo": "data"},
+    {"planilha": "Data Liberação", "tela": "Data Liberação", "tipo": "data"}
 ]
 
-# Formata o código do pedido preenchendo com zeros à esquerda até atingir 10 dígitos
+# Inteligência de formatação para garantir os 10 dígitos do padrão Protheus
 def formatar_codigo_10_digitos(valor):
-    val_limpo = str(valor).split('.')[0].strip() # Remove casas decimais do Excel (.0)
+    val_limpo = str(valor).split('.')[0].strip() # Remove pontuações ou .0 do Excel
     if val_limpo and val_limpo.lower() != 'nan' and val_limpo != '0':
         return val_limpo.zfill(10)
     return val_limpo
@@ -102,11 +99,15 @@ def carregar_dados_seguros():
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
         
-        # Carrega as abas mantendo o tipo original como string, mas sem cabeçalhos rígidos para indexar por número
-        df_pc = pd.read_excel(excel, sheet_name=0, header=None, dtype=str).fillna('')
+        # Carrega a aba de Pedidos (PC)
+        df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
+        # Limpa os espaços invisíveis antes e depois dos nomes das colunas da planilha original
+        df_pc.columns = [str(c).strip() for c in df_pc.columns]
         
+        # Carrega a aba de Solicitações (SC)
         aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
-        df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, header=None, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
+        df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
+        df_sc.columns = [str(c).strip() for c in df_sc.columns]
         
         return df_pc, df_sc
     except Exception as e:
@@ -116,33 +117,23 @@ df_pc, df_sc = carregar_dados_seguros()
 
 
 # ==========================================
-# 6. LÓGICA DE BUSCA INTEGRADA E PREENCHIMENTO
+# 6. LÓGICA DE BUSCA E MONTAGEM DA TABELA
 # ==========================================
 if busca:
     t = busca.lower().strip()
     
-    # Tratamento da busca do usuário: se for número puro, testa com os zeros à esquerda para casar com os 10 dígitos
+    # Tratamento automático para casar buscas curtas com os códigos de 10 dígitos com zeros à esquerda
     t_10 = t.zfill(10) if t.isdigit() else t
     
-    # Executa varredura ampla na aba de Pedidos (PC)
-    if not df_pc.empty:
-        # Pula a primeira linha (cabeçalho da planilha) na varredura de dados
-        dados_corpo_pc = df_pc.iloc[1:]
-        res_pc = dados_corpo_pc[dados_corpo_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any() or r.astype(str).str.lower().str.contains(t_10, na=False).any(), axis=1)]
-    else:
-        res_pc = pd.DataFrame()
+    # Realiza a pesquisa abrangente na aba de Pedidos (PC)
+    res_pc = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any() or r.astype(str).str.lower().str.contains(t_10, na=False).any(), axis=1)]
     
     if not res_pc.empty:
         df_final = res_pc.copy()
         origem = "Planilha de Pedidos (PC)"
     else:
-        # Se não localizar na PC, varre a de Solicitações (SC)
-        if not df_sc.empty:
-            dados_corpo_sc = df_sc.iloc[1:]
-            res_sc = dados_corpo_sc[dados_corpo_sc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
-        else:
-            res_sc = pd.DataFrame()
-            
+        # Se não encontrar na PC, recorre à aba de Solicitações (SC)
+        res_sc = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
         if not res_sc.empty:
             df_final = res_sc.copy()
             origem = "Planilha de Solicitações (SC)"
@@ -150,42 +141,46 @@ if busca:
             df_final = pd.DataFrame()
 
     if not df_final.empty:
-        # Montagem do DataFrame final mapeado por coluna física absoluta
+        # Inicializa o painel espelhando a estrutura correta de index do resultado encontrado
         df_painel = pd.DataFrame(index=df_final.index)
         
-        for config in MAPEAMENTO_POSICIONAL:
-            nome_coluna_tela = config["label"]
-            idx_coluna_planilha = config["index"]
-            tipo_dado = config["tipo"]
+        for col_config in DICIONARIO_COLUNAS_EXATAS:
+            nome_original_planilha = col_config["planilha"]
+            nome_exibicao_tela = col_config["tela"]
+            tipo_campo = col_config["tipo"]
             
-            # Garante que o índice existe no corte da planilha para não estourar erro
-            if idx_coluna_planilha < len(df_final.columns):
-                valores_originais = df_final.iloc[:, idx_coluna_planilha]
+            # Executa o mapeamento direto baseado no nome exato do cabeçalho
+            if nome_original_planilha in df_final.columns:
+                valores_originais = df_final[nome_original_planilha]
                 
-                if tipo_dado == "data":
-                    # Limpeza agressiva e formatação padrão Brasil (DD/MM/AA)
+                if tipo_campo == "data":
+                    # Limpeza e formatação de datas padrão nacional (DD/MM/AA)
                     datas_limpas = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
                     datas_limpas = datas_limpas.replace(['nan', 'NONE', '', '0'], '')
-                    df_painel[nome_coluna_tela] = pd.to_datetime(datas_limpas, errors='coerce', format='mixed').dt.strftime('%d/%m/%y').fillna('')
+                    df_painel[nome_exibicao_tela] = pd.to_datetime(datas_limpas, errors='coerce', format='mixed').dt.strftime('%d/%m/%y').fillna('')
                 
-                elif tipo_dado == "pedido":
-                    # Aplica a regra de 10 dígitos com zeros à esquerda (Item 3)
-                    df_painel[nome_coluna_tela] = valores_originais.apply(formatar_codigo_10_digitos)
+                elif tipo_campo == "pedido":
+                    # Aplica a regra de negócio dos 10 dígitos com zeros à esquerda
+                    df_painel[nome_exibicao_tela] = valores_originais.apply(formatar_codigo_10_digitos)
                 
                 else:
-                    # Texto normal (Limpa resíduos de ponto flutuante do Excel)
-                    df_painel[nome_coluna_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '')
+                    # Texto comum (Remove resquícios de formatação flutuante do Excel)
+                    df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
             else:
-                df_painel[nome_coluna_tela] = ""
+                # Caso a coluna não exista fisicamente na aba consultada, mantém limpo para não quebrar
+                df_painel[nome_exibicao_tela] = ""
 
-        # Força inteligência de status padrão para abas de SC vazias
-        if origem == "Planilha de Solicitações (SC)":
-            df_painel["STATUS"] = "SC ABERTA"
+        # Inteligência de Status emergencial se os dados vierem da aba de solicitações pendentes
+        if origem == "Planilha de Solicitações (SC)" and "STATUS" in df_painel.columns:
+            df_painel["STATUS"] = df_painel["STATUS"].replace('', 'SC ABERTA')
+
+        # Remove linhas fantasmas do processamento final
+        df_painel = df_painel.dropna(how='all')
 
         st.markdown(f'<div class="status-box">🟢 Dados Vinculados de: {origem}</div>', unsafe_allow_html=True)
         st.write("")
         
-        # Download do Excel Tratado
+        # Estruturação para Download em Excel local
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
             df_painel.to_excel(wr, index=False)
@@ -197,11 +192,11 @@ if busca:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
         
-        # Exibição limpa na tela
+        # Renderização final estável na tela do usuário
         st.dataframe(df_painel, use_container_width=True, hide_index=True)
     else:
-        st.warning(f"⚠️ Nenhum registro localizado para: '{busca}'")
+        st.warning(f"⚠️ Nenhum registro localizado para o termo pesquisado: '{busca}'")
 else:
-    st.info("💡 Digite o número da SC ou Pedido para iniciar. O sistema busca automaticamente considerando zeros à esquerda.")
+    st.info("💡 Digite o número da SC ou Pedido para iniciar. O motor faz a verificação inteligente em todas as colunas.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
