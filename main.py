@@ -117,24 +117,19 @@ def carregar_dados_seguros():
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
         
-        # Carrega a primeira aba (Pedidos / PC)
+        # Carrega estritamente apenas a primeira aba (Pedidos / PC)
         df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
         
-        # Carrega a segunda aba (Solicitações / SC)
-        aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
-        df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
-        df_sc.columns = [str(c).strip() for c in df_sc.columns]
-        
-        return df_pc, df_sc
+        return df_pc
     except Exception as e:
-        return pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame()
 
-df_pc, df_sc = carregar_dados_seguros()
+df_pc = carregar_dados_seguros()
 
 
 # ==========================================
-# 6. MOTOR DE BUSCA ROBUSTO (MÉTODO CONTAINS REGEX)
+# 6. MOTOR DE BUSCA DIRECIONADO APENAS NA GUIA PC
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -146,26 +141,14 @@ if busca:
         padrao_regex = re.escape(termo_busca)
         
     df_final = pd.DataFrame()
-    origem = ""
     
-    # ---- 1º PASSO: BUSCA NA PLANILHA DE PEDIDOS (PC) ----
+    # Executa a busca direcionada focando na coluna de SC da aba PC
     if not df_pc.empty:
         col_sc_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
         if col_sc_pc:
             res_pc = df_pc[df_pc[col_sc_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)]
             if not res_pc.empty:
                 df_final = res_pc.copy()
-                origem = "Planilha de Pedidos (PC) - Registro Localizado"
-
-    # ---- 2º PASSO: FALLBACK PARA A PLANILHA DE SOLICITAÇÕES (SC) ----
-    if df_final.empty and not df_sc.empty:
-        col_busca_sc = next((c for c in df_sc.columns if "SOLICITACAO" in c.upper() or "SCM" in c.upper() or "SC" in c.upper()), None)
-        
-        if col_busca_sc:
-            res_sc = df_sc[df_sc[col_busca_sc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)]
-            if not res_sc.empty:
-                df_final = res_sc.copy()
-                origem = "Planilha de Solicitações (SC) - Registro Localizado"
 
     # ---- MONTAGEM DA LISTA TRATADA PARA EXIBIÇÃO ----
     if not df_final.empty:
@@ -177,10 +160,6 @@ if busca:
             tipo_campo = col_config["tipo"]
             
             col_real = nome_original_planilha
-            if nome_original_planilha not in df_final.columns:
-                if "SOLICITACAO" in nome_original_planilha.upper() or "SC" in nome_original_planilha.upper():
-                    col_real = next((c for c in df_final.columns if "SCM" in c.upper() or "SC" in c.upper()), nome_original_planilha)
-
             if col_real in df_final.columns:
                 valores_originais = df_final[col_real]
                 
@@ -201,15 +180,10 @@ if busca:
                 else:
                     df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
             else:
-                # Mantém vazio absoluto em formato de texto para colunas ausentes
                 if nome_exibicao_tela == "Nº Solicitação (SC)":
                     df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
                 else:
                     df_painel[nome_exibicao_tela] = ""
-
-        # REGRA ATIVADA: Força status "EM COTAÇÃO" se vier da aba de solicitações pendentes
-        if origem.startswith("Planilha de Solicitações") and "STATUS" in df_painel.columns:
-            df_painel["STATUS"] = "EM COTAÇÃO"
 
         # ==========================================
         # REGRAS OPERACIONAIS INTER-COLUNAS
@@ -239,10 +213,9 @@ if busca:
             if col_data in df_painel.columns:
                 df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
 
-        # Remove apenas se TODAS as células da linha forem completamente vazias
         df_painel = df_painel.dropna(how='all')
 
-        st.markdown(f'<div class="status-box">🟢 {origem}</div>', unsafe_allow_html=True)
+        st.markdown('<div class="status-box">🟢 Planilha de Pedidos (PC) - Registro Localizado</div>', unsafe_allow_html=True)
         st.write("")
         
         # Preparação do arquivo final para extração local
@@ -266,7 +239,6 @@ if busca:
             nome_tela = col_config["tela"]
             tipo_campo = col_config["tipo"]
             
-            # Aplica NumberColumn apenas em campos que contêm dados numéricos reais (não vazios em texto)
             if tipo_campo == "moeda":
                 configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(
                     nome_tela,
@@ -290,7 +262,7 @@ if busca:
                         alignment="right"
                     )
         
-        # Renderização estável na tela
+        # Renderização final na tela
         st.dataframe(
             df_painel, 
             use_container_width=True, 
@@ -298,8 +270,9 @@ if busca:
             column_config=configuracao_colunas_tela
         )
     else:
-        st.warning(f"⚠️ Nenhuma informação localizada para a SC: '{busca}' nas planilhas do sistema.")
+        # NOVA REGRA: Se a SC não foi localizada na aba PC, exibe o aviso customizado em uma caixa informativa amarela
+        st.info("ℹ️ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!")
 else:
-    st.info("💡 Digite o número da SC para iniciar. O motor buscará o histórico completo em Pedidos (PC) antes de recorrer às Solicitações (SC).")
+    st.info("💡 Digite o número da SC para iniciar o acompanhamento operacional.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
