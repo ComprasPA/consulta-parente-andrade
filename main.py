@@ -24,7 +24,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Alinhamento do título da gaveta à direita com rotação de seta)
+# 3. CSS MODERNIZADO (Alinhamento do título da gaveta à direita perfeitamente limpo)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -113,6 +113,11 @@ st.markdown(f"""
         outline: none !important;
     }}
     
+    /* Oculta a seta nativa do Streamlit para não gerar duplicidade ou desalinhamento */
+    div[data-testid="stExpander"] summary svg {{
+        display: none !important;
+    }}
+    
     /* Remove contornos residuais e força fundo limpo na barra do expander */
     div[data-testid="stExpander"] summary,
     div[data-testid="stExpander"] [role="button"],
@@ -126,15 +131,8 @@ st.markdown(f"""
         /* ALINHAMENTO DO TÍTULO À DIREITA */
         display: flex !important;
         justify-content: flex-end !important;
-        flex-direction: row !important; /* Mantém a leitura natural do texto e da seta ao lado */
         text-align: right !important;
-        gap: 8px !important;
-    }}
-    
-    /* AJUSTE DO ÍCONE NATIVO: Garante que a seta acompanhe perfeitamente o texto à direita */
-    div[data-testid="stExpander"] summary svg {{
-        order: 2 !important; /* Move o ícone de seta para depois do texto */
-        transition: transform 0.2s ease !important;
+        gap: 4px !important;
     }}
     
     /* Garante cor estável de alta visibilidade (Grafite) independente do estado */
@@ -146,7 +144,6 @@ st.markdown(f"""
         font-weight: 700 !important;
         font-size: 16px !important;
         margin: 0 !important;
-        order: 1 !important;
     }}
     
     /* Mudança suave para verde apenas no hover */
@@ -280,13 +277,19 @@ if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
     st.session_state.filtro_data_val = ()
+if "gaveta_aberta" not in st.session_state:
+    st.session_state.gaveta_aberta = False
 
 
 # ==========================================
-# GAVETA RETRÁTIL OPERACIONAL - TOTALMENTE ALINHADA E SEM QUEBRAS
+# GAVETA RETRÁTIL OPERACIONAL - TOTALMENTE ALINHADA COM SETA DINÂMICA
 # ==========================================
-with st.expander("Filtros Avançados", expanded=False):
+# Lógica Python que renderiza a seta correta colada ao texto alinhado à direita
+texto_gaveta = "Filtros Avançados 🔼" if st.session_state.gaveta_aberta else "Filtros Avançados 🔽"
+
+with st.expander(texto_gaveta, expanded=st.session_state.gaveta_aberta):
     with st.form("form_filtros", clear_on_submit=False):
+        # 4 colunas distribuídas simetricamente na mesma linha horizontal
         f_col1, f_col2, f_col3, f_col4 = st.columns([3.5, 3.5, 2.5, 2.5])
         
         with f_col1:
@@ -309,6 +312,7 @@ with st.expander("Filtros Avançados", expanded=False):
             if btn_pesquisar:
                 st.session_state.filtro_status_val = filtro_status
                 st.session_state.filtro_data_val = filtro_data
+                st.session_state.gaveta_aberta = True  # Mantém aberta ao pesquisar
                 st.rerun()
 
         with f_col4:
@@ -318,6 +322,7 @@ with st.expander("Filtros Avançados", expanded=False):
             if btn_limpar:
                 st.session_state.filtro_status_val = "Todos"
                 st.session_state.filtro_data_val = ()
+                st.session_state.gaveta_aberta = False # Fecha ao limpar tudo
                 st.cache_data.clear()
                 st.rerun()
 
