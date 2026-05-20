@@ -26,7 +26,7 @@ base64_logo = get_base64_logo()
 # 3. CSS MODERNIZADO (Cores customizadas para alertas em Azul/Branco e Vermelho/Vermelho Escuro)
 st.markdown(f"""
     <style>
-    /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
+    /* Ocultar elements padrão do Streamlit e zerar espaço do topo */
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     
     /* Remove o espaçamento forçado no topo e nas laterais da página */
@@ -338,29 +338,32 @@ if busca:
             )
         st.write("")
 
-        # ---- 7. CONFIGURAÇÃO VISUAL DE ALINHAMENTO E MOEDA ----
+        # ---- 7. CONFIGURAÇÃO VISUAL DE ALINHAMENTO E AUTO-AJUSTE DAS COLUNAS ----
         configuracao_colunas_tela = {}
         for col_config in DICIONARIO_COLUNAS_EXATAS:
             nome_tela = col_config["tela"]
             tipo_campo = col_config["tipo"]
             
+            # Formatação numérica mantendo alinhamento à direita
             if tipo_campo == "moeda":
                 configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right")
             elif tipo_campo == "numero":
                 configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right")
             else:
+                # RECURSO ATIVADO: Se for texto ou data, remove os limites fixos e força o ajuste dinâmico ao tamanho real das palavras
                 if nome_tela in ["Fornecedor", "Descrição"]:
-                    configuracao_colunas_tela[nome_tela] = st.column_config.TextColumn(nome_tela, alignment="left")
+                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="left", width="medium")
                 else:
-                    configuracao_colunas_tela[nome_tela] = st.column_config.TextColumn(nome_tela, alignment="right")
+                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right", width="small")
         
+        # Renderização estável com ajuste automático ativado nas colunas
         st.dataframe(df_painel, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
     else:
-        # GESTÃO VISUAL DE ALERTAS COM DIVS CUSTOMIZADAS (SILVIO)
+        # GESTÃO VISUAL DE ALERTAS COM DIVS CUSTOMIZADAS
         if valor_numerico_inteiro >= 170000:
             st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
+            st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!</div>', unsafe_allow_html=True)
 else:
     st.markdown('<div class="custom-welcome-info">💡 Insira o número da SC ou do Pedido de Compras no campo superior direito para rastrear o status.</div>', unsafe_allow_html=True)
 
