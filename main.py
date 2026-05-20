@@ -61,8 +61,9 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
-# 5. ESTRUTURA DE COLUNAS COM TRATAMENTO DE CAMPOS
+# 5. ESTRUTURA DE COLUNAS ATUALIZADA
 # ==========================================
+# Linha do "Cod Fornecedor" removida conforme solicitado
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "Envio", "tela": "Envio", "tipo": "data"},
@@ -71,15 +72,15 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "Entrega", "tela": "Entrega", "tipo": "data"},
     {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
     {"planilha": "Nº Solicitação (SC)", "tela": "Nº Solicitação (SC)", "tipo": "texto"},
-    {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"},   # Regra: 6 caracteres (item ajustado)
+    {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"},   
     {"planilha": "Fornecedor", "tela": "Fornecedor", "tipo": "texto"},
     {"planilha": "Centro de Custo (CC)", "tela": "Centro de Custo (CC)", "tipo": "texto"},
-    {"planilha": "Produto", "tela": "Produto", "tipo": "produto"},                 # Regra: 10 caracteres (item ajustado)
+    {"planilha": "Produto", "tela": "Produto", "tipo": "produto"},                 
     {"planilha": "Descricao", "tela": "Descrição", "tipo": "texto"},
     {"planilha": "UM", "tela": "UM", "tipo": "texto"},
-    {"planilha": "Qtd", "tela": "Qtd", "tipo": "texto"},
-    {"planilha": "Preço Unitário", "tela": "Preço Unitário", "tipo": "texto"},
-    {"planilha": "Valor Total", "tela": "Valor Total", "tipo": "texto"},
+    {"planilha": "Qtd", "tela": "Qtd", "tipo": "numero"},
+    {"planilha": "Preço Unitário", "tela": "Preço Unitário", "tipo": "moeda"},
+    {"planilha": "Valor Total", "tela": "Valor Total", "tipo": "moeda"},
     {"planilha": "Data Emissao", "tela": "Data Emissão", "tipo": "data"},
     {"planilha": "Data Liberação", "tela": "Data Liberação", "tipo": "data"}
 ]
@@ -90,6 +91,16 @@ def ajustar_zeros_protheus(valor, tamanho_alvo):
     if val_limpo and val_limpo.lower() != 'nan' and val_limpo != '0':
         return val_limpo.zfill(tamanho_alvo)
     return val_limpo
+
+# Converte strings de preço/valores para float numérico válido
+def converter_para_numerico(valor):
+    if not valor or str(valor).lower() == 'nan':
+        return 0.0
+    dado = str(valor).replace('.', '').replace(',', '.').strip()
+    try:
+        return float(dado)
+    except:
+        return 0.0
 
 @st.cache_data(ttl=60)
 def carregar_dados_seguros():
@@ -119,7 +130,6 @@ df_pc, df_sc = carregar_dados_seguros()
 if busca:
     t = busca.lower().strip()
     
-    # Prepara variações de busca comuns do Protheus (com zeros à esquerda) para garantir o cruzamento
     t_6 = t.zfill(6) if t.isdigit() else t
     t_10 = t.zfill(10) if t.isdigit() else t
     
@@ -156,7 +166,6 @@ if busca:
             nome_exibicao_tela = col_config["tela"]
             tipo_campo = col_config["tipo"]
             
-            # Ajuste de cabeçalho dinâmico para conciliação automática entre "Nº Solicitação (SC)" e "SCM"
             col_real = nome_original_planilha
             if nome_original_planilha not in df_final.columns:
                 if "SOLICITACAO" in nome_original_planilha.upper() or "SC" in nome_original_planilha.upper():
@@ -171,22 +180,24 @@ if busca:
                     df_painel[nome_exibicao_tela] = pd.to_datetime(datas_limpas, errors='coerce', format='mixed').dt.strftime('%d/%m/%y').fillna('')
                 
                 elif tipo_campo == "pedido":
-                    # Força 6 caracteres com zeros à esquerda
                     df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: ajustar_zeros_protheus(val, 6))
                 
                 elif tipo_campo == "produto":
-                    # Força 10 caracteres com zeros à esquerda
                     df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: ajustar_zeros_protheus(val, 10))
+                
+                elif tipo_campo in ["moeda", "numero"]:
+                    df_painel[nome_exibicao_tela] = valores_originais.apply(converter_para_numerico)
                 
                 else:
                     df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
             else:
                 if nome_exibicao_tela == "Nº Solicitação (SC)":
                     df_painel[nome_exibicao_tela] = busca.strip()
+                elif tipo_campo in ["moeda", "numero"]:
+                    df_painel[nome_exibicao_tela] = 0.0
                 else:
                     df_painel[nome_exibicao_tela] = ""
 
-        # Força o status correto se a informação vier de uma requisição pendente
         if origem.startswith("Planilha de Solicitações") and "STATUS" in df_painel.columns:
             df_painel["STATUS"] = df_painel["STATUS"].replace('', 'SC ABERTA')
 
@@ -207,8 +218,39 @@ if busca:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
         
-        # Renderização estável na tela
-        st.dataframe(df_painel, use_container_width=True, hide_index=True)
+        # ==========================================
+        # 7. CONFIGURAÇÃO VISUAL DE ALINHAMENTO E MOEDA
+        # ==========================================
+        configuracao_colunas_tela = {}
+        
+        for col_config in DICIONARIO_COLUNAS_EXATAS:
+            nome_tela = col_config["tela"]
+            tipo_campo = col_config["tipo"]
+            
+            if tipo_campo == "moeda":
+                configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(
+                    nome_tela,
+                    format="R$ %.2f",
+                    alignment="right"
+                )
+            elif tipo_campo == "numero":
+                configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(
+                    nome_tela,
+                    alignment="right"
+                )
+            else:
+                configuracao_colunas_tela[nome_tela] = st.column_config.TextColumn(
+                    nome_tela,
+                    alignment="right"
+                )
+        
+        # Renderização final na tela
+        st.dataframe(
+            df_painel, 
+            use_container_width=True, 
+            hide_index=True,
+            column_config=configuracao_colunas_tela
+        )
     else:
         st.warning(f"⚠️ Nenhuma informação localizada para a SC: '{busca}' nas planilhas do sistema.")
 else:
