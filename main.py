@@ -136,18 +136,16 @@ st.markdown(f"""
         border-left: 5px solid #ef4444;
     }}
 
-    /* CAIXA TEXTO SIMPLES SOLICITADA PARA TELA DE INÍCIO */
-    .custom-welcome-clean {{
+    /* CAIXA CINZA: Boas-vindas operacional neutra inicial */
+    .custom-welcome-info {{
         background-color: #ffffff;
-        color: #1e293b;
-        padding: 24px;
-        border-radius: 12px;
-        font-weight: 600;
-        font-size: 18px;
-        text-align: center;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
-        margin-top: 40px;
+        color: #475569;
+        padding: 16px 24px;
+        border-radius: 8px;
+        font-weight: 500;
+        font-size: 15px;
+        border-left: 5px solid #94a3b8;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }}
     
     /* Ajustes na visualização das tabelas para acompanhar o design */
@@ -185,56 +183,31 @@ df_pc = carregar_dados_seguros()
 
 
 # ==========================================
-# 4. CABEÇALHO DINÂMICO INTEGADO (LAYOUT CONDICIONAL)
+# 4. CABEÇALHO INTEGRADO COM DUPLO FILTRO (MANTENDO EM UMA LINHA)
 # ==========================================
-# Verifica se há dados na URL para carregar o input de busca na URL se necessário
-query_params = st.query_params
-busca_inicial = query_params.get("busca", "").strip()
-
-# Criamos uma chave no session_state para controlar o input e a busca de forma estável
-if "busca_input" not in st.session_state:
-    st.session_state.busca_input = busca_inicial
-
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
+c1, c2, c3, c4, c5 = st.columns([1.1, 4.0, 1.3, 1.6, 2.0])
 
-# Layout condicional: se houver texto digitado, mostra todos os filtros, senão mostra apenas o essencial
-if st.session_state.busca_input:
-    c1, c2, c3, c4, c5 = st.columns([1.1, 4.0, 1.3, 1.6, 2.0])
-    
-    with c1:
-        if base64_logo: 
-            st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:120px; display:block; margin:auto 0;">', unsafe_allow_html=True)
-    with c2:
-        st.markdown('<p class="portal-title">Portal Gestão de Compras</p>', unsafe_allow_html=True)
-    with c3:
-        if st.button("🔄 Sincronizar Base", use_container_width=True):
-            st.cache_data.clear()
-            st.rerun()
-    with c4:
-        col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
-        if col_status_verificacao:
-            lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
-        else:
-            lista_status = ["Todos"]
-        filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed")
-    with c5:
-        busca = st.text_input("", value=st.session_state.busca_input, placeholder="🔍 Localizar SC, Pedido ou CC...", label_visibility="collapsed", key="input_com_busca")
-        st.session_state.busca_input = busca
-else:
-    # TELA DE INÍCIO SEM FILTROS DE STATUS OU SINCRONIZAÇÃO NO CABEÇALHO
-    c1, c2, c5 = st.columns([1.1, 5.6, 2.3])
-    
-    with c1:
-        if base64_logo: 
-            st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:120px; display:block; margin:auto 0;">', unsafe_allow_html=True)
-    with c2:
-        st.markdown('<p class="portal-title">Portal Gestão de Compras</p>', unsafe_allow_html=True)
-    with c5:
-        busca = st.text_input("", placeholder="🔍 Localizar SC, Pedido ou CC...", label_visibility="collapsed", key="input_vazio_inicio")
-        st.session_state.busca_input = busca
-        filtro_status = "Todos"
-        col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
-
+with c1:
+    if base64_logo: 
+        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:120px; display:block; margin:auto 0;">', unsafe_allow_html=True)
+with c2:
+    st.markdown('<p class="portal-title">Portal Gestão de Compras</p>', unsafe_allow_html=True)
+with c3:
+    if st.button("🔄 Sincronizar Base", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+with c4:
+    # CAPTURA DOS STATUS EXISTENTES NA COLUNA 'STATUS' PARA O FILTRO DINÂMICO
+    col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
+    if col_status_verificacao:
+        lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
+    else:
+        lista_status = ["Todos"]
+        
+    filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed")
+with c5:
+    busca = st.text_input("", placeholder="🔍 Localizar SC, Pedido ou CC...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -288,7 +261,7 @@ def formatar_para_dd_mm_aa(valor):
 
 
 # ==========================================
-# 6. MOTOR DE BUSCA DIRECIONADO OPERACIONAL
+# 6. MOTOR DE BUSCA DIRECIONADO OPERACIONAL COM COMBINAÇÃO DE FILTROS
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -389,12 +362,16 @@ if busca:
             if col_data in df_painel.columns:
                 df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
 
-        # Ocultar linhas de pagamento liquidado como "PAGO"
+        # ==========================================
+        # REGRA ADICIONADA (SILVIO): Ocultar linhas onde a Condição de Pagamento for "PAGO"
+        # ==========================================
         if "Condição Pagamento" in df_painel.columns:
+            # Mantém apenas as linhas cujo texto da Condição de Pagamento NÃO contenha a palavra "PAGO"
             df_painel = df_painel[~df_painel["Condição Pagamento"].astype(str).str.upper().str.contains("PAGO", na=False)]
 
         df_painel = df_painel.dropna(how='all')
 
+        # Se após a ocultação dos pagos a tabela ficar vazia, tratamos como se não houvesse registros ativos
         if not df_painel.empty:
             txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}" if modo_centro_custo else "🔍 Registro Localizado na Base de Pedidos Firme"
             if filtro_status != "Todos":
@@ -416,7 +393,7 @@ if busca:
                 )
             st.write("")
 
-            # ---- 7. CONFIGURAÇÃO VISUAL DE ALINHAMENTO ----
+            # ---- 7. CONFIGURAÇÃO VISUAL DE ALINHAMENTO E DINÂMICA DE MAIOR COMPRIMENTO ----
             configuracao_colunas_tela = {}
             for col_config in DICIONARIO_COLUNAS_EXATAS:
                 nome_tela = col_config["tela"]
@@ -441,36 +418,20 @@ if busca:
             ], overwrite=False)
             
             st.dataframe(tabela_estilizada, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
-            
-            # Se o usuário pesquisar algo, oferece o botão para resetar a busca e voltar à tela inicial limpa
-            if st.button("⬅️ Voltar ao Início", use_container_width=False):
-                st.session_state.busca_input = ""
-                st.query_params.clear()
-                st.rerun()
         else:
             if modo_centro_custo:
                 st.markdown(f'<div class="custom-info-blue">ℹ️ Os registros encontrados para este Centro de Custo já constam como PAGO e foram filtrados.</div>', unsafe_allow_html=True)
             else:
                 st.markdown('<div class="custom-info-blue">ℹ️ Este registro já consta como PAGO e foi arquivado do painel de pendências.</div>', unsafe_allow_html=True)
-            
-            if st.button("⬅️ Voltar ao Início"):
-                st.session_state.busca_input = ""
-                st.query_params.clear()
-                st.rerun()
     else:
+        # GESTÃO VISUAL DE ALERTAS CONDICIONAIS
         if modo_centro_custo:
             st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros com o status \'{filtro_status}\' pendentes.</div>', unsafe_allow_html=True)
         elif valor_numerico_inteiro >= 170000:
             st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado com as configurações selecionadas, entre em contato com o comprador.</div>', unsafe_allow_html=True)
         else:
             st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!</div>', unsafe_allow_html=True)
-        
-        if st.button("⬅️ Voltar ao Início"):
-            st.session_state.busca_input = ""
-            st.query_params.clear()
-            st.rerun()
 else:
-    # TELA DE INÍCIO PADRÃO: SEM FILTROS, EXIBINDO APENAS O CARD LIMPO DE INSTRUÇÃO SOLICITADO
-    st.markdown('<div class="custom-welcome-clean">Inserir número de Solicitação, Pedido ou Centro de custo</div>', unsafe_allow_html=True)
+    st.markdown('<div class="custom-welcome-info">💡 Insira o número da SC, Pedido de Compras ou Centro de Custo (4 dígitos) para rastrear o status. Itens liquidados como PAGO são ocultados automaticamente.</div>', unsafe_allow_html=True)
 
 st.markdown("<div style='text-align:center; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;'><p style='color:#64748b; font-size:13px; font-weight:600;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
