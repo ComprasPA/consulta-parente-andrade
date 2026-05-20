@@ -23,10 +23,10 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Cores customizadas para alertas em Azul/Branco e Vermelho/Vermelho Escuro)
+# 3. CSS MODERNIZADO (Ajustes visuais, cores e controle rígido de largura máxima/mínima das colunas)
 st.markdown(f"""
     <style>
-    /* Ocultar elements padrão do Streamlit e zerar espaço do topo */
+    /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     
     /* Remove o espaçamento forçado no topo e nas laterais da página */
@@ -146,12 +146,18 @@ st.markdown(f"""
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }}
     
-    /* Ajustes na visualização das tabelas para acompanhar o design */
+    /* Ajustes na visualização das tabelas para forçar a regra de maior comprimento (Texto x Cabeçalho) */
     div[data-testid="stDataFrame"] {{
         background: #ffffff;
         padding: 16px;
         border-radius: 12px;
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+    }}
+    
+    /* CSS Injetado para impedir quebras de palavras e truncamento nos títulos das colunas do Streamlit */
+    div[data-testid="stDataFrame"] data-testid="stTable" th {{
+        white-space: nowrap !important;
+        min-width: max-content !important;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -338,32 +344,31 @@ if busca:
             )
         st.write("")
 
-        # ---- 7. CONFIGURAÇÃO VISUAL DE ALINHAMENTO E AUTO-AJUSTE DAS COLUNAS ----
+        # ---- 7. CONFIGURAÇÃO VISUAL DE ALINHAMENTO E DINÂMICA DE MAIOR COMPRIMENTO ----
         configuracao_colunas_tela = {}
         for col_config in DICIONARIO_COLUNAS_EXATAS:
             nome_tela = col_config["tela"]
             tipo_campo = col_config["tipo"]
             
-            # Formatação numérica mantendo alinhamento à direita
             if tipo_campo == "moeda":
-                configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right")
+                configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right", width=None)
             elif tipo_campo == "numero":
-                configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right")
+                configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right", width=None)
             else:
-                # RECURSO ATIVADO: Se for texto ou data, remove os limites fixos e força o ajuste dinâmico ao tamanho real das palavras
+                # REGRA EXECUTADA: Definindo width=None, o Streamlit expande a coluna obedecendo estritamente o maior tamanho (Texto ou Título do cabeçalho)
                 if nome_tela in ["Fornecedor", "Descrição"]:
-                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="left", width="medium")
+                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="left", width=None)
                 else:
-                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right", width="small")
+                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right", width=None)
         
-        # Renderização estável com ajuste automático ativado nas colunas
+        # Renderização final com colunas flexíveis baseadas no maior comprimento detectado
         st.dataframe(df_painel, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
     else:
         # GESTÃO VISUAL DE ALERTAS COM DIVS CUSTOMIZADAS
         if valor_numerico_inteiro >= 170000:
             st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!</div>', unsafe_allow_html=True)
+            st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
 else:
     st.markdown('<div class="custom-welcome-info">💡 Insira o número da SC ou do Pedido de Compras no campo superior direito para rastrear o status.</div>', unsafe_allow_html=True)
 
