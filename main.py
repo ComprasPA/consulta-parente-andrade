@@ -194,7 +194,6 @@ df_pc = carregar_dados_seguros()
 # 4. CABEÇALHO INTEGRADO COM MÚLTIPLOS FILTROS (MANTENDO EM UMA LINHA)
 # ==========================================
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
-# Ajuste fino da largura das colunas para comportar o novo filtro de data perfeitamente
 c1, c2, c3, c4, c5, c6 = st.columns([1.1, 3.2, 1.2, 1.3, 1.6, 1.8])
 
 with c1:
@@ -215,8 +214,8 @@ with c4:
         lista_status = ["Todos"]
     filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed")
 with c5:
-    # FILTRO 2 ADICIONADO: Pesquisa e Filtro por Intervalo de Datas
-    filtro_data = st.date_input("", value=(), placeholder="📅 Filtrar por Emissão...", label_visibility="collapsed")
+    # SOLUÇÃO COMPATÍVEL PYTHON 3.14: Inicialização com lista vazia fixa [] para impedir quebras de Type do Streamlit
+    filtro_data = st.date_input("", value=[], placeholder="📅 Filtrar por Emissão...", label_visibility="collapsed")
 with c6:
     # FILTRO 3: Caixa Geral de Texto (SC, PC ou CC)
     busca = st.text_input("", placeholder="🔍 Localizar SC, Pedido ou CC...", label_visibility="collapsed")
@@ -315,11 +314,10 @@ if busca:
         if not df_final.empty and filtro_status != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == filtro_status]
 
-        # MOTOR DE FILTRAGEM POR DATA ADICIONADO: Filtra pela coluna 'Data Emissao' caso o intervalo esteja completo
-        if not df_final.empty and len(filtro_data) == 2:
-            col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper() or "EMISSAO" in c.upper()), None)
+        # Tratamento seguro da filtragem de data por intervalo preenchido
+        if not df_final.empty and filtro_data and len(filtro_data) == 2:
+            col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
             if col_emissao_original:
-                # Converte as colunas temporariamente para datetime para fazer o cruzamento lógico preciso
                 datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed')
                 data_inicio = pd.to_datetime(filtro_data[0])
                 data_fim = pd.to_datetime(filtro_data[1])
@@ -395,7 +393,7 @@ if busca:
             txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}" if modo_centro_custo else "🔍 Registro Localizado na Base de Pedidos Firme"
             if filtro_status != "Todos":
                 txt_status += f" (Status: {filtro_status})"
-            if len(filtro_data) == 2:
+            if filtro_data and len(filtro_data) == 2:
                 txt_status += f" (Período: {filtro_data[0].strftime('%d/%m/%y')} até {filtro_data[1].strftime('%d/%m/%y')})"
                 
             st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
@@ -448,7 +446,7 @@ if busca:
         elif valor_numerico_inteiro >= 170000:
             st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado com as configurações selecionadas, entre em contato com o comprador.</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
+            st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!</div>', unsafe_allow_html=True)
 else:
     # SAUDAÇÃO INICIAL EXCLUSIVA DO PORTAL
     st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
