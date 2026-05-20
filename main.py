@@ -250,7 +250,7 @@ st.markdown(f"""
         pointer-events: none;
     }}
 
-    /* MODIFICAÇÕES RESPONSIVAS MOBILE (SILVIO) */
+    /* MODIFICAÇÕES RESPONSIVAS MOBILE */
     @media (max-width: 768px) {{
         .header-modern {{
             flex-direction: column !important;
@@ -261,14 +261,12 @@ st.markdown(f"""
             font-size: 26px !important;
             white-space: normal !important;
         }}
-        /* Quebra as colunas lado a lado dos filtros para empilharem verticalmente no celular */
         div[data-testid="column"] {{
             flex: 1 1 100% !important;
             width: 100% !important;
             max-width: 100% !important;
             padding: 4px 0px !important;
         }}
-        /* Remove espaçamentos inúteis criados para alinhar os botões no desktop */
         div[data-testid="column"] div[style*="height: 28px"] {{
             display: none !important;
         }}
@@ -517,3 +515,120 @@ if busca:
                     
                     elif tipo_campo in ["moeda", "numero"]:
                         df_painel[nome_exibicao_tela] = valores_originais.apply(converter_para_numerico)
+                    
+                    else:
+                        df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
+                else:
+                    if nome_exibicao_tela == "Nº Solicitação (SC)" and modo_solicitacao:
+                        df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
+                    elif nome_exibicao_tela == "Nº Pedido (PC)" and modo_pedido:
+                        df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
+                    elif nome_exibicao_tela == "Centro de Custo (CC)" and modo_centro_custo:
+                        df_painel[nome_exibicao_tela] = busca.strip()
+                    else:
+                        df_painel[nome_exibicao_tela] = ""
+
+            if "Previsão de entrega" in df_painel.columns and "Entrega" in df_painel.columns:
+                mascara_vazia = (df_painel["Previsão de entrega"] == "") | (df_painel["Previsão de entrega"].isna())
+                df_painel.loc[mascara_vazia, "Previsão de entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
+
+            if "Pagamento" in df_painel.columns and ("CondITION_PAGAMENTO" in df_painel.columns or "Condição Pagamento" in df_painel.columns):
+                col_cond_pag = "Condição Pagamento" if "Condição Pagamento" in df_painel.columns else "CondITION_PAGAMENTO"
+                condicao_normalizada = df_painel[col_cond_pag].astype(str).str.upper().str.strip()
+                mascara_na = (
+                    (~condicao_normalizada.str.contains("A VISTA", na=False)) & 
+                    (~condicao_normalizada.str.contains("ENT", na=False)) & 
+                    (~condicao_normalizada.str.contains("VENCIDO", na=False)) & 
+                    (~condicao_normalizada.str.contains("PAGO", na=False))
+                )
+                df_painel.loc[mascara_na, "Pagamento"] = "N/A"
+
+            colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]
+            for col_data in colunas_para_formatar:
+                if col_data in df_painel.columns:
+                    df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
+
+            if "Condição Pagamento" in df_painel.columns:
+                df_painel = df_painel[~df_painel["Condição Pagamento"].astype(str).str.upper().str.contains("PAGO", na=False)]
+
+            df_painel = df_painel.dropna(how='all')
+
+            if not df_painel.empty:
+                if modo_produto:
+                    txt_status = f"🔍 Registros Ativos Localizados para o Código de Produto: {termo_busca}"
+                elif modo_centro_custo:
+                    txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}"
+                elif modo_pedido:
+                    txt_status = f"🔍 Registro Localizado na Base de Pedidos Firme: {termo_busca}"
+                elif modo_fornecedor:
+                    txt_status = f"🔍 Registros Ativos Localizados para o Fornecedor: {termo_busca}"
+                else:
+                    txt_status = f"🔍 Registro Localizado na Base de Solicitações: {termo_busca}"
+                
+                if st.session_state.filtro_status_val != "Todos":
+                    txt_status += f" (Status: {st.session_state.filtro_status_val})"
+                if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2 and st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
+                    txt_status += f" (Período: {st.session_state.filtro_data_val[0].strftime('%d/%m/%y')} até {st.session_state.filtro_data_val[1].strftime('%d/%m/%y')})"
+                    
+                st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
+                
+                c_down, _ = st.columns([2.5, 7.5])
+                with c_down:
+                    out = BytesIO()
+                    with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
+                        df_painel.to_excel(wr, index=False)
+                    st.download_button(
+                        label="📥 Extrair Relatório Operacional",
+                        data=out.getvalue(),
+                        file_name=f"Relatorio_Compras_{termo_busca}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+                st.write("")
+
+                configuracao_colunas_tela = {}
+                for col_config in DICIONARIO_COLUNAS_EXATAS:
+                    nome_tela = col_config["tela"]
+                    tipo_campo = col_config["tipo"]
+                    
+                    if nome_tela == "STATUS":
+                        configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center", width=None)
+                    elif tipo_campo == "moeda":
+                        configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right", width=None)
+                    elif tipo_campo == "numero":
+                        configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right", width=None)
+                    else:
+                        if nome_tela in ["Fornecedor", "Descrição"]:
+                            configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="left", width=None)
+                        else:
+                            configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right", width=None)
+
+                tabela_estilizada = df_painel.style.set_table_styles([
+                    {'selector': 'th.col_heading.level0.col0', 'props': [('text-align', 'center !important'), ('justify-content', 'center !important')]},
+                    {'selector': 'td.col0', 'props': [('text-align', 'center !important')]}
+                ], overwrite=False)
+                
+                st.dataframe(tabela_estilizada, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
+            else:
+                st.markdown('<div class="custom-info-blue">ℹ️ Nenhum registro ativo atende aos critérios de busca e aos filtros selecionados.</div>', unsafe_allow_html=True)
+        else:
+            if modo_produto:
+                st.markdown(f'<div class="custom-error-red">⚠️ O Código de Produto \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
+            elif modo_centro_custo:
+                st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
+            elif modo_pedido:
+                st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
+            elif modo_fornecedor:
+                st.markdown(f'<div class="custom-error-red">⚠️ O Fornecedor \'{termo_busca}\' informado não possui registros ativos correspondentes.</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
+    except Exception as e:
+        st.markdown('<div class="custom-error-red">⚠️ Erro ao processar os dados da busca. Verifique as configurações dos filtros e tente novamente.</div>', unsafe_allow_html=True)
+else:
+    st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
+
+# 7. RODAPÉ INSTITUCIONAL CENTRALIZADO NO FLUXO DA PÁGINA
+st.markdown("<div style='text-align:center; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;'><p style='color:#64748b; font-size:13px; font-weight:600;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
+
+# 8. MARCA D'ÁGUA FIXA EXCLUSIVA DA AUTORIA NO CANTO INFERIOR ESQUERDO DA TELA
+st.markdown('<div class="signature-fixed">Created by SS.</div>', unsafe_allow_html=True)
