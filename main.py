@@ -338,15 +338,15 @@ if not df_pc.empty:
 
 
 # ==========================================
-# GATILHO COMPACTO ALINHADO À DIREITA (SUBSTITUTOS DO EXPANDER NATIVO)
+# GATILHO COMPACTO ALINHADO À DIREITA (CHECKBOX DISCRETO)
 # ==========================================
 sub_c1, sub_c2 = st.columns([8.0, 2.0])
 with sub_c2:
-    # Checkbox transformado via CSS em botão plano, limpo e sem linhas
-    ativar_filtros = st.checkbox("⚙️ Filtros Avançados", value=False)
+    # Checkbox que atua como gatilho lógico
+    filtro_ativo = st.checkbox("⚙️ Filtros Avançados", value=False)
 
 # ==========================================
-# PAINEL EXPANDIDO EM LARGURA TOTAL DA PÁGINA (SEM ESDRÚXULOS)
+# PAINEL EXPANDIDO EM LARGURA TOTAL DA PÁGINA
 # ==========================================
 col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
 if col_status_verificacao:
@@ -357,11 +357,11 @@ else:
 data_hoje = datetime.now().date()
 trinta_dias_atras = data_hoje - timedelta(days=30)
 
-# Inicializa as variáveis lógicas em escopo global estável
 filtro_status = "Todos"
 filtro_data = (trinta_dias_atras, data_hoje)
 
-if activar_filtros:
+# CORREÇÃO EFETUADA: Variável unificada para 'filtro_ativo' eliminando o NameError
+if filtro_ativo:
     df_excel_ready = pd.DataFrame()
     if not df_final.empty:
         df_excel_ready = pd.DataFrame(index=df_final.index)
@@ -387,7 +387,6 @@ if activar_filtros:
     with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
         df_excel_ready.to_excel(wr, index=False)
 
-    # CORREÇÃO EFETIVA (SILVIO): Colunas declaradas na raiz esticam igualmente por toda a largura útil da tela
     f_col1, f_col2, f_col3, f_col4 = st.columns([3.0, 3.0, 3.5, 2.5])
     with f_col1:
         filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed", key="status_gaveta")
@@ -513,9 +512,9 @@ if busca:
             if modo_centro_custo:
                 st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
             elif valor_numerico_inteiro >= 170000:
-                st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o seu comprador.</div>', unsafe_allow_html=True)
+                st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
             else:
-                st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!</div>', unsafe_allow_html=True)
+                st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
     except Exception as e:
         st.markdown('<div class="custom-error-red">⚠️ Erro ao processar os dados da busca. Verifique as configurações dos filtros e tente novamente.</div>', unsafe_allow_html=True)
 else:
