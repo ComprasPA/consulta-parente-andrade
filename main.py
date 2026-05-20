@@ -27,10 +27,10 @@ base64_logo = get_base64_logo()
 # 3. CSS MODERNIZADO (Ajustes de cores, inputs, e remoção do espaço do topo)
 st.markdown(f"""
     <style>
-    /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
+    /* Ocultar elements padrao do Streamlit e zerar espaco do topo */
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     
-    /* Remove o espaçamento forçado no topo e nas laterais da página */
+    /* Remove o espacamento forcado no topo e nas laterais da pagina */
     .block-container {{
         padding-top: 1rem !important;
         padding-bottom: 1rem !important;
@@ -44,7 +44,7 @@ st.markdown(f"""
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }}
     
-    /* Topo moderno forçando todos os elementos na mesma linha verticalmente alinhados */
+    /* Topo moderno forcando todos os elementos na mesma linha verticalmente alinhados */
     .header-modern {{
         background: #ffffff;
         padding: 16px 24px;
@@ -57,14 +57,14 @@ st.markdown(f"""
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
     }}
     
-    /* Força os elementos internos das colunas do Streamlit a centralizarem verticalmente */
+    /* Forca os elementos internos das colunas do Streamlit a centralizarem verticalmente */
     div[data-testid="column"] {{
         display: flex;
         align-items: center;
         justify-content: center;
     }}
     
-    /* Alinha o título à esquerda dentro da sua respectiva coluna */
+    /* Alinha o titulo a esquerda dentro da sua respectiva coluna */
     div[data-testid="column"]:nth-child(2) {{
         justify-content: flex-start !important;
     }}
@@ -79,7 +79,7 @@ st.markdown(f"""
         white-space: nowrap;
     }}
     
-    /* Customização fina para campos de input, seletores, botões e campos de data */
+    /* Customizacao fina para campos de input, seletores, botoes e campos de data */
     div[data-testid="stVerticalBlock"] > div:has(input), 
     div[data-testid="stVerticalBlock"] > div:has(select),
     div[data-testid="stVerticalBlock"] > div:has(button) {{
@@ -96,12 +96,12 @@ st.markdown(f"""
         border-color: #478c3b !important;
     }}
     
-    /* Ajuste específico para o container de inputs de data nativos */
+    /* Ajuste especifico para o container de inputs de data nativos */
     div[data-testid="stDateInput"] {{
         width: 100%;
     }}
     
-    /* Caixa padrão de sucesso (Registro Localizado) */
+    /* Caixa padrao de sucesso (Registro Localizado) */
     .status-card {{ 
         background: #ffffff; 
         color: #1e293b; 
@@ -115,7 +115,7 @@ st.markdown(f"""
         width: 100%;
     }}
 
-    /* CAIXA AZUL: Para informações positivas (Solicitação em Cotação ou CC localizado) */
+    /* CAIXA AZUL: Para informacoes positivas */
     .custom-info-blue {{
         background-color: #1e40af !important;
         color: #ffffff !important;
@@ -129,7 +129,7 @@ st.markdown(f"""
         border-left: 5px solid #3b82f6;
     }}
 
-    /* CAIXA VERMELHA: Para alertas/erros (Pedido Não Localizado) */
+    /* CAIXA VERMELHA: Para alertas/erros */
     .custom-error-red {{
         background-color: #fee2e2 !important;
         color: #991b1b !important;
@@ -143,7 +143,7 @@ st.markdown(f"""
         border-left: 5px solid #ef4444;
     }}
 
-    /* SAUDAÇÃO INICIAL: Estilização do card de boas-vindas na abertura */
+    /* SAUDACAO INICIAL */
     .custom-welcome-salutation {{
         background-color: #ffffff;
         color: #1e293b;
@@ -157,7 +157,7 @@ st.markdown(f"""
         margin-top: 20px;
     }}
     
-    /* Ajustes na visualização das tabelas para acompanhar o design */
+    /* Ajustes na visualizacao das tabelas */
     div[data-testid="stDataFrame"] {{
         background: #ffffff;
         padding: 16px;
@@ -165,7 +165,7 @@ st.markdown(f"""
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
     }}
     
-    /* Impedir quebras de palavras e truncamento nos títulos das colunas */
+    /* Impedir quebras de palavras e truncamento nos titulos das colunas */
     div[data-testid="stDataFrame"] table th {{
         white-space: nowrap !important;
         min-width: max-content !important;
@@ -175,7 +175,7 @@ st.markdown(f"""
 
 
 # ==========================================
-# BACKEND: CARREGAMENTO DOS DADOS COMPARTILHADOS
+# BACKEND: CARREGAMENTO DOS DADOS
 # ==========================================
 @st.cache_data(ttl=60)
 def carregar_dados_seguros():
@@ -192,7 +192,7 @@ df_pc = carregar_dados_seguros()
 
 
 # ==========================================
-# 4. CABEÇALHO INTEGRADO COM MÚLTIPLOS FILTROS (MANTENDO EM UMA LINHA)
+# 4. CABEÇALHO INTEGRADO COM MULTIPLOS FILTROS
 # ==========================================
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
 c1, c2, c3, c4, c5, c6 = st.columns([1.1, 3.2, 1.2, 1.3, 1.6, 1.8])
@@ -207,7 +207,6 @@ with c3:
         st.cache_data.clear()
         st.rerun()
 with c4:
-    # FILTRO 1: Status Operacional
     col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
     if col_status_verificacao:
         lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
@@ -215,12 +214,10 @@ with c4:
         lista_status = ["Todos"]
     filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed")
 with c5:
-    # FILTRO DE DATAS: Corrigido e formatado estritamente em padrão BR (DD/MM/AAAA)
     data_hoje = datetime.now().date()
     trinta_dias_atras = data_hoje - timedelta(days=30)
     filtro_data = st.date_input("", value=(trinta_dias_atras, data_hoje), format="DD/MM/YYYY", label_visibility="collapsed")
 with c6:
-    # FILTRO 3: Caixa Geral de Texto (SC, PC ou CC)
     busca = st.text_input("", placeholder="🔍 Localizar SC, Pedido ou CC...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -275,7 +272,7 @@ def formatar_para_dd_mm_aa(valor):
 
 
 # ==========================================
-# 6. MOTOR DE BUSCA DIRECIONADO OPERACIONAL COM COMBINAÇÃO DE FILTROS
+# 6. MOTOR DE BUSCA DIRECIONADO OPERACIONAL
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -313,11 +310,11 @@ if busca:
             if not res_pc.empty:
                 df_final = res_pc.copy()
 
-        # Filtro de Status (Seletor do Cabeçalho)
+        # Filtro de Status
         if not df_final.empty and filtro_status != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == filtro_status]
 
-        # Tratamento seguro da filtragem de data por intervalo preenchido
+        # Filtragem de data por intervalo
         if not df_final.empty and filtro_data and len(filtro_data) == 2:
             col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
             if col_emissao_original:
@@ -380,7 +377,7 @@ if busca:
             )
             df_painel.loc[mascara_na, "Pagamento"] = "N/A"
 
-        # Formatação das colunas de datas para exibição em tela
+        # Formatacao das colunas de datas
         colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]
         for col_data in colunas_para_formatar:
             if col_data in df_painel.columns:
@@ -392,6 +389,7 @@ if busca:
 
         df_painel = df_painel.dropna(how='all')
 
+        # CORREÇÃO DA SINTAXE: Estrutura de exibição e cards de erros aninhados corretamente
         if not df_painel.empty:
             txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}" if modo_centro_custo else "🔍 Registro Localizado na Base de Pedidos Firme"
             if filtro_status != "Todos":
@@ -415,7 +413,7 @@ if busca:
                 )
             st.write("")
 
-            # ---- 7. CONFIGURAÇÃO VISUAL DE ALINHAMENTO E DINÂMICA DE MAIOR COMPRIMENTO ----
+            # ---- 7. CONFIGURAÇÃO VISUAL DE ALINHAMENTO ----
             configuracao_colunas_tela = {}
             for col_config in DICIONARIO_COLUNAS_EXATAS:
                 nome_tela = col_config["tela"]
@@ -433,7 +431,6 @@ if busca:
                     else:
                         configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right", width=None)
 
-            # Estilização absoluta via Pandas Styler para centralizar cabeçalho e dados de STATUS
             tabela_estilizada = df_painel.style.set_table_styles([
                 {'selector': 'th.col_heading.level0.col0', 'props': [('text-align', 'center !important'), ('justify-content', 'center !important')]},
                 {'selector': 'td.col0', 'props': [('text-align', 'center !important')]}
@@ -441,8 +438,8 @@ if busca:
             
             st.dataframe(tabela_estilizada, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
         else:
-            st.markdown('<div class="custom-info-blue">ℹ️ Nenhum registro ativo atende aos critérios de busca e aos filtros de data/status selecionados.</div>', unsafe_allow_html=True)
-    except Exception as e:
+            st.markdown('<div class="custom-info-blue">ℹ️ Nenhum registro ativo atende aos critérios de busca e aos filtros selecionados.</div>', unsafe_allow_html=True)
+    else:
         if modo_centro_custo:
             st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes com os filtros aplicados.</div>', unsafe_allow_html=True)
         elif valor_numerico_inteiro >= 170000:
