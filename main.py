@@ -4,7 +4,7 @@ import base64
 import re
 from io import BytesIO
 
-# 1. CONFIGURAÇÃO DA PÁGINA
+# 1. CONFIGURAÇÃO DA PÁGINA (Interface limpa com barra recolhida)
 st.set_page_config(
     page_title="Portal Gestão de Compras | Parente Andrade",
     page_icon="🏗️",
@@ -23,45 +23,97 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS (DESIGN PADRÃO CONGELADO)
+# 3. CSS MODERNIZADO (Visual Clean, Cores Harmonizadas e Efeitos Suaves)
 st.markdown(f"""
     <style>
+    /* Ocultar elementos padrão do Streamlit */
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
-    .stApp {{ background-color: #f0f2f6; }}
-    .header-wrapper {{
-        border: 2px solid #478c3b; border-radius: 10px; padding: 15px 25px;
-        background-color: #ffffff; display: flex; align-items: center;
-        justify-content: space-between; margin-top: 10px; margin-bottom: 20px;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+    
+    /* Fondo geral suave para descanso visual */
+    .stApp {{ background-color: #f8fafc; }}
+    
+    /* Topo moderno sem bordas grossas */
+    .header-modern {{
+        background: #ffffff;
+        padding: 24px 32px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 5px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
     }}
-    .portal-title {{ color: #000000 !important; font-size: 35px !important; font-weight: bold !important; margin: 0 !important; }}
+    .portal-title {{ 
+        color: #1e293b !important; 
+        font-size: 30px !important; 
+        font-weight: 700 !important; 
+        margin: 0 !important;
+        letter-spacing: -0.5px;
+    }}
+    .portal-subtitle {{
+        color: #64748b;
+        font-size: 14px;
+        margin: 4px 0 0 0 !important;
+    }}
+    
+    /* Customização fina para campos de input e botões */
     div[data-testid="stVerticalBlock"] > div:has(input) {{
-        background-color: #ffffff; padding: 0px 10px !important; 
-        border-radius: 8px; border: 2px solid #478c3b !important; margin: 0 !important;
+        background-color: #ffffff; 
+        padding: 2px 6px !important; 
+        border-radius: 8px; 
+        border: 1px solid #e2e8f0 !important;
+        box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+        transition: border-color 0.2s;
     }}
-    .status-box {{ background-color: #478c3b; color: white; padding: 12px 20px; border-radius: 10px; font-weight: bold; font-size: 18px; }}
+    div[data-testid="stVerticalBlock"] > div:has(input):focus-within {{
+        border-color: #478c3b !important;
+    }}
+    
+    /* Estilização padrão para mensagens de status internas */
+    .status-card {{ 
+        background: #ffffff; 
+        color: #1e293b; 
+        padding: 16px 24px; 
+        border-radius: 8px; 
+        font-weight: 600; 
+        font-size: 16px; 
+        border-left: 5px solid #478c3b;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        margin-bottom: 16px;
+    }}
+    
+    /* Ajustes na visualização das tabelas para acompanhar o design */
+    div[data-testid="stDataFrame"] {{
+        background: #ffffff;
+        padding: 16px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+    }}
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO COM BOTÃO DE ATUALIZAÇÃO FORÇADA
-st.markdown('<div class="header-wrapper">', unsafe_allow_html=True)
-c1, c2, c3, c4 = st.columns([1.2, 4.5, 1.3, 2.3])
+# 4. CABEÇALHO REESTRUTURADO (Layout Limpo e Alinhado)
+st.markdown('<div class="header-modern">', unsafe_allow_html=True)
+c1, c2, c3, c4 = st.columns([1.1, 4.6, 1.4, 2.3])
 with c1:
     if base64_logo: 
-        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:140px;">', unsafe_allow_html=True)
+        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:130px; margin-top:2px;">', unsafe_allow_html=True)
 with c2:
-    st.markdown('<p class="portal-title">Portal Gestão de Compras Parente Andrade</p>', unsafe_allow_html=True)
+    st.markdown('<p class="portal-title">Portal Gestão de Compras</p>', unsafe_allow_html=True)
+    st.markdown('<p class="portal-subtitle">Parente Andrade | Diretoria de Suprimentos e Logística</p>', unsafe_allow_html=True)
 with c3:
-    if st.button("🔄 Atualizar Base", use_container_width=True):
+    # Botão com visual em linha, focado no topo
+    if st.button("🔄 Sincronizar Base", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 with c4:
-    busca = st.text_input("", placeholder="🔍 Digite SC ou Pedido...", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Localizar SC ou Pedido...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
-# 5. ESTRUTURA DE COLUNAS REORGANIZADA (NOVA ORDEM)
+# 5. ESTRUTURA DE COLUNAS MANTIDA CONGELADA
 # ==========================================
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
@@ -84,14 +136,12 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "Data Liberação", "tela": "Data Liberação", "tipo": "data"}
 ]
 
-# Formata strings numéricas limpando flutuantes .0 do Excel e preenchendo zeros à esquerda
 def ajustar_zeros_protheus(valor, tamanho_alvo):
     val_limpo = str(valor).split('.')[0].strip()
     if val_limpo and val_limpo.lower() != 'nan' and val_limpo != '0' and val_limpo != '':
         return val_limpo.zfill(tamanho_alvo)
     return ""
 
-# Converte strings de preço/valores para float numérico válido
 def converter_para_numerico(valor):
     if not valor or str(valor).lower() == 'nan' or str(valor).strip() == '':
         return ""
@@ -101,7 +151,6 @@ def converter_para_numerico(valor):
     except:
         return ""
 
-# Formata qualquer string ou objeto de data estritamente para DD/MM/AA
 def formatar_para_dd_mm_aa(valor):
     txt = str(valor).strip()
     if txt == "" or txt.lower() in ["nan", "none", "0", "n/a"]:
@@ -116,11 +165,8 @@ def carregar_dados_seguros():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
-        
-        # Carrega estritamente apenas a primeira aba (Pedidos / PC)
         df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
-        
         return df_pc
     except Exception as e:
         return pd.DataFrame()
@@ -129,13 +175,11 @@ df_pc = carregar_dados_seguros()
 
 
 # ==========================================
-# 6. MOTOR DE BUSCA DIRECIONADO APENAS NA GUIA PC
+# 6. MOTOR DE BUSCA MANTER LÓGICA CONGELADA
 # ==========================================
 if busca:
     termo_busca = busca.strip()
     termo_numerico = re.sub(r'[^0-9]', '', termo_busca)
-    
-    # Guarda o valor inteiro digitado para realizar a validação de faixa do Protheus
     valor_numerico_inteiro = int(termo_numerico) if termo_numerico else 0
     
     if termo_numerico:
@@ -145,16 +189,13 @@ if busca:
         
     df_final = pd.DataFrame()
     
-    # Varre a planilha cruzando o termo focado na coluna de Solicitação ou na de Pedidos (caso seja número grande)
     if not df_pc.empty:
-        # Se for número de pedido (>= 170000), busca na coluna de Pedido, senão busca na de SC
         if valor_numerico_inteiro >= 170000:
             col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
         else:
             col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
             
         if not col_busca_pc:
-            # Fallback secundário abrangente se as colunas exatas sumirem por renomeação acidental na planilha
             col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), df_pc.columns[0])
 
         res_pc = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)]
@@ -198,16 +239,11 @@ if busca:
                 else:
                     df_painel[nome_exibicao_tela] = ""
 
-        # ==========================================
-        # REGRAS OPERACIONAIS INTER-COLUNAS
-        # ==========================================
-        
-        # REGRA 1: Replicar Entrega para Previsão se Previsão estiver vazia
+        # ---- REGRAS OPERACIONAIS INTER-COLUNAS ----
         if "Previsão de entrega" in df_painel.columns and "Entrega" in df_painel.columns:
             mascara_vazia = (df_painel["Previsão de entrega"] == "") | (df_painel["Previsão de entrega"].isna())
             df_painel.loc[mascara_vazia, "Previsão de entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
 
-        # REGRA 2: Forçar N/A em Pagamento baseado no critério excludente
         if "Pagamento" in df_painel.columns and "Condição Pagamento" in df_painel.columns:
             condicao_normalizada = df_painel["Condição Pagamento"].astype(str).str.upper().str.strip()
             mascara_na = (
@@ -218,9 +254,6 @@ if busca:
             )
             df_painel.loc[mascara_na, "Pagamento"] = "N/A"
 
-        # ==========================================
-        # FORMATAÇÃO COMPACTA UNIFICADA (DD/MM/AA)
-        # ==========================================
         colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Data Emissão", "Data Liberação"]
         for col_data in colunas_para_formatar:
             if col_data in df_painel.columns:
@@ -228,67 +261,51 @@ if busca:
 
         df_painel = df_painel.dropna(how='all')
 
-        st.markdown('<div class="status-box">🟢 Planilha de Pedidos (PC) - Registro Localizado</div>', unsafe_allow_html=True)
+        # Caixa de status modernizada visualmente por CSS
+        st.markdown('<div class="status-card">🔍 Registro Localizado na Base de Pedidos Firme</div>', unsafe_allow_html=True)
+        
+        # Botão de download posicionado com espaçamento limpo antes da tabela
+        c_down, _ = st.columns([2.5, 7.5])
+        with c_down:
+            out = BytesIO()
+            with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
+                df_painel.to_excel(wr, index=False)
+            st.download_button(
+                label="📥 Extrair Relatório Operacional",
+                data=out.getvalue(),
+                file_name="Portal_Compras_Parente.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
         st.write("")
-        
-        # Preparação do arquivo final para extração local
-        out = BytesIO()
-        with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
-            df_painel.to_excel(wr, index=False)
-        
-        st.download_button(
-            label="📥 DESCARREGAR RELATÓRIO",
-            data=out.getvalue(),
-            file_name="Portal_Compras_Parente.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        
-        # ==========================================
-        # 7. CONFIGURAÇÃO VISUAL DE ALINHAMENTO E MOEDA
-        # ==========================================
+
+        # ---- 7. CONFIGURAÇÃO VISUAL DE ALINHAMENTO E MOEDA ----
         configuracao_colunas_tela = {}
-        
         for col_config in DICIONARIO_COLUNAS_EXATAS:
             nome_tela = col_config["tela"]
             tipo_campo = col_config["tipo"]
             
             if tipo_campo == "moeda":
-                configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(
-                    nome_tela,
-                    format="R$ %.2f",
-                    alignment="right"
-                )
+                configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right")
             elif tipo_campo == "numero":
-                configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(
-                    nome_tela,
-                    alignment="right"
-                )
+                configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right")
             else:
                 if nome_tela in ["Fornecedor", "Descrição"]:
-                    configuracao_colunas_tela[nome_tela] = st.column_config.TextColumn(
-                        nome_tela,
-                        alignment="left"
-                    )
+                    configuracao_colunas_tela[nome_tela] = st.column_config.TextColumn(nome_tela, alignment="left")
                 else:
-                    configuracao_colunas_tela[nome_tela] = st.column_config.TextColumn(
-                        nome_tela,
-                        alignment="right"
-                    )
+                    configuracao_colunas_tela[nome_tela] = st.column_config.TextColumn(nome_tela, alignment="right")
         
-        # Renderização final na tela
-        st.dataframe(
-            df_painel, 
-            use_container_width=True, 
-            hide_index=True,
-            column_config=configuracao_colunas_tela
-        )
+        # Plotagem final estável
+        st.dataframe(df_painel, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
     else:
-        # NOVA REGRA DE NEGÓCIO CONDICIONAL DE ERRO (SILVIO)
+        # Mensagens condicionais nativas integradas à nova identidade visual
         if valor_numerico_inteiro >= 170000:
             st.error("⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.")
         else:
-            st.info("ℹ️ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!")
+            st.warning("⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!")
 else:
-    st.info("💡 Digite o número da SC ou do Pedido para iniciar o acompanhamento operacional.")
+    # Boas-vindas operacional limpa
+    st.info("💡 Insira o número da SC ou do Pedido de Compras no campo superior direito para rastrear o status.")
 
-st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
+# Rodapé institucional moderno
+st.markdown("<div style='text-align:center; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;'><p style='color:#64748b; font-size:13px; font-weight:600;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
