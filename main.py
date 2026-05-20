@@ -277,11 +277,10 @@ if "filtro_data_val" not in st.session_state:
 # GAVETA RETRÁTIL OPERACIONAL - TOTALMENTE ALINHADA E SEM QUEBRAS
 # ==========================================
 with st.expander("Filtros Avançados", expanded=False):
-    # Grid de 4 colunas horizontais limpas e sem quebra de linhas
-    f_col1, f_col2, f_col3, f_col4 = st.columns([3.5, 3.5, 2.5, 2.5])
-    
-    # Encapsula individualmente apenas os inputs para que o botão de limpar opere de forma independente e livre
+    # CORREÇÃO DA API: O st.form envelopa externamente todo o grid de colunas para blindar os botões de submit
     with st.form("form_filtros", clear_on_submit=False):
+        f_col1, f_col2, f_col3, f_col4 = st.columns([3.5, 3.5, 2.5, 2.5])
+        
         with f_col1:
             col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
             if col_status_verificacao:
@@ -304,14 +303,16 @@ with st.expander("Filtros Avançados", expanded=False):
                 st.session_state.filtro_data_val = filtro_data
                 st.rerun()
 
-    # CORREÇÃO CRUCIAL (SILVIO): Botão de limpeza retirado do contexto do form para forçar a limpeza imediata do state
-    with f_col4:
-        st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
-        if st.button("❌ Limpar Filtros", use_container_width=True):
-            st.session_state.filtro_status_val = "Todos"
-            st.session_state.filtro_data_val = ()
-            st.cache_data.clear()
-            st.rerun()
+        with f_col4:
+            st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
+            # Mudança estratégica: Utilização de um botão submit interno mas com gatilho condicional isolado para limpar
+            btn_limpar = st.form_submit_button("❌ Limpar Filtros", use_container_width=True)
+            
+            if btn_limpar:
+                st.session_state.filtro_status_val = "Todos"
+                st.session_state.filtro_data_val = ()
+                st.cache_data.clear()
+                st.rerun()
 
 
 # ==========================================
