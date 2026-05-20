@@ -24,7 +24,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Remoção absoluta de contornos/linhas e ajustes visuais)
+# 3. CSS MODERNIZADO (Remoção de contornos, alinhamentos e assinatura fixa)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -53,7 +53,7 @@ st.markdown(f"""
         align-items: center;
         justify-content: space-between;
         margin-top: 0px !important;
-        margin-bottom: 16px;
+        margin-bottom: 4px;
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
     }}
     
@@ -113,21 +113,23 @@ st.markdown(f"""
         border-style: none !important;
         box-shadow: none !important;
         outline: none !important;
+        margin-bottom: 0px !important;
     }}
     
-    /* Remove contornos internos, focos ativos e linhas residuais no cabeçalho da gaveta */
+    /* Força o alinhamento do botão da gaveta à direita */
     div[data-testid="stExpander"] summary,
     div[data-testid="stExpander"] [role="button"],
-    .streamlit-expanderHeader,
-    .streamlit-expanderHeader:focus,
-    .streamlit-expanderHeader:active,
-    .streamlit-expanderHeader:focus-within {{
+    .streamlit-expanderHeader {{
         background-color: transparent !important;
         border: none !important;
         border-width: 0px !important;
-        border-style: none !important;
         outline: none !important;
         box-shadow: none !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+        flex-direction: row-reverse !important;
+        gap: 8px !important;
+        text-align: right !important;
     }}
     
     /* Garante cor estável de alta visibilidade (Grafite) independente do estado */
@@ -137,7 +139,8 @@ st.markdown(f"""
     .streamlit-expanderHeader:focus p {{
         color: #1e293b !important;
         font-weight: 700 !important;
-        font-size: 16px !important;
+        font-size: 15px !important;
+        margin: 0 !important;
     }}
     
     /* Mudança suave para verde apenas no hover */
@@ -160,6 +163,7 @@ st.markdown(f"""
         font-size: 16px; 
         border-left: 5px solid #478c3b;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        margin-top: 16px;
         margin-bottom: 16px;
         width: 100%;
     }}
@@ -173,6 +177,7 @@ st.markdown(f"""
         font-weight: 600;
         font-size: 16px;
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        margin-top: 16px;
         margin-bottom: 16px;
         width: 100%;
         border-left: 5px solid #3b82f6;
@@ -187,6 +192,7 @@ st.markdown(f"""
         font-weight: 600;
         font-size: 16px;
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        margin-top: 16px;
         margin-bottom: 16px;
         width: 100%;
         border-left: 5px solid #ef4444;
@@ -218,6 +224,18 @@ st.markdown(f"""
     div[data-testid="stDataFrame"] table th {{
         white-space: nowrap !important;
         min-width: max-content !important;
+    }}
+
+    /* ASSINATURA SILVIO: Fixada de forma sutil no canto inferior esquerdo */
+    .system-signature {{
+        position: fixed;
+        bottom: 8px;
+        left: 12px;
+        font-size: 10px !important;
+        color: #94a3b8 !important;
+        font-weight: 500;
+        z-index: 9999;
+        user-select: none;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -344,60 +362,65 @@ if not df_pc.empty:
         df_final = df_pc.copy()
 
 # ==========================================
-# GAVETA RETRÁTIL OPERACIONAL - AJUSTADA EM LINHA ÚNICA PLANA
+# GAVETA RETRÁTIL OPERACIONAL - POSICIONADA À DIREITA ABAIXO DA BUSCA
 # ==========================================
-with st.expander("⚙️ Filtros Avançados (Status, Emissão e Atualização)", expanded=False):
-    f_col1, f_col2, f_col3, f_col4 = st.columns([3.0, 3.0, 3.5, 2.5])
-    
-    with f_col1:
-        col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
-        if col_status_verificacao:
-            lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
-        else:
-            lista_status = ["Todos"]
-        filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed")
-        
-    with f_col2:
-        data_hoje = datetime.now().date()
-        trinta_dias_atras = data_hoje - timedelta(days=30)
-        filtro_data = st.date_input("", value=(trinta_dias_atras, data_hoje), format="DD/MM/YYYY", label_visibility="collapsed")
-        
-    with f_col3:
-        df_excel_ready = pd.DataFrame()
-        if not df_final.empty:
-            df_excel_ready = pd.DataFrame(index=df_final.index)
-            for col_config in DICIONARIO_COLUNAS_EXATAS:
-                c_plan, c_tela, c_tipo = col_config["planilha"], col_config["tela"], col_config["tipo"]
-                if c_plan in df_final.columns:
-                    if c_tipo == "data":
-                        df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace(['nan', 'NONE', '', '0'], '')
-                    elif c_tipo == "pedido":
-                        df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 6))
-                    elif c_tipo == "produto":
-                        df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 10))
-                    elif c_tipo in ["moeda", "numero"]:
-                        df_excel_ready[c_tela] = df_final[c_plan].apply(converter_para_numerico)
-                    else:
-                        df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
-            
-            for col_data in ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]:
-                if col_data in df_excel_ready.columns:
-                    df_excel_ready[col_data] = df_excel_ready[col_data].apply(formatar_para_dd_mm_aa)
+sub_c1, sub_c2 = st.columns([8.0, 2.0])
+with sub_c2:
+    with st.expander("⚙️ Filtros Avançados", expanded=False):
+        pass
 
-        out = BytesIO()
-        with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
-            df_excel_ready.to_excel(wr, index=False)
-            
+# Renderização do bloco interno de filtros estruturado em colunas normais
+with st.container():
+    col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
+    if col_status_verificacao:
+        lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
+    else:
+        lista_status = ["Todos"]
+
+    data_hoje = datetime.now().date()
+    trinta_dias_atras = data_hoje - timedelta(days=30)
+
+    df_excel_ready = pd.DataFrame()
+    if not df_final.empty:
+        df_excel_ready = pd.DataFrame(index=df_final.index)
+        for col_config in DICIONARIO_COLUNAS_EXATAS:
+            c_plan, c_tela, c_tipo = col_config["planilha"], col_config["tela"], col_config["tipo"]
+            if c_plan in df_final.columns:
+                if c_tipo == "data":
+                    df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace(['nan', 'NONE', '', '0'], '')
+                elif c_tipo == "pedido":
+                    df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 6))
+                elif c_tipo == "produto":
+                    df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 10))
+                elif c_tipo in ["moeda", "numero"]:
+                    df_excel_ready[c_tela] = df_final[c_plan].apply(converter_para_numerico)
+                else:
+                    df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
+        
+        for col_data in ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]:
+            if col_data in df_excel_ready.columns:
+                df_excel_ready[col_data] = df_excel_ready[col_data].apply(formatar_para_dd_mm_aa)
+
+    out = BytesIO()
+    with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
+        df_excel_ready.to_excel(wr, index=False)
+
+    f_col1, f_col2, f_col3, f_col4 = st.columns([3.0, 3.0, 3.5, 2.5])
+    with f_col1:
+        filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed", key="status_gaveta")
+    with f_col2:
+        filtro_data = st.date_input("", value=(trinta_dias_atras, data_hoje), format="DD/MM/YYYY", label_visibility="collapsed", key="data_gaveta")
+    with f_col3:
         st.download_button(
             label="📥 Exportar Excel",
             data=out.getvalue(),
             file_name=f"Relatorio_Compras_{termo_busca if termo_busca else 'Geral'}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
+            use_container_width=True,
+            key="excel_gaveta"
         )
-        
     with f_col4:
-        if st.button("🔄 Sincronizar Base", use_container_width=True):
+        if st.button("🔄 Sincronizar Base", use_container_width=True, key="sinc_gaveta"):
             st.cache_data.clear()
             st.rerun()
 
@@ -410,7 +433,6 @@ if busca:
         if not df_final.empty and filtro_status != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == filtro_status]
 
-        # CORREÇÃO: Trocado '&&' por 'and' nativo do Python para matar o SyntaxError de vez
         if not df_final.empty and filtro_data and len(filtro_data) == 2:
             col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
             if col_emissao_original:
@@ -517,3 +539,6 @@ else:
     st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
 
 st.markdown("<div style='text-align:center; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;'><p style='color:#64748b; font-size:13px; font-weight:600;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
+
+# 7. ASSINATURA INJETADA NO DO CANTO INFERIOR ESQUERDO
+st.markdown('<div class="system-signature">System created by SS</div>', unsafe_allow_html=True)
