@@ -23,38 +23,52 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Visual Clean, Cores Harmonizadas e Efeitos Suaves)
+# 3. CSS MODERNIZADO (Remoção do espaço superior e alinhamento fino das letras)
 st.markdown(f"""
     <style>
-    /* Ocultar elementos padrão do Streamlit */
+    /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     
-    /* Fondo geral suave para descanso visual */
-    .stApp {{ background-color: #f8fafc; }}
+    /* Remove o espaçamento forçado no topo e nas laterais da página */
+    .block-container {{
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
+    }}
     
-    /* Topo moderno sem bordas grossas */
+    /* Fundo geral suave e tipografia limpa */
+    .stApp {{ 
+        background-color: #f8fafc; 
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }}
+    
+    /* Topo moderno sem recortes ou espaços extras */
     .header-modern {{
         background: #ffffff;
-        padding: 24px 32px;
+        padding: 20px 24px;
         border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-top: 5px;
+        margin-top: 0px !important;
         margin-bottom: 24px;
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
     }}
     .portal-title {{ 
         color: #1e293b !important; 
-        font-size: 30px !important; 
+        font-size: 28px !important; 
         font-weight: 700 !important; 
         margin: 0 !important;
         letter-spacing: -0.5px;
+        line-height: 1.2;
     }}
     .portal-subtitle {{
         color: #64748b;
-        font-size: 14px;
+        font-size: 13px;
+        font-weight: 500;
         margin: 4px 0 0 0 !important;
+        line-height: 1.2;
     }}
     
     /* Customização fina para campos de input e botões */
@@ -103,7 +117,6 @@ with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras</p>', unsafe_allow_html=True)
     st.markdown('<p class="portal-subtitle">Parente Andrade | Diretoria de Suprimentos e Logística</p>', unsafe_allow_html=True)
 with c3:
-    # Botão com visual em linha, focado no topo
     if st.button("🔄 Sincronizar Base", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
@@ -113,7 +126,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
-# 5. ESTRUTURA DE COLUNAS MANTIDA CONGELADA
+# 5. ESTRUTURA DE COLUNAS REORGANIZADA (NOVA ORDEM)
 # ==========================================
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
@@ -261,10 +274,8 @@ if busca:
 
         df_painel = df_painel.dropna(how='all')
 
-        # Caixa de status modernizada visualmente por CSS
         st.markdown('<div class="status-card">🔍 Registro Localizado na Base de Pedidos Firme</div>', unsafe_allow_html=True)
         
-        # Botão de download posicionado com espaçamento limpo antes da tabela
         c_down, _ = st.columns([2.5, 7.5])
         with c_down:
             out = BytesIO()
@@ -295,17 +306,13 @@ if busca:
                 else:
                     configuracao_colunas_tela[nome_tela] = st.column_config.TextColumn(nome_tela, alignment="right")
         
-        # Plotagem final estável
         st.dataframe(df_painel, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
     else:
-        # Mensagens condicionais nativas integradas à nova identidade visual
         if valor_numerico_inteiro >= 170000:
             st.error("⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.")
         else:
-            st.warning("⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!")
+            st.warning("⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!")
 else:
-    # Boas-vindas operacional limpa
     st.info("💡 Insira o número da SC ou do Pedido de Compras no campo superior direito para rastrear o status.")
 
-# Rodapé institucional moderno
 st.markdown("<div style='text-align:center; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;'><p style='color:#64748b; font-size:13px; font-weight:600;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
