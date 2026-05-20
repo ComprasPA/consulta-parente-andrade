@@ -24,11 +24,11 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Remoção de contornos, alinhamentos e assinatura fixa)
+# 3. CSS MODERNIZADO (Ajustes visuais, ocultação de bordas e alinhamento do botão invisível)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
-    #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{hidden;}}
+    #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     
     /* Remove o espacamento forcado no topo e nas laterais da pagina */
     .block-container {{
@@ -100,51 +100,26 @@ st.markdown(f"""
         border-color: #478c3b !important;
     }}
     
-    /* REMOÇÃO AGRESSIVA E TOTAL DA LINHA DE CONTORNO DA GAVETA (STREAMLIT NATIVO) */
-    div[data-testid="stExpander"], 
-    div[data-testid="stExpander"] > div,
-    div[data-testid="stExpander"][data-open="true"],
-    div[data-testid="stExpander"][data-open="false"],
-    .stElementContainer:has(div[data-testid="stExpander"]),
-    div[class*="st-emotion-cache"]:has(> div[data-testid="stExpander"]) {{
+    /* ESTILIZAÇÃO DO CHECKBOX TRANSFORADO EM BOTÃO DE FILTRO DE ALTA VISIBILIDADE */
+    div[data-testid="stCheckbox"] {{
         background-color: transparent !important;
         border: none !important;
-        border-width: 0px !important;
-        border-style: none !important;
-        box-shadow: none !important;
-        outline: none !important;
-        margin-bottom: 0px !important;
-    }}
-    
-    /* Força o alinhamento do botão da gaveta à direita */
-    div[data-testid="stExpander"] summary,
-    div[data-testid="stExpander"] [role="button"],
-    .streamlit-expanderHeader {{
-        background-color: transparent !important;
-        border: none !important;
-        border-width: 0px !important;
-        outline: none !important;
-        box-shadow: none !important;
         display: flex !important;
         justify-content: flex-end !important;
-        flex-direction: row-reverse !important;
-        gap: 8px !important;
-        text-align: right !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin-top: -8px !important;
     }}
     
-    /* Garante cor estável de alta visibilidade (Grafite) independente do estado */
-    div[data-testid="stExpander"] summary p,
-    div[data-testid="stExpander"] [data-open="true"] summary p,
-    .streamlit-expanderHeader p,
-    .streamlit-expanderHeader:focus p {{
+    div[data-testid="stCheckbox"] label {{
         color: #1e293b !important;
         font-weight: 700 !important;
         font-size: 15px !important;
-        margin: 0 !important;
+        cursor: pointer !important;
+        transition: color 0.2s;
     }}
     
-    /* Mudança suave para verde apenas no hover */
-    div[data-testid="stExpander"] summary:hover p {{
+    div[data-testid="stCheckbox"] label:hover {{
         color: #478c3b !important;
     }}
     
@@ -267,7 +242,7 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "Nº Solicitação (SC)", "tela": "Nº Solicitação (SC)", "tipo": "texto"},
     {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"},   
     {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
-    {"planilha": "Data Envia", "tela": "Emissão", "tipo": "data"}, # Cruzamento com Data Emissao original
+    {"planilha": "Data Emissao", "tela": "Emissão", "tipo": "data"},
     {"planilha": "Data Liberação", "tela": "Aprovação", "tipo": "data"},
     {"planilha": "Envio", "tela": "Envio", "tipo": "data"},
     {"planilha": "Pagamento", "tela": "Pagamento", "tipo": "texto"}, 
@@ -363,24 +338,30 @@ if not df_pc.empty:
 
 
 # ==========================================
-# 4. GAVETA RETRÁTIL OPERACIONAL CONVERTIDA PARA LARGURA HORIZONTAL COMPLETA
+# GATILHO COMPACTO ALINHADO À DIREITA (SUBSTITUTOS DO EXPANDER NATIVO)
 # ==========================================
 sub_c1, sub_c2 = st.columns([8.0, 2.0])
 with sub_c2:
-    # O expander atua estritamente como a barra-gatilho alinhada no canto direito abaixo da busca
-    show_filters = st.expander("⚙️ Filtros Avançados", expanded=False)
+    # Checkbox transformado via CSS em botão plano, limpo e sem linhas
+    ativar_filtros = st.checkbox("⚙️ Filtros Avançados", value=False)
 
-# SOLUÇÃO DEFINITIVA (SILVIO): O bloco de colunas herda o contexto do expander aberto, mas renderiza em 100% da tela
-with show_filters:
-    col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
-    if col_status_verificacao:
-        lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
-    else:
-        lista_status = ["Todos"]
+# ==========================================
+# PAINEL EXPANDIDO EM LARGURA TOTAL DA PÁGINA (SEM ESDRÚXULOS)
+# ==========================================
+col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
+if col_status_verificacao:
+    lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
+else:
+    lista_status = ["Todos"]
 
-    data_hoje = datetime.now().date()
-    trinta_dias_atras = data_hoje - timedelta(days=30)
+data_hoje = datetime.now().date()
+trinta_dias_atras = data_hoje - timedelta(days=30)
 
+# Inicializa as variáveis lógicas em escopo global estável
+filtro_status = "Todos"
+filtro_data = (trinta_dias_atras, data_hoje)
+
+if activar_filtros:
     df_excel_ready = pd.DataFrame()
     if not df_final.empty:
         df_excel_ready = pd.DataFrame(index=df_final.index)
@@ -406,7 +387,7 @@ with show_filters:
     with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
         df_excel_ready.to_excel(wr, index=False)
 
-    # Grid expandido que se estende por toda a largura horizontal da tela ao abrir
+    # CORREÇÃO EFETIVA (SILVIO): Colunas declaradas na raiz esticam igualmente por toda a largura útil da tela
     f_col1, f_col2, f_col3, f_col4 = st.columns([3.0, 3.0, 3.5, 2.5])
     with f_col1:
         filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed", key="status_gaveta")
@@ -425,12 +406,6 @@ with show_filters:
         if st.button("🔄 Sincronizar Base", use_container_width=True, key="sinc_gaveta"):
             st.cache_data.clear()
             st.rerun()
-
-# Lógica de fallback para manter estabilidade operacional na abertura inicial do portal
-if 'filtro_status' not in locals():
-    filtro_status = "Todos"
-if 'filtro_data' not in locals():
-    filtro_data = (datetime.now().date() - timedelta(days=30), datetime.now().date())
 
 
 # ==========================================
@@ -538,9 +513,9 @@ if busca:
             if modo_centro_custo:
                 st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
             elif valor_numerico_inteiro >= 170000:
-                st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
+                st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o seu comprador.</div>', unsafe_allow_html=True)
             else:
-                st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
+                st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!</div>', unsafe_allow_html=True)
     except Exception as e:
         st.markdown('<div class="custom-error-red">⚠️ Erro ao processar os dados da busca. Verifique as configurações dos filtros e tente novamente.</div>', unsafe_allow_html=True)
 else:
