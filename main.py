@@ -56,13 +56,14 @@ with c3:
         st.cache_data.clear()
         st.rerun()
 with c4:
-    busca = st.text_input("", placeholder="🔍 Digite o número da SC...", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Digite SC ou Pedido...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
 # 5. ESTRUTURA DE COLUNAS CORRIGIDA (TEXTO EXATO)
 # ==========================================
+# O formato abaixo casa EXATAMENTE com a lista que você passou, limpando espaços invisíveis.
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "Envio", "tela": "Envio", "tipo": "data"},
@@ -71,7 +72,7 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "Entrega", "tela": "Entrega", "tipo": "data"},
     {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
     {"planilha": "Nº Solicitação (SC)", "tela": "Nº Solicitação (SC)", "tipo": "texto"},
-    {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"}, 
+    {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"}, # Preenchimento automático de zeros à esquerda
     {"planilha": "Fornecedor", "tela": "Fornecedor", "tipo": "texto"},
     {"planilha": "Centro de Custo (CC)", "tela": "Centro de Custo (CC)", "tipo": "texto"},
     {"planilha": "Produto", "tela": "Produto", "tipo": "texto"},
@@ -84,8 +85,9 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "Data Liberação", "tela": "Data Liberação", "tipo": "data"}
 ]
 
+# Inteligência de formatação para garantir os 10 dígitos do padrão Protheus
 def formatar_codigo_10_digitos(valor):
-    val_limpo = str(valor).split('.')[0].strip()
+    val_limpo = str(valor).split('.')[0].strip() # Remove pontuações ou .0 do Excel
     if val_limpo and val_limpo.lower() != 'nan' and val_limpo != '0':
         return val_limpo.zfill(10)
     return val_limpo
@@ -96,13 +98,13 @@ def carregar_dados_seguros():
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
         
-        # Carrega a guia Protheus PC (Pedidos)
-        aba_pc_nome = next((s for s in excel.sheet_names if "PC" in s.upper()), excel.sheet_names[0])
-        df_pc = pd.read_excel(excel, sheet_name=aba_pc_nome, dtype=str).fillna('')
+        # Carrega a aba de Pedidos (PC)
+        df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
+        # Limpa os espaços invisíveis antes e depois dos nomes das colunas da planilha original
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
         
-        # Carrega a guia Protheus SC (Solicitações)
-        aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != aba_pc_nome), None)
+        # Carrega a aba de Solicitações (SC)
+        aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
         df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
         df_sc.columns = [str(c).strip() for c in df_sc.columns]
         
@@ -114,42 +116,31 @@ df_pc, df_sc = carregar_dados_seguros()
 
 
 # ==========================================
-# 6. LÓGICA DE PROCV COM PRIORIDADE DE GUIA
+# 6. LÓGICA DE BUSCA E MONTAGEM DA TABELA
 # ==========================================
 if busca:
     t = busca.lower().strip()
     
-    # Prepara o número da SC pura e também com preenchimento de zeros (caso inserido incompleto)
+    # Tratamento automático para casar buscas curtas com os códigos de 10 dígitos com zeros à esquerda
     t_10 = t.zfill(10) if t.isdigit() else t
     
-    df_final = pd.DataFrame()
-    origem = ""
+    # Realiza a pesquisa abrangente na aba de Pedidos (PC)
+    res_pc = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any() or r.astype(str).str.lower().str.contains(t_10, na=False).any(), axis=1)]
     
-    # ---- PASSO 1: PROCV NA GUIA "Protheus PC" (Coluna Nº Solicitação (SC)) ----
-    if not df_pc.empty and "Nº Solicitação (SC)" in df_pc.columns:
-        # Filtra na coluna D da PC se ela contém o número procurado
-        col_sc_pc = df_pc["Nº Solicitação (SC)"].astype(str).str.lower().str.strip()
-        res_pc = df_pc[(col_sc_pc == t) | (col_sc_pc == t_10)]
-        
-        if not res_pc.empty:
-            df_final = res_pc.copy()
-            origem = "Guia Protheus PC (Pedido Vinculado)"
+    if not res_pc.empty:
+        df_final = res_pc.copy()
+        origem = "Planilha de Pedidos (PC)"
+    else:
+        # Se não encontrar na PC, recorre à aba de Solicitações (SC)
+        res_sc = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
+        if not res_sc.empty:
+            df_final = res_sc.copy()
+            origem = "Planilha de Solicitações (SC)"
+        else:
+            df_final = pd.DataFrame()
 
-    # ---- PASSO 2: SE NÃO ACHOU NO PEDIDO, PROCV NA GUIA "Protheus SC" ----
-    if df_final.empty and not df_sc.empty:
-        # Tenta mapear o termo tanto na coluna oficial quanto na variação "SCM" se houver
-        col_busca_sc = "Nº Solicitação (SC)" if "Nº Solicitação (SC)" in df_sc.columns else (next((c for c in df_sc.columns if "SCM" in c.upper()), None))
-        
-        if col_busca_sc:
-            col_sc_real = df_sc[col_busca_sc].astype(str).str.lower().str.strip()
-            res_sc = df_sc[(col_sc_real == t) | (col_sc_real == t_10)]
-            
-            if not res_sc.empty:
-                df_final = res_sc.copy()
-                origem = "Guia Protheus SC (Solicitação Aberta)"
-
-    # ---- MONTAGEM DA TABELA TRATADA ----
     if not df_final.empty:
+        # Inicializa o painel espelhando a estrutura correta de index do resultado encontrado
         df_painel = pd.DataFrame(index=df_final.index)
         
         for col_config in DICIONARIO_COLUNAS_EXATAS:
@@ -157,39 +148,38 @@ if busca:
             nome_exibicao_tela = col_config["tela"]
             tipo_campo = col_config["tipo"]
             
-            # Se a coluna não existir com o nome padrão (Ex: SCM na aba SC), tenta achar o equivalente por posição ou nome parcial
-            col_real = nome_original_planilha
-            if nome_original_planilha not in df_final.columns:
-                if "SOLICITACAO" in nome_original_planilha.upper() or "SC" in nome_original_planilha.upper():
-                    col_real = next((c for c in df_final.columns if "SCM" in c.upper() or "SC" in c.upper()), nome_original_planilha)
-
-            if col_real in df_final.columns:
-                valores_originais = df_final[col_real]
+            # Executa o mapeamento direto baseado no nome exato do cabeçalho
+            if nome_original_planilha in df_final.columns:
+                valores_originais = df_final[nome_original_planilha]
                 
                 if tipo_campo == "data":
+                    # Limpeza e formatação de datas padrão nacional (DD/MM/AA)
                     datas_limpas = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
                     datas_limpas = datas_limpas.replace(['nan', 'NONE', '', '0'], '')
                     df_painel[nome_exibicao_tela] = pd.to_datetime(datas_limpas, errors='coerce', format='mixed').dt.strftime('%d/%m/%y').fillna('')
                 
                 elif tipo_campo == "pedido":
+                    # Aplica a regra de negócio dos 10 dígitos com zeros à esquerda
                     df_painel[nome_exibicao_tela] = valores_originais.apply(formatar_codigo_10_digitos)
                 
                 else:
+                    # Texto comum (Remove resquícios de formatação flutuante do Excel)
                     df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
             else:
-                # Garante que a coluna Nº Solicitação na tela receba o dado da busca caso venha da SCM
-                if nome_exibicao_tela == "Nº Solicitação (SC)":
-                    df_painel[nome_exibicao_tela] = busca.zfill(6) if busca.isdigit() else busca
-                else:
-                    df_painel[nome_exibicao_tela] = ""
+                # Caso a coluna não exista fisicamente na aba consultada, mantém limpo para não quebrar
+                df_painel[nome_exibicao_tela] = ""
 
-        # Remove linhas redundantes
+        # Inteligência de Status emergencial se os dados vierem da aba de solicitações pendentes
+        if origem == "Planilha de Solicitações (SC)" and "STATUS" in df_painel.columns:
+            df_painel["STATUS"] = df_painel["STATUS"].replace('', 'SC ABERTA')
+
+        # Remove linhas fantasmas do processamento final
         df_painel = df_painel.dropna(how='all')
 
-        st.markdown(f'<div class="status-box">🟢 {origem}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="status-box">🟢 Dados Vinculados de: {origem}</div>', unsafe_allow_html=True)
         st.write("")
         
-        # Arquivo de Download
+        # Estruturação para Download em Excel local
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
             df_painel.to_excel(wr, index=False)
@@ -201,11 +191,11 @@ if busca:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
         
-        # Mostra os dados estruturados na tela
+        # Renderização final estável na tela do usuário
         st.dataframe(df_painel, use_container_width=True, hide_index=True)
     else:
-        st.warning(f"⚠️ Nenhuma informação localizada para a SC: '{busca}' nas guias PC ou SC.")
+        st.warning(f"⚠️ Nenhum registro localizado para o termo pesquisado: '{busca}'")
 else:
-    st.info("💡 Insira o número da SC. O sistema buscará primeiro o histórico em 'Protheus PC' e, caso não encontre, trará os dados da 'Protheus SC'.")
+    st.info("💡 Digite o número da SC ou Pedido para iniciar. O motor faz a verificação inteligente em todas as colunas.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
