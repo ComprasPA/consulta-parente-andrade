@@ -122,20 +122,9 @@ st.markdown(f"""
         border-width: 0px !important;
         outline: none !important;
         box-shadow: none !important;
-        display: inline-flex !important;
+        display: flex !important;
         justify-content: flex-end !important;
-        flex-direction: row !important;  
-        float: right !important;
         text-align: right !important;
-        gap: 8px !important;
-        width: auto !important;
-    }}
-    
-    /* INTERAÇÃO DA SETA: Permite o giro nativo e suave do componente original */
-    div[data-testid="stExpander"] summary svg {{
-        transition: transform 0.2s ease-in-out !important;
-        margin: 0 !important;
-        padding: 0 !important;
     }}
     
     /* Garante cor estável de alta visibilidade (Grafite) independente do estado */
@@ -290,41 +279,42 @@ if "gaveta_aberta" not in st.session_state:
 rotulo_seta = "Filtros Avançados ▲" if st.session_state.gaveta_aberta else "Filtros Avançados ▼"
 
 with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
-    f_col1, f_col2, f_col3, f_col4 = st.columns([4.5, 4.5, 1.5, 1.5])
-    
-    with f_col1:
-        col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
-        if col_status_verificacao:
-            lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
-        else:
-            lista_status = ["Todos"]
+    with st.form("form_filtros", clear_on_submit=False):
+        f_col1, f_col2, f_col3, f_col4 = st.columns([4.5, 4.5, 1.5, 1.5])
+        
+        with f_col1:
+            col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
+            if col_status_verificacao:
+                lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
+            else:
+                lista_status = ["Todos"]
+                
+            idx_padrao = lista_status.index(st.session_state.filtro_status_val) if st.session_state.filtro_status_val in lista_status else 0
+            filtro_status = st.selectbox("Filtrar por Status Operacional:", options=lista_status, index=idx_padrao)
             
-        idx_padrao = lista_status.index(st.session_state.filtro_status_val) if st.session_state.filtro_status_val in lista_status else 0
-        filtro_status = st.selectbox("Filtrar por Status Operacional:", options=lista_status, index=idx_padrao)
-        
-    with f_col2:
-        filtro_data = st.date_input("Filtrar por Período de Emissão:", value=st.session_state.filtro_data_val, format="DD/MM/YYYY")
-        
-    with f_col3:
-        st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
-        btn_pesquisar = st.button("🔍 Pesquisar", use_container_width=True)
-        
-        if btn_pesquisar:
-            st.session_state.filtro_status_val = filtro_status
-            st.session_state.filtro_data_val = filtro_data
-            st.session_state.gaveta_aberta = True  
-            st.rerun()
+        with f_col2:
+            filtro_data = st.date_input("Filtrar por Período de Emissão:", value=st.session_state.filtro_data_val, format="DD/MM/YYYY")
+            
+        with f_col3:
+            st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
+            btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True)
+            
+            if btn_pesquisar:
+                st.session_state.filtro_status_val = filtro_status
+                st.session_state.filtro_data_val = filtro_data
+                st.session_state.gaveta_aberta = True  
+                st.rerun()
 
-    with f_col4:
-        st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
-        btn_limpar = st.button("❌ Limpar", use_container_width=True)
-        
-        if btn_limpar:
-            st.session_state.filtro_status_val = "Todos"
-            st.session_state.filtro_data_val = ()
-            st.session_state.gaveta_aberta = False  
-            st.cache_data.clear()
-            st.rerun()
+        with f_col4:
+            st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
+            btn_limpar = st.form_submit_button("❌ Limpar", use_container_width=True)
+            
+            if btn_limpar:
+                st.session_state.filtro_status_val = "Todos"
+                st.session_state.filtro_data_val = ()
+                st.session_state.gaveta_aberta = False  
+                st.cache_data.clear()
+                st.rerun()
 
 
 # ==========================================
@@ -381,46 +371,57 @@ def formatar_para_dd_mm_aa(valor):
 # ==========================================
 if busca:
     termo_busca = busca.strip()
+    tamanho_total_caracteres = len(termo_busca)
+    
+    # Extração numérica limpa
     termo_numerico = re.sub(r'[^0-9]', '', termo_busca)
     valor_numerico_inteiro = int(termo_numerico) if termo_numerico else 0
-    tamanho_digitos = len(termo_numerico)
-    tamanho_total_caracteres = len(termo_busca)
     
     df_final = pd.DataFrame()
     modo_centro_custo = False
+    modo_produto = False
+    modo_solicitacao = False
+    modo_pedido = False
     
     try:
         if not df_pc.empty:
-            # ADICIONADO: Regra específica para busca por Código de Produto (10 caracteres exatos)
-            if tamanho_total_caracteres == 10:
-                col_busca_pc = next((c for c in df_pc.columns if "PRODUTO" in c.upper()), None)
+            # 1. ORDEM DE PRECEDÊNCIA (SILVIO): PEDIDO DE COMPRAS (Dígitos >= 170000)
+            if valor_numerico_inteiro >= 170000 and tamanho_total_caracteres != 10:
+                modo_pedido = True
+                col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
                 if col_busca_pc:
-                    df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, regex=True, na=False)].copy()
+                    padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
+                    df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)].copy()
             
-            elif tamanho_digitos == 4:
+            # 2. SOLICITAÇÃO DE COMPRAS (Dígitos < 170000, excluindo CC de tamanho 4 e Produto de 10)
+            elif valor_numerico_inteiro > 0 and valor_numerico_inteiro < 170000 and tamanho_total_caracteres != 4 and tamanho_total_caracteres != 10:
+                modo_solicitacao = True
+                col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
+                if col_busca_pc:
+                    padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
+                    df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)].copy()
+            
+            # 3. CENTRO DE CUSTO (Exatos 4 caracteres numéricos)
+            elif len(termo_numerico) == 4 and tamanho_total_caracteres == 4:
                 modo_centro_custo = True
                 col_busca_pc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
                 if col_busca_pc:
                     df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, regex=True, na=False)].copy()
             
+            # 4. CÓDIGO DE PRODUTO (Exatos 10 caracteres iniciando com 0)
+            elif tamanho_total_caracteres == 10 and termo_busca.startswith("0"):
+                modo_produto = True
+                col_busca_pc = next((c for c in df_pc.columns if "PRODUTO" in c.upper()), None)
+                if col_busca_pc:
+                    df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, regex=True, na=False)].copy()
+            
+            # Fallback genérico caso não entre em nenhuma regra estrita anterior
             else:
-                if termo_numerico:
-                    padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
-                else:
-                    padrao_regex = re.escape(termo_busca)
-                    
-                if valor_numerico_inteiro >= 170000:
-                    col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
-                else:
-                    col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
-                    
-                if not col_busca_pc:
-                    col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), df_pc.columns[0])
+                padrao_regex = re.escape(termo_busca)
+                col_busca_pc = df_pc.columns[0]
+                df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)].copy()
 
-                res_pc = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)]
-                if not res_pc.empty:
-                    df_final = res_pc.copy()
-
+            # Aplicação dos Filtros de Gaveta Estáveis
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
@@ -462,9 +463,9 @@ if busca:
                     else:
                         df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
                 else:
-                    if nome_exibicao_tela == "Nº Solicitação (SC)" and valor_numerico_inteiro < 170000 and not modo_centro_custo and tamanho_total_caracteres != 10:
+                    if nome_exibicao_tela == "Nº Solicitação (SC)" and modo_solicitacao:
                         df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
-                    elif nome_exibicao_tela == "Nº Pedido (PC)" and valor_numerico_inteiro >= 170000 and not modo_centro_custo and tamanho_total_caracteres != 10:
+                    elif nome_exibicao_tela == "Nº Pedido (PC)" and modo_pedido:
                         df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
                     elif nome_exibicao_tela == "Centro de Custo (CC)" and modo_centro_custo:
                         df_painel[nome_exibicao_tela] = busca.strip()
@@ -496,10 +497,14 @@ if busca:
             df_painel = df_painel.dropna(how='all')
 
             if not df_painel.empty:
-                if tamanho_total_caracteres == 10:
+                if modo_produto:
                     txt_status = f"🔍 Registros Ativos Localizados para o Código de Produto: {termo_busca}"
+                elif modo_centro_custo:
+                    txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}"
+                elif modo_pedido:
+                    txt_status = f"🔍 Registro Localizado na Base de Pedidos Firme: {termo_busca}"
                 else:
-                    txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}" if modo_centro_custo else "🔍 Registro Localizado na Base de Pedidos Firme"
+                    txt_status = f"🔍 Registro Localizado na Base de Solicitações: {termo_busca}"
                 
                 if st.session_state.filtro_status_val != "Todos":
                     txt_status += f" (Status: {st.session_state.filtro_status_val})"
@@ -548,11 +553,11 @@ if busca:
             else:
                 st.markdown('<div class="custom-info-blue">ℹ️ Nenhum registro ativo atende aos critérios de busca e aos filtros selecionados.</div>', unsafe_allow_html=True)
         else:
-            if tamanho_total_caracteres == 10:
+            if modo_produto:
                 st.markdown(f'<div class="custom-error-red">⚠️ O Código de Produto \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
             elif modo_centro_custo:
                 st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
-            elif valor_numerico_inteiro >= 170000:
+            elif modo_pedido:
                 st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
             else:
                 st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
