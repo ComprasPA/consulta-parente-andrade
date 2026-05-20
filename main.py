@@ -24,7 +24,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Alinhamento limpo do título à direita)
+# 3. CSS MODERNIZADO (Alinhamento limpo do título à direita e estilização de rodapé)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -235,6 +235,28 @@ st.markdown(f"""
     div[data-testid="stDataFrame"] table th {{
         white-space: nowrap !important;
         min-width: max-content !important;
+    }}
+
+    /* CONTAINER DO RODAPÉ DUPLO: Permite alinhar a autoria à esquerda e a empresa à direita */
+    .footer-container {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 40px;
+        border-top: 1px solid #e2e8f0;
+        padding-top: 20px;
+        width: 100%;
+    }}
+    .footer-left {{
+        color: #94a3b8;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+    }}
+    .footer-right {{
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 600;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -490,8 +512,9 @@ if busca:
                 mascara_vazia = (df_painel["Previsão de entrega"] == "") | (df_painel["Previsão de entrega"].isna())
                 df_painel.loc[mascara_vazia, "Previsão de entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
 
-            if "Pagamento" in df_painel.columns and "Condição Pagamento" in df_painel.columns:
-                condicao_normalizada = df_painel["Condição Pagamento"].astype(str).str.upper().str.strip()
+            if "Pagamento" in df_painel.columns and "CondITION_PAGAMENTO" in df_painel.columns or "Condição Pagamento" in df_painel.columns:
+                col_cond_pag = "Condição Pagamento" if "Condição Pagamento" in df_painel.columns else "CondITION_PAGAMENTO"
+                condicao_normalizada = df_painel[col_cond_pag].astype(str).str.upper().str.strip()
                 mascara_na = (
                     (~condicao_normalizada.str.contains("A VISTA", na=False)) & 
                     (~condicao_normalizada.str.contains("ENT", na=False)) & 
@@ -584,4 +607,10 @@ if busca:
 else:
     st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
 
-st.markdown("<div style='text-align:center; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;'><p style='color:#64748b; font-size:13px; font-weight:600;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
+# 7. RODAPÉ DUPLO COM ASSINATURA EXCLUSIVA NO CANTO ESQUERDO
+st.markdown("""
+    <div class="footer-container">
+        <div class="footer-left">Created by SS.</div>
+        <div class="footer-right">Parente Andrade | Coordenação de Suprimentos</div>
+    </div>
+""", unsafe_allow_html=True)
