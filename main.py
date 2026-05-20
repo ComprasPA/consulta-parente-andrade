@@ -267,17 +267,20 @@ st.markdown('</div>', unsafe_allow_html=True)
 # ==========================================
 # CONFIGURAÇÃO DE SESSÃO ESTÁVEL PARA OS FILTROS
 # ==========================================
+data_hoje_padrao = datetime.now().date()
+trinta_dias_atras_padrao = data_hoje_padrao - timedelta(days=30)
+
 if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
-    st.session_state.filtro_data_val = [None, None]
+    # CORREÇÃO DA API: Inicializado com uma tupla de datas padrão para permitir o modo Range perfeito dentro do Form
+    st.session_state.filtro_data_val = (trinta_dias_atras_padrao, data_hoje_padrao)
 
 
 # ==========================================
 # GAVETA RETRÁTIL OPERACIONAL - TOTALMENTE CLEAN E SEM BORDAS
 # ==========================================
 with st.expander("Filtros Avançados", expanded=False):
-    # Encapsulamento em Form para reter a re-execução automática do Streamlit ao clicar na data
     with st.form("form_filtros", clear_on_submit=False):
         f_col1, f_col2, f_col3 = st.columns([4.0, 4.0, 2.0])
         
@@ -292,23 +295,21 @@ with st.expander("Filtros Avançados", expanded=False):
             filtro_status = st.selectbox("Filtrar por Status Operacional:", options=lista_status, index=idx_padrao)
             
         with f_col2:
-            # Mantém a caixa 100% vazia abrindo o Range completo sem recarregar a página no meio da escolha
+            # O value recebe o objeto de data salvo, permitindo a seleção estável de Início e Fim sem delay
             filtro_data = st.date_input("Filtrar por Período de Emissão:", value=st.session_state.filtro_data_val, format="DD/MM/YYYY")
             
         with f_col3:
             st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
-            # MODIFICAÇÃO INCLUSIVA: Botão de submissão do formulário que dispara a pesquisa de uma vez só
             btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True)
             if btn_pesquisar:
                 st.session_state.filtro_status_val = filtro_status
                 st.session_state.filtro_data_val = filtro_data
     
-    # Botão de limpeza posicionado fora do escopo do congelamento para resetar a tela de forma instantânea
     sub_c1, sub_c2, sub_c3 = st.columns([4.0, 4.0, 2.0])
     with sub_c3:
         if st.button("❌ Limpar Filtros", use_container_width=True):
             st.session_state.filtro_status_val = "Todos"
-            st.session_state.filtro_data_val = [None, None]
+            st.session_state.filtro_data_val = (trinta_dias_atras_padrao, data_hoje_padrao)
             st.rerun()
 
 
