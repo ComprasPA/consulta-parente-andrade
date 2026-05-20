@@ -24,7 +24,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Alinhamento do título da gaveta à direita com rotação de seta nativa)
+# 3. CSS MODERNIZADO (Alinhamento limpo do título à direita)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -113,7 +113,12 @@ st.markdown(f"""
         outline: none !important;
     }}
     
-    /* Remove contornos residuais e força fundo limpo na barra do expander */
+    /* Oculta a seta SVG nativa que quebra o alinhamento do layout */
+    div[data-testid="stExpander"] summary svg {{
+        display: none !important;
+    }}
+    
+    /* Força o alinhamento do container do cabeçalho à extrema direita */
     div[data-testid="stExpander"] summary,
     div[data-testid="stExpander"] [role="button"],
     .streamlit-expanderHeader {{
@@ -122,18 +127,9 @@ st.markdown(f"""
         border-width: 0px !important;
         outline: none !important;
         box-shadow: none !important;
-        
-        /* ALINHAMENTO DO TÍTULO À DIREITA */
         display: flex !important;
         justify-content: flex-end !important;
-        flex-direction: row-reverse !important; /* Inverte para posicionar a seta ao lado direito do texto */
         text-align: right !important;
-        gap: 8px !important;
-    }}
-    
-    /* CONTROLADOR DO ÍCONE: Restaura a animação nativa de giro controlada pelo Streamlit */
-    div[data-testid="stExpander"] summary svg {{
-        transition: transform 0.2s ease-in-out !important;
     }}
     
     /* Garante cor estável de alta visibilidade (Grafite) independente do estado */
@@ -278,14 +274,19 @@ if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
     st.session_state.filtro_data_val = ()
+if "gaveta_aberta" not in st.session_state:
+    st.session_state.gaveta_aberta = False
 
 
 # ==========================================
-# GAVETA RETRÁTIL OPERACIONAL - GRID REORGANIZADO E EXPANDIDO
+# GAVETA RETRÁTIL OPERACIONAL - GRID EXPANDIDO E SETA CONTROLADA EM PYTHON
 # ==========================================
-with st.expander("Filtros Avançados", expanded=False):
+# Define o caractere de seta dinamicamente com base no estado da gaveta
+rotulo_seta = "Filtros Avançados ▲" if st.session_state.gaveta_aberta else "Filtros Avançados ▼"
+
+with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
     with st.form("form_filtros", clear_on_submit=False):
-        # AJUSTE DE PROPORÇÃO (SILVIO): Caixas maiores nas pontas e botões encolhidos para 2/3 do tamanho
+        # Grid horizontal expandido: caixas com tamanho 4.5 e botões encolhidos para 1.5
         f_col1, f_col2, f_col3, f_col4 = st.columns([4.5, 4.5, 1.5, 1.5])
         
         with f_col1:
@@ -308,6 +309,7 @@ with st.expander("Filtros Avançados", expanded=False):
             if btn_pesquisar:
                 st.session_state.filtro_status_val = filtro_status
                 st.session_state.filtro_data_val = filtro_data
+                st.session_state.gaveta_aberta = True  # Mantém a seta para cima indicando abertura
                 st.rerun()
 
         with f_col4:
@@ -317,6 +319,7 @@ with st.expander("Filtros Avançados", expanded=False):
             if btn_limpar:
                 st.session_state.filtro_status_val = "Todos"
                 st.session_state.filtro_data_val = ()
+                st.session_state.gaveta_aberta = False  # Reseta a seta para baixo indicando fechamento
                 st.cache_data.clear()
                 st.rerun()
 
