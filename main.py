@@ -61,52 +61,40 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
-# 5. NOVO SISTEMA DE MAPEAMENTO ROBUSTO
+# 5. MAPEAMENTO DE POSIÇÃO INDEPENDENTE DE MUDANÇA DE NOME
 # ==========================================
-# Define o nome que aparece na tela e uma lista de termos para o motor encontrar a coluna
-MAPEAMENTO_MOCK = [
-    {"label": "STATUS", "termos": ["STATUS"]},
-    {"label": "Nº Solicitação (SC)", "termos": ["NUMERO", "SC"]},
-    {"label": "Nº Pedido (PC)", "termos": ["NUMERO", "PC"]},
-    {"label": "Centro de Custo", "termos": ["CENTRO", "CUSTO"]},
-    {"label": "Fornecedor", "termos": ["NOME", "FORNECE"]},
-    {"label": "Produto", "termos": ["PRODUTO"]},
-    {"label": "Descrição", "termos": ["DESCRICAO"]},
-    {"label": "UM", "termos": ["UNIDADE"]},
-    {"label": "Qtd", "termos": ["QUANTIDADE"]},
-    {"label": "Preço Unitário", "termos": ["PRC", "UNITARIO"]},
-    {"label": "Valor Total", "termos": ["VLR", "TOTAL"]},
-    {"label": "Data Emissão", "termos": ["DATA", "EMISSAO"]},
-    {"label": "Data Liberação PC", "termos": ["LIB", "PC"]},
-    {"label": "Data Envio", "termos": ["DT", "ENVIO"]},
-    {"label": "Condição Pgto", "termos": ["CONDICAO", "PGO"]},
-    {"label": "Data Pago À Vista", "termos": ["PGO", "AVISTA"]},
-    {"label": "Prev. Entrega", "termos": ["PREV", "ENTREGA"]},
-    {"label": "Data Entrega Real", "termos": ["DT", "ENTREGA"]},
-    {"label": "Data Baixa", "termos": ["DT", "BAIXA"]},
-    {"label": "Observação", "termos": ["OBSERVACAO"]}
+# Mapeia o nome amigável diretamente para o índice físico real (Coluna A = 0, Coluna B = 1, etc.)
+# Baseado estritamente na sua lista de colunas fornecida.
+MAPEAMENTO_POSICIONAL = [
+    {"label": "STATUS", "index": 1, "tipo": "texto"},
+    {"label": "Data Envio", "index": 2, "tipo": "data"},
+    {"label": "Data Pgo (AVISTA)", "index": 3, "tipo": "data"},
+    {"label": "Data Prev de Entrega", "index": 4, "tipo": "data"},
+    {"label": "Data Entrega Real", "index": 5, "tipo": "data"},
+    {"label": "Condição de Pagamento", "index": 6, "tipo": "texto"}, # Corrigido item 1 (Índice 6 = CONDIÇÃO PGO)
+    {"label": "Nº Solicitação (SC)", "index": 7, "tipo": "texto"},
+    {"label": "Nº Pedido (PC)", "index": 8, "tipo": "pedido"},       # Inteligência de zeros à esquerda (item 3)
+    {"label": "Cód. Fornecedor", "index": 9, "tipo": "texto"},
+    {"label": "Fornecedor", "index": 10, "tipo": "texto"},          # Item 4 corrigido (Nome Fornece)
+    {"label": "Centro Custo", "index": 11, "tipo": "texto"},
+    {"label": "Produto", "index": 12, "tipo": "texto"},
+    {"label": "Descrição", "index": 13, "tipo": "texto"},
+    {"label": "UM", "index": 14, "tipo": "texto"},                   # Item 6 corrigido (Unidade)
+    {"label": "Quantidade", "index": 15, "tipo": "texto"},
+    {"label": "Preço Unitário", "index": 16, "tipo": "texto"},       # Item 6 corrigido (Prc Unitario)
+    {"label": "Valor Total", "index": 17, "tipo": "texto"},          # Item 6 corrigido (Vlr.Total)
+    {"label": "Data Emissão", "index": 18, "tipo": "data"},
+    {"label": "Data Liberação PC", "index": 19, "tipo": "data"},     # Item 7 corrigido (Dt Lib. PC)
+    {"label": "Data Baixa", "index": 30, "tipo": "data"},
+    {"label": "Observação", "index": 31, "tipo": "texto"}
 ]
 
-def normalizar_texto(texto):
-    # Remove acentos, espaços e caracteres especiais para comparação
-    if not texto: return ""
-    texto = str(texto).upper()
-    texto = re.sub(r'[ÁÀÂÃ]', 'A', texto)
-    texto = re.sub(r'[ÉÈÊ]', 'E', texto)
-    texto = re.sub(r'[ÍÌÎ]', 'I', texto)
-    texto = re.sub(r'[ÓÒÔÕ]', 'O', texto)
-    texto = re.sub(r'[ÚÙÛ]', 'U', texto)
-    texto = re.sub(r'[Ç]', 'C', texto)
-    return re.sub(r'[^A-Z0-9]', '', texto)
-
-def encontrar_coluna_original(df_colunas, lista_termos):
-    # Varre as colunas reais da planilha buscando a melhor correspondência pelos termos chave
-    for col in df_colunas:
-        col_norm = normalizar_texto(col)
-        # Verifica se todos os termos da lista estão contidos no nome da coluna normalizada
-        if all(normalizar_texto(termo) in col_norm for termo in lista_termos):
-            return col
-    return None
+# Formata o código do pedido preenchendo com zeros à esquerda até atingir 10 dígitos
+def formatar_codigo_10_digitos(valor):
+    val_limpo = str(valor).split('.')[0].strip() # Remove casas decimais do Excel (.0)
+    if val_limpo and val_limpo.lower() != 'nan' and val_limpo != '0':
+        return val_limpo.zfill(10)
+    return val_limpo
 
 @st.cache_data(ttl=60)
 def carregar_dados_seguros():
@@ -114,13 +102,11 @@ def carregar_dados_seguros():
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
         
-        # Carrega removendo espaços em branco extras das pontas das colunas
-        df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
-        df_pc.columns = [c.strip() for c in df_pc.columns]
+        # Carrega as abas mantendo o tipo original como string, mas sem cabeçalhos rígidos para indexar por número
+        df_pc = pd.read_excel(excel, sheet_name=0, header=None, dtype=str).fillna('')
         
         aba_sc_nome = next((s for s in excel.sheet_names if "SC" in s.upper() and s != excel.sheet_names[0]), None)
-        df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
-        df_sc.columns = [c.strip() for c in df_sc.columns]
+        df_sc = pd.read_excel(excel, sheet_name=aba_sc_nome, header=None, dtype=str).fillna('') if aba_sc_nome else pd.DataFrame()
         
         return df_pc, df_sc
     except Exception as e:
@@ -130,66 +116,76 @@ df_pc, df_sc = carregar_dados_seguros()
 
 
 # ==========================================
-# 6. LÓGICA DE BUSCA E MONTAGEM DA TABELA
+# 6. LÓGICA DE BUSCA INTEGRADA E PREENCHIMENTO
 # ==========================================
 if busca:
     t = busca.lower().strip()
     
-    # Realiza a busca no DataFrame completo de Pedidos (PC)
-    res_pc = df_pc[df_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
+    # Tratamento da busca do usuário: se for número puro, testa com os zeros à esquerda para casar com os 10 dígitos
+    t_10 = t.zfill(10) if t.isdigit() else t
+    
+    # Executa varredura ampla na aba de Pedidos (PC)
+    if not df_pc.empty:
+        # Pula a primeira linha (cabeçalho da planilha) na varredura de dados
+        dados_corpo_pc = df_pc.iloc[1:]
+        res_pc = dados_corpo_pc[dados_corpo_pc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any() or r.astype(str).str.lower().str.contains(t_10, na=False).any(), axis=1)]
+    else:
+        res_pc = pd.DataFrame()
     
     if not res_pc.empty:
         df_final = res_pc.copy()
         origem = "Planilha de Pedidos (PC)"
     else:
-        # Se não achar na PC, busca na de Solicitações (SC)
-        res_sc = df_sc[df_sc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
+        # Se não localizar na PC, varre a de Solicitações (SC)
+        if not df_sc.empty:
+            dados_corpo_sc = df_sc.iloc[1:]
+            res_sc = dados_corpo_sc[dados_corpo_sc.apply(lambda r: r.astype(str).str.lower().str.contains(t, na=False).any(), axis=1)]
+        else:
+            res_sc = pd.DataFrame()
+            
         if not res_sc.empty:
             df_final = res_sc.copy()
-            
-            # Inteligência de Status para registros na aba SC
-            def definir_st(row):
-                col_cot = encontrar_coluna_original(row.index, ["COTACAO"])
-                val_cot = str(row[col_cot]).strip() if col_cot else ""
-                if val_cot != "" and val_cot.lower() != "nan" and val_cot != "0":
-                    return "EM COTAÇÃO"
-                return "SC ABERTA"
-            df_final['STATUS'] = df_final.apply(definir_st, axis=1)
             origem = "Planilha de Solicitações (SC)"
         else:
             df_final = pd.DataFrame()
 
     if not df_final.empty:
-        # Constrói o painel com os índices corretos da busca
+        # Montagem do DataFrame final mapeado por coluna física absoluta
         df_painel = pd.DataFrame(index=df_final.index)
         
-        for config in MAPEAMENTO_MOCK:
-            nome_bonito = config["label"]
-            termos_chave = config["termos"]
+        for config in MAPEAMENTO_POSICIONAL:
+            nome_coluna_tela = config["label"]
+            idx_coluna_planilha = config["index"]
+            tipo_dado = config["tipo"]
             
-            # Localiza dinamicamente o nome real da coluna na planilha
-            col_original = encontrar_coluna_original(df_final.columns, termos_chave)
-            
-            if col_original:
-                # Tratamento unificado de datas para o formato nacional (DD/MM/AA)
-                if any(x in normalizar_texto(col_original) for x in ["DATA", "DT", "PREV", "LIB"]):
-                    datas_limpas = df_final[col_original].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-                    # Garante que campos vazios do Excel não virem erros de conversão
-                    datas_limpas = datas_limpas.replace(['nan', 'NONE', ''], '')
-                    df_painel[nome_bonito] = pd.to_datetime(datas_limpas, errors='coerce', format='mixed').dt.strftime('%d/%m/%y').fillna('')
+            # Garante que o índice existe no corte da planilha para não estourar erro
+            if idx_coluna_planilha < len(df_final.columns):
+                valores_originais = df_final.iloc[:, idx_coluna_planilha]
+                
+                if tipo_dado == "data":
+                    # Limpeza agressiva e formatação padrão Brasil (DD/MM/AA)
+                    datas_limpas = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+                    datas_limpas = datas_limpas.replace(['nan', 'NONE', '', '0'], '')
+                    df_painel[nome_coluna_tela] = pd.to_datetime(datas_limpas, errors='coerce', format='mixed').dt.strftime('%d/%m/%y').fillna('')
+                
+                elif tipo_dado == "pedido":
+                    # Aplica a regra de 10 dígitos com zeros à esquerda (Item 3)
+                    df_painel[nome_coluna_tela] = valores_originais.apply(formatar_codigo_10_digitos)
+                
                 else:
-                    df_painel[nome_bonito] = df_final[col_original]
+                    # Texto normal (Limpa resíduos de ponto flutuante do Excel)
+                    df_painel[nome_coluna_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '')
             else:
-                # Preenche com vazio se a coluna não pertencer à aba atual pesquisada
-                df_painel[nome_bonito] = ""
+                df_painel[nome_coluna_tela] = ""
 
-        # Elimina linhas totalmente vazias
-        df_painel = df_painel.dropna(how='all')
+        # Força inteligência de status padrão para abas de SC vazias
+        if origem == "Planilha de Solicitações (SC)":
+            df_painel["STATUS"] = "SC ABERTA"
 
         st.markdown(f'<div class="status-box">🟢 Dados Vinculados de: {origem}</div>', unsafe_allow_html=True)
         st.write("")
         
-        # Geração do arquivo para Download
+        # Download do Excel Tratado
         out = BytesIO()
         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
             df_painel.to_excel(wr, index=False)
@@ -201,11 +197,11 @@ if busca:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
         
-        # Exibição estruturada dos dados na tela
+        # Exibição limpa na tela
         st.dataframe(df_painel, use_container_width=True, hide_index=True)
     else:
         st.warning(f"⚠️ Nenhum registro localizado para: '{busca}'")
 else:
-    st.info("💡 Digite o número da SC ou Pedido para iniciar. Prioridade do Motor: PC (Completo) > SC (Pendente).")
+    st.info("💡 Digite o número da SC ou Pedido para iniciar. O sistema busca automaticamente considerando zeros à esquerda.")
 
 st.markdown("<p style='text-align:center; color:#478c3b; font-weight:bold; margin-top:30px;'>Parente Andrade | Setor de Suprimentos</p>", unsafe_allow_html=True)
