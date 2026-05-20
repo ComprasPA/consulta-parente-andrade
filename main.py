@@ -70,10 +70,10 @@ st.markdown(f"""
     
     .portal-title {{ 
         color: #1e293b !important; 
-        font-size: 60px !important; 
+        font-size: 40px !important; /* Ajustado estritamente para 40px conforme solicitado */
         font-weight: 800 !important; 
         margin: 0 !important;
-        letter-spacing: -1.5px;
+        letter-spacing: -1px;
         line-height: 1;
         white-space: nowrap;
     }}
@@ -318,7 +318,7 @@ if busca:
         if valor_numerico_inteiro >= 170000:
             st.error("⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.")
         else:
-            st.warning("⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!")
+            st.warning("⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!")
 else:
     st.info("💡 Insira o número da SC ou do Pedido de Compras no campo superior direito para rastrear o status.")
 
