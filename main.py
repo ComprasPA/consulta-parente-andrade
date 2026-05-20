@@ -100,27 +100,11 @@ st.markdown(f"""
         border-color: #478c3b !important;
     }}
     
-    /* ESTILIZAÇÃO DO CHECKBOX TRANSFORADO EM BOTÃO DE FILTRO DE ALTA VISIBILIDADE */
-    div[data-testid="stCheckbox"] {{
-        background-color: transparent !important;
-        border: none !important;
+    /* Customização do botão de gatilho para ficar plano e alinhado à direita */
+    div.element-container:has(button[key="btn_gatilho"]) {{
         display: flex !important;
         justify-content: flex-end !important;
         width: 100% !important;
-        padding: 0 !important;
-        margin-top: -8px !important;
-    }}
-    
-    div[data-testid="stCheckbox"] label {{
-        color: #1e293b !important;
-        font-weight: 700 !important;
-        font-size: 15px !important;
-        cursor: pointer !important;
-        transition: color 0.2s;
-    }}
-    
-    div[data-testid="stCheckbox"] label:hover {{
-        color: #478c3b !important;
     }}
     
     /* Ajuste de largura do input de data nativo */
@@ -338,15 +322,20 @@ if not df_pc.empty:
 
 
 # ==========================================
-# GATILHO COMPACTO ALINHADO À DIREITA (CHECKBOX DISCRETO)
+# GATILHO COMPACTO SEGURO COM GERENCIAMENTO DE ESTADO (SESSION STATE)
 # ==========================================
-sub_c1, sub_c2 = st.columns([8.0, 2.0])
+if 'mostrar_gaveta' not in st.session_state:
+    st.session_state.mostrar_gaveta = False
+
+sub_c1, sub_c2 = st.columns([8.2, 1.8])
 with sub_c2:
-    # Checkbox que atua como gatilho lógico
-    filtro_ativo = st.checkbox("⚙️ Filtros Avançados", value=False)
+    # Botão nativo limpo que gerencia o clique de forma estável no servidor
+    if st.button("⚙️ Filtros Avançados", key="btn_gatilho", use_container_width=True):
+        st.session_state.mostrar_gaveta = not st.session_state.mostrar_gaveta
+
 
 # ==========================================
-# PAINEL EXPANDIDO EM LARGURA TOTAL DA PÁGINA
+# CONSTANTES E VARIÁVEIS DO MOTOR FORA DO ESCOPO CONDICIONAL
 # ==========================================
 col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
 if col_status_verificacao:
@@ -357,11 +346,15 @@ else:
 data_hoje = datetime.now().date()
 trinta_dias_atras = data_hoje - timedelta(days=30)
 
+# Declaração global estável dos filtros para não quebrar o motor de busca principal
 filtro_status = "Todos"
 filtro_data = (trinta_dias_atras, data_hoje)
 
-# CORREÇÃO EFETUADA: Variável unificada para 'filtro_ativo' eliminando o NameError
-if filtro_ativo:
+
+# ==========================================
+# RENDEREZAÇÃO DA GAVETA EXPANDIDA (LARGURA 100% DA PÁGINA)
+# ==========================================
+if st.session_state.mostrar_gaveta:
     df_excel_ready = pd.DataFrame()
     if not df_final.empty:
         df_excel_ready = pd.DataFrame(index=df_final.index)
@@ -387,6 +380,7 @@ if filtro_ativo:
     with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
         df_excel_ready.to_excel(wr, index=False)
 
+    # As caixas agora ocupam 100% de toda a largura útil horizontal da tela sem deformar
     f_col1, f_col2, f_col3, f_col4 = st.columns([3.0, 3.0, 3.5, 2.5])
     with f_col1:
         filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed", key="status_gaveta")
