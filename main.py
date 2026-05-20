@@ -137,7 +137,7 @@ st.markdown(f"""
         color: #1e293b !important;
         font-weight: 700 !important;
         font-size: 16px !important;
-        margin: 0 !important; /* Remove margens para perfeito alinhamento vertical */
+        margin: 0 !important;
     }}
     
     /* Mudança suave para verde apenas no hover */
@@ -262,14 +262,13 @@ st.markdown('</div>', unsafe_allow_html=True)
 if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
-    st.session_state.filtro_data_val = None
+    st.session_state.filtro_data_val = ()
 
 
 # ==========================================
 # GAVETA RETRÁTIL OPERACIONAL - TOTALMENTE CLEAN E SEM BORDAS
 # ==========================================
 with st.expander("Filtros Avançados", expanded=False):
-    # Organizado em duas colunas funcionais largas após a remoção do botão inútil
     f_col1, f_col2, f_col3 = st.columns([4.0, 4.0, 2.0])
     
     with f_col1:
@@ -279,22 +278,20 @@ with st.expander("Filtros Avançados", expanded=False):
         else:
             lista_status = ["Todos"]
             
-        # Traz o índice salvo no session_state para permitir a limpeza limpa da tela
         idx_padrao = lista_status.index(st.session_state.filtro_status_val) if st.session_state.filtro_status_val in lista_status else 0
         filtro_status = st.selectbox("Filtrar por Status Operacional:", options=lista_status, index=idx_padrao)
         st.session_state.filtro_status_val = filtro_status
         
     with f_col2:
-        # AJUSTE SOLICITADO: Inicializado com None para abrir totalmente em branco
+        # AJUSTE: Passando uma tupla vazia para abrir totalmente limpo sem data preenchida
         filtro_data = st.date_input("Filtrar por Período de Emissão:", value=st.session_state.filtro_data_val, format="DD/MM/YYYY")
         st.session_state.filtro_data_val = filtro_data
         
     with f_col3:
         st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
-        # INCLUSÃO SOLICITADA: Botão direto que limpa os estados na memória e reinicia as caixas vazias
         if st.button("❌ Limpar Filtros", use_container_width=True):
             st.session_state.filtro_status_val = "Todos"
-            st.session_state.filtro_data_val = None
+            st.session_state.filtro_data_val = ()
             st.rerun()
 
 
@@ -388,7 +385,7 @@ if busca:
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
-            # AJUSTE SOLICITADO: A filtragem do range temporal só atua se o usuário inseriu dados válidos de data
+            # AJUSTE CONDICIONAL: A filtragem do intervalo (Range) só roda se contiver as duas datas (Início e Fim) preenchidas
             if not df_final.empty and st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
                 col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
                 if col_emissao_original:
