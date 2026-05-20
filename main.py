@@ -273,16 +273,16 @@ trinta_dias_atras_padrao = data_hoje_padrao - timedelta(days=30)
 if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
-    # CORREÇÃO DA API: Inicializado com uma tupla de datas padrão para permitir o modo Range perfeito dentro do Form
     st.session_state.filtro_data_val = (trinta_dias_atras_padrao, data_hoje_padrao)
 
 
 # ==========================================
-# GAVETA RETRÁTIL OPERACIONAL - TOTALMENTE CLEAN E SEM BORDAS
+# GAVETA RETRÁTIL OPERACIONAL - TOTALMENTE ALINHADA E SEM QUEBRAS
 # ==========================================
 with st.expander("Filtros Avançados", expanded=False):
     with st.form("form_filtros", clear_on_submit=False):
-        f_col1, f_col2, f_col3 = st.columns([4.0, 4.0, 2.0])
+        # ALINHAMENTO HORIZONTAL COMPLETO (SILVIO): 4 colunas perfeitamente distribuídas na mesma linha
+        f_col1, f_col2, f_col3, f_col4 = st.columns([3.5, 3.5, 2.5, 2.5])
         
         with f_col1:
             col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
@@ -295,22 +295,25 @@ with st.expander("Filtros Avançados", expanded=False):
             filtro_status = st.selectbox("Filtrar por Status Operacional:", options=lista_status, index=idx_padrao)
             
         with f_col2:
-            # O value recebe o objeto de data salvo, permitindo a seleção estável de Início e Fim sem delay
             filtro_data = st.date_input("Filtrar por Período de Emissão:", value=st.session_state.filtro_data_val, format="DD/MM/YYYY")
             
         with f_col3:
             st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
             btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True)
+            
+        with f_col4:
+            st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
+            # Como st.form exige que botões internos sejam do tipo submit, tratamos a limpeza via lógica condicional
+            btn_limpar = st.form_submit_button("❌ Limpar Filtros", use_container_width=True)
+            
             if btn_pesquisar:
                 st.session_state.filtro_status_val = filtro_status
                 st.session_state.filtro_data_val = filtro_data
-    
-    sub_c1, sub_c2, sub_c3 = st.columns([4.0, 4.0, 2.0])
-    with sub_c3:
-        if st.button("❌ Limpar Filtros", use_container_width=True):
-            st.session_state.filtro_status_val = "Todos"
-            st.session_state.filtro_data_val = (trinta_dias_atras_padrao, data_hoje_padrao)
-            st.rerun()
+            
+            if btn_limpar:
+                st.session_state.filtro_status_val = "Todos"
+                st.session_state.filtro_data_val = (trinta_dias_atras_padrao, data_hoje_padrao)
+                st.rerun()
 
 
 # ==========================================
