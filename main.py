@@ -23,7 +23,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Ajustes visuais, cores e controle rígido de alinhamentos e larguras)
+# 3. CSS MODERNIZADO (Ajustes de cores, inputs, e remoção do espaço do topo)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -78,8 +78,9 @@ st.markdown(f"""
         white-space: nowrap;
     }}
     
-    /* Customização fina para campos de input e botões */
-    div[data-testid="stVerticalBlock"] > div:has(input) {{
+    /* Customização fina para campos de input, seletores e botões */
+    div[data-testid="stVerticalBlock"] > div:has(input), 
+    div[data-testid="stVerticalBlock"] > div:has(select) {{
         background-color: #ffffff; 
         padding: 2px 6px !important; 
         border-radius: 8px; 
@@ -88,7 +89,8 @@ st.markdown(f"""
         transition: border-color 0.2s;
         width: 100%;
     }}
-    div[data-testid="stVerticalBlock"] > div:has(input):focus-within {{
+    div[data-testid="stVerticalBlock"] > div:has(input):focus-within,
+    div[data-testid="stVerticalBlock"] > div:has(select):focus-within {{
         border-color: #478c3b !important;
     }}
     
@@ -162,12 +164,33 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO INTEGRADO (Alinhamento milimétrico em uma única linha)
+
+# ==========================================
+# BACKEND: CARREGAMENTO DOS DADOS COMPARTILHADOS
+# ==========================================
+@st.cache_data(ttl=60)
+def carregar_dados_seguros():
+    URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
+    try:
+        excel = pd.ExcelFile(URL, engine='openpyxl')
+        df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
+        df_pc.columns = [str(c).strip() for c in df_pc.columns]
+        return df_pc
+    except Exception as e:
+        return pd.DataFrame()
+
+df_pc = carregar_dados_seguros()
+
+
+# ==========================================
+# 4. CABEÇALHO INTEGRADO COM DUPLO FILTRO (MANTENDO EM UMA LINHA)
+# ==========================================
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
-c1, c2, c3, c4 = st.columns([1.2, 5.0, 1.5, 2.3])
+c1, c2, c3, c4, c5 = st.columns([1.1, 4.0, 1.3, 1.6, 2.0])
+
 with c1:
     if base64_logo: 
-        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:125px; display:block; margin:auto 0;">', unsafe_allow_html=True)
+        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:120px; display:block; margin:auto 0;">', unsafe_allow_html=True)
 with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras</p>', unsafe_allow_html=True)
 with c3:
@@ -175,6 +198,15 @@ with c3:
         st.cache_data.clear()
         st.rerun()
 with c4:
+    # CAPTURA DOS STATUS EXISTENTES NA COLUNA 'STATUS' PARA O FILTRO DINÂMICO
+    col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
+    if col_status_verificacao:
+        lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
+    else:
+        lista_status = ["Todos"]
+        
+    filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed")
+with c5:
     busca = st.text_input("", placeholder="🔍 Localizar SC, Pedido ou CC...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -227,22 +259,9 @@ def formatar_para_dd_mm_aa(valor):
     except:
         return txt
 
-@st.cache_data(ttl=60)
-def carregar_dados_seguros():
-    URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
-    try:
-        excel = pd.ExcelFile(URL, engine='openpyxl')
-        df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
-        df_pc.columns = [str(c).strip() for c in df_pc.columns]
-        return df_pc
-    except Exception as e:
-        return pd.DataFrame()
-
-df_pc = carregar_dados_seguros()
-
 
 # ==========================================
-# 6. MOTOR DE BUSCA DIRECIONADO OPERACIONAL
+# 6. MOTOR DE BUSCA DIRECIONADO OPERACIONAL COM COMBINAÇÃO DE FILTRO DE STATUS
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -254,15 +273,14 @@ if busca:
     modo_centro_custo = False
     
     if not df_pc.empty:
-        # REGRA ATIVADA (SILVIO): Se tiver exatamente 4 dígitos numéricos, busca por Centro de Custo (CC)
+        # Passo 1: Varredura por Centro de Custo (4 dígitos)
         if tamanho_digitos == 4:
             modo_centro_custo = True
             col_busca_pc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
             if col_busca_pc:
-                # Faz busca exata ou parcial contendo os 4 dígitos do CC informado
                 df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, regex=True, na=False)].copy()
         
-        # Caso contrário, segue a regra normal para Pedidos (PC) ou Solicitações (SC)
+        # Passo 2: Varredura normal para Pedidos (PC) ou Solicitações (SC)
         else:
             if termo_numerico:
                 padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
@@ -280,6 +298,10 @@ if busca:
             res_pc = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)]
             if not res_pc.empty:
                 df_final = res_pc.copy()
+
+        # MOTOR DE FILTRAGEM DE STATUS ADICIONADO: Se o seletor não estiver em "Todos", filtra o dataframe resultante
+        if not df_final.empty and filtro_status != "Todos" and col_status_verificacao:
+            df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == filtro_status]
 
     # ---- MONTAGEM DA LISTA TRATADA PARA EXIBIÇÃO ----
     if not df_final.empty:
@@ -311,7 +333,6 @@ if busca:
                 else:
                     df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
             else:
-                # Preenchimento inteligente baseado no tipo de busca se a coluna sumir do arquivo físico
                 if nome_exibicao_tela == "Nº Solicitação (SC)" and valor_numerico_inteiro < 170000 and not modo_centro_custo:
                     df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
                 elif nome_exibicao_tela == "Nº Pedido (PC)" and valor_numerico_inteiro >= 170000 and not modo_centro_custo:
@@ -343,7 +364,10 @@ if busca:
 
         df_painel = df_painel.dropna(how='all')
 
-        txt_status = f"🔍 Registros Localizados para o Centro de Custo: {termo_busca}" if modo_centro_custo else "🔍 Registro Localizado na Base de Pedidos Firme"
+        txt_status = f"🔍 Registros Filtrados para o Centro de Custo: {termo_busca}" if modo_centro_custo else "🔍 Registro Localizado na Base de Pedidos Firme"
+        if filtro_status != "Todos":
+            txt_status += f" (Filtrado por Status: {filtro_status})"
+            
         st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
         
         c_down, _ = st.columns([2.5, 7.5])
@@ -378,7 +402,7 @@ if busca:
                 else:
                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right", width=None)
 
-        # Estilização absoluta em nível de compilação Styler para alinhar cabeçalho e células da coluna STATUS
+        # Estilização absoluta via Pandas Styler para centralizar cabeçalho e dados de STATUS
         tabela_estilizada = df_painel.style.set_table_styles([
             {'selector': 'th.col_heading.level0.col0', 'props': [('text-align', 'center !important'), ('justify-content', 'center !important')]},
             {'selector': 'td.col0', 'props': [('text-align', 'center !important')]}
@@ -388,12 +412,12 @@ if busca:
     else:
         # GESTÃO VISUAL DE ALERTAS CONDICIONAIS SEGUNDO AS TRÊS REGRAS NUMÉRICAS
         if modo_centro_custo:
-            st.markdown(f'<div class="custom-info-blue">ℹ️ O Centro de Custo \'{termo_busca}\' informado não possui pedidos ou solicitações pendentes.</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros com o status \'{filtro_status}\' pendentes.</div>', unsafe_allow_html=True)
         elif valor_numerico_inteiro >= 170000:
-            st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado com as configurações selecionadas, entre em contato com o comprador.</div>', unsafe_allow_html=True)
         else:
             st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!</div>', unsafe_allow_html=True)
 else:
-    st.markdown('<div class="custom-welcome-info">💡 Insira o número da SC, Pedido de Compras ou Centro de Custo (4 dígitos) para rastrear o status.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="custom-welcome-info">💡 Insira o número da SC, Pedido de Compras ou Centro de Custo (4 dígitos) para rastrear o status. Utilize o filtro de Status ao lado para refinar os resultados.</div>', unsafe_allow_html=True)
 
 st.markdown("<div style='text-align:center; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;'><p style='color:#64748b; font-size:13px; font-weight:600;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
