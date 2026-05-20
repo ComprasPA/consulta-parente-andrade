@@ -27,7 +27,7 @@ base64_logo = get_base64_logo()
 # 3. CSS MODERNIZADO (Ajustes de cores, inputs, e remoção do espaço do topo)
 st.markdown(f"""
     <style>
-    /* Ocultar elements padrao do Streamlit e zerar espaco do topo */
+    /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     
     /* Remove o espacamento forcado no topo e nas laterais da pagina */
@@ -53,7 +53,7 @@ st.markdown(f"""
         align-items: center;
         justify-content: space-between;
         margin-top: 0px !important;
-        margin-bottom: 24px;
+        margin-bottom: 16px;
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
     }}
     
@@ -79,7 +79,7 @@ st.markdown(f"""
         white-space: nowrap;
     }}
     
-    /* Customizacao fina para campos de input, seletores, botoes e campos de data */
+    /* Customizacao fina para campos de input, seletores, botoes e expander de filtros */
     div[data-testid="stVerticalBlock"] > div:has(input), 
     div[data-testid="stVerticalBlock"] > div:has(select),
     div[data-testid="stVerticalBlock"] > div:has(button) {{
@@ -96,7 +96,16 @@ st.markdown(f"""
         border-color: #478c3b !important;
     }}
     
-    /* Ajuste especifico para o container de inputs de data nativos */
+    /* Estilização limpa para remover as bordas pesadas padrões do expander do Streamlit */
+    div[data-testid="stExpander"] {{
+        background: #ffffff !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 8px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.02) !important;
+        margin-bottom: 24px;
+    }}
+    
+    /* Ajuste de largura do input de data nativo */
     div[data-testid="stDateInput"] {{
         width: 100%;
     }}
@@ -192,10 +201,10 @@ df_pc = carregar_dados_seguros()
 
 
 # ==========================================
-# 4. CABEÇALHO INTEGRADO COM MULTIPLOS FILTROS
+# 4. CABEÇALHO INTEGRADO (CAIXA DE BUSCA PRINCIPAL SEMPRE VISÍVEL)
 # ==========================================
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
-c1, c2, c3, c4, c5, c6 = st.columns([1.1, 3.2, 1.2, 1.3, 1.6, 1.8])
+c1, c2, c3 = st.columns([1.1, 5.7, 3.2])
 
 with c1:
     if base64_logo: 
@@ -203,23 +212,38 @@ with c1:
 with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras</p>', unsafe_allow_html=True)
 with c3:
-    if st.button("🔄 Sincronizar Base", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
-with c4:
-    col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
-    if col_status_verificacao:
-        lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
-    else:
-        lista_status = ["Todos"]
-    filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed")
-with c5:
-    data_hoje = datetime.now().date()
-    trinta_dias_atras = data_hoje - timedelta(days=30)
-    filtro_data = st.date_input("", value=(trinta_dias_atras, data_hoje), format="DD/MM/YYYY", label_visibility="collapsed")
-with c6:
+    # A caixa de busca unificada fica fixa no topo para pesquisa imediata
     busca = st.text_input("", placeholder="🔍 Localizar SC, Pedido ou CC...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
+
+
+# ==========================================
+# GAVETA RETRÁTIL EXCLUSIVA PARA OS FILTROS DE DATA E STATUS
+# ==========================================
+with st.expander("⚙️ Filtros Avançados (Status, Emissão e Atualização)", expanded=False):
+    f_col1, f_col2, f_col3 = st.columns([3.5, 3.5, 3.0])
+    
+    with f_col1:
+        # Filtro de Status Operacional oculto
+        col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
+        if col_status_verificacao:
+            lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
+        else:
+            lista_status = ["Todos"]
+        filtro_status = st.selectbox("Filtrar por Status Operacional:", options=lista_status, index=0)
+        
+    with f_col2:
+        # Filtro de Intervalo de Data oculto (Padrão BR)
+        data_hoje = datetime.now().date()
+        trinta_dias_atras = data_hoje - timedelta(days=30)
+        filtro_data = st.date_input("Filtrar por Período de Emissão:", value=(trinta_dias_atras, data_hoje), format="DD/MM/YYYY")
+        
+    with f_col3:
+        # Botão Sincronizar Base mantido na gaveta oculta
+        st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
+        if st.button("🔄 Atualizar Dados da Planilha", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
 
 
 # ==========================================
@@ -310,11 +334,11 @@ if busca:
             if not res_pc.empty:
                 df_final = res_pc.copy()
 
-        # Filtro de Status
+        # Execução dos Filtros da Gaveta Oculta (Status)
         if not df_final.empty and filtro_status != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == filtro_status]
 
-        # Filtragem de data por intervalo
+        # Execução dos Filtros da Gaveta Oculta (Datas de Emissão)
         if not df_final.empty and filtro_data and len(filtro_data) == 2:
             col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
             if col_emissao_original:
@@ -377,7 +401,7 @@ if busca:
             )
             df_painel.loc[mascara_na, "Pagamento"] = "N/A"
 
-        # Formatacao das colunas de datas
+        # Formatacao das colunas de datas para o padrao resumido
         colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]
         for col_data in colunas_para_formatar:
             if col_data in df_painel.columns:
@@ -389,7 +413,6 @@ if busca:
 
         df_painel = df_painel.dropna(how='all')
 
-        # CORREÇÃO DA SINTAXE: Estrutura de exibição e cards de erros aninhados corretamente
         if not df_painel.empty:
             txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}" if modo_centro_custo else "🔍 Registro Localizado na Base de Pedidos Firme"
             if filtro_status != "Todos":
@@ -431,6 +454,7 @@ if busca:
                     else:
                         configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right", width=None)
 
+            # Estilização absoluta via Pandas Styler para centralizar cabeçalho e dados de STATUS
             tabela_estilizada = df_painel.style.set_table_styles([
                 {'selector': 'th.col_heading.level0.col0', 'props': [('text-align', 'center !important'), ('justify-content', 'center !important')]},
                 {'selector': 'td.col0', 'props': [('text-align', 'center !important')]}
@@ -439,7 +463,7 @@ if busca:
             st.dataframe(tabela_estilizada, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
         else:
             st.markdown('<div class="custom-info-blue">ℹ️ Nenhum registro ativo atende aos critérios de busca e aos filtros selecionados.</div>', unsafe_allow_html=True)
-    else:
+    except Exception as e:
         if modo_centro_custo:
             st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes com os filtros aplicados.</div>', unsafe_allow_html=True)
         elif valor_numerico_inteiro >= 170000:
