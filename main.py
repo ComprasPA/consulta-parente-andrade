@@ -24,7 +24,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Controles visuais rústicos, remoção de bordas verdes e alinhamentos)
+# 3. CSS MODERNIZADO (Ajustes de cores fixas para a gaveta aberta/fechada e alinhamentos)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -64,7 +64,7 @@ st.markdown(f"""
         justify-content: center;
     }}
     
-    /* ALINHAMENTO DO TÍTULO AO MEIO DA PÁGINA */
+    /* Alinhamento do título ao meio da página */
     .center-title-container {{
         width: 100%;
         text-align: center;
@@ -100,30 +100,37 @@ st.markdown(f"""
         border-color: #478c3b !important;
     }}
     
-    /* REMOÇÃO DA BORDA VERDE E FILTROS MAIS SÓLIDOS CLEAN DO EXPANDER */
-    div[data-testid="stExpander"], div[data-testid="stExpander"] > div {{
+    /* BLINDAGEM VISUAL DA GAVETA (ABERTA OU FECHADA) - SEM BORDAS E COR FIXA */
+    div[data-testid="stExpander"], 
+    div[data-testid="stExpander"] > div,
+    div[data-testid="stExpander"][data-open="true"],
+    div[data-testid="stExpander"][data-open="false"] {{
+        background-color: #ffffff !important;
         border: none !important;
         box-shadow: none !important;
         outline: none !important;
     }}
     
-    /* Correção de cor sólida permanente e sem contorno do expander */
-    div[data-testid="stExpander"] summary {{
+    /* Trava o fundo branco e remove contornos na barra de clique da gaveta */
+    div[data-testid="stExpander"] summary,
+    div[data-testid="stExpander"] [role="button"] {{
+        background-color: #ffffff !important;
         border: none !important;
         outline: none !important;
         box-shadow: none !important;
     }}
     
-    /* Garante cor estável de alta visibilidade e peso da fonte ao expandir ou fechar */
+    /* Garante cor estável de alta visibilidade (Grafite) independente do estado */
     div[data-testid="stExpander"] summary p,
     div[data-testid="stExpander"] [data-open="true"] summary p,
-    .streamlit-expanderHeader p {{
+    .streamlit-expanderHeader p,
+    .streamlit-expanderHeader:focus p {{
         color: #1e293b !important;
         font-weight: 700 !important;
         font-size: 16px !important;
     }}
     
-    /* Mudança suave no hover */
+    /* Mudança suave para verde apenas no hover */
     div[data-testid="stExpander"] summary:hover p {{
         color: #478c3b !important;
     }}
@@ -227,7 +234,6 @@ df_pc = carregar_dados_seguros()
 # 4. CABEÇALHO INTEGRADO (REDUÇÃO DA BUSCA E CENTRALIZAÇÃO DO TÍTULO)
 # ==========================================
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
-# Redistribuição proporcional das colunas para centralizar o título e reduzir a busca à metade
 c1, c2, c3 = st.columns([1.5, 6.5, 2.0])
 
 with c1:
