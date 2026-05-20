@@ -214,7 +214,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
-# 5. ESTRUTURA DE COLUNAS REORGANIZADA (NOVA ORDEM)
+# 5. ESTRUTURA DE COLUNAS REORGANIZADA (NOVA POSIÇÃO CRONOLÓGICA)
 # ==========================================
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
@@ -222,6 +222,11 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "Nº Solicitação (SC)", "tela": "Nº Solicitação (SC)", "tipo": "texto"},
     {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"},   
     {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
+    
+    # REGRA 1 E 2 ATIVADAS: Colunas movidas para pós-condição de pagamento e alteração de "Data Liberação" para "Data de aprovação"
+    {"planilha": "Data Emissao", "tela": "Data Emissão", "tipo": "data"},
+    {"planilha": "Data Liberação", "tela": "Data de aprovação", "tipo": "data"},
+    
     {"planilha": "Envio", "tela": "Envio", "tipo": "data"},
     {"planilha": "Pagamento", "tela": "Pagamento", "tipo": "texto"}, 
     {"planilha": "Previsão de entrega", "tela": "Previsão de entrega", "tipo": "data"},
@@ -232,9 +237,7 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "UM", "tela": "UM", "tipo": "texto"},
     {"planilha": "Qtd", "tela": "Qtd", "tipo": "numero"},
     {"planilha": "Preço Unitário", "tela": "Preço Unitário", "tipo": "moeda"},
-    {"planilha": "Valor Total", "tela": "Valor Total", "tipo": "moeda"},
-    {"planilha": "Data Emissao", "tela": "Data Emissão", "tipo": "data"},
-    {"planilha": "Data Liberação", "tela": "Data Liberação", "tipo": "data"}
+    {"planilha": "Valor Total", "tela": "Valor Total", "tipo": "moeda"}
 ]
 
 def ajustar_zeros_protheus(valor, tamanho_alvo):
@@ -292,7 +295,6 @@ if busca:
             if valor_numerico_inteiro >= 170000:
                 col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
             else:
-                # CORREÇÃO: Removida a palavra solta 'automatizada' que gerava o SyntaxError
                 col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
                 
             if not col_busca_pc:
@@ -360,7 +362,8 @@ if busca:
             )
             df_painel.loc[mascara_na, "Pagamento"] = "N/A"
 
-        colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Data Emissão", "Data Liberação"]
+        # Inclusão da nova chave renomeada na formatação de datas
+        colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Data Emissão", "Data de aprovação"]
         for col_data in colunas_para_formatar:
             if col_data in df_painel.columns:
                 df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
