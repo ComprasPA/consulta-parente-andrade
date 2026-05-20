@@ -63,13 +63,6 @@ st.markdown(f"""
         letter-spacing: -0.5px;
         line-height: 1.2;
     }}
-    .portal-subtitle {{
-        color: #64748b;
-        font-size: 13px;
-        font-weight: 500;
-        margin: 4px 0 0 0 !important;
-        line-height: 1.2;
-    }}
     
     /* Customização fina para campos de input e botões */
     div[data-testid="stVerticalBlock"] > div:has(input) {{
@@ -115,7 +108,6 @@ with c1:
         st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:130px; margin-top:2px;">', unsafe_allow_html=True)
 with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras</p>', unsafe_allow_html=True)
-    st.markdown('<p class="portal-subtitle">Parente Andrade | Diretoria de Suprimentos e Logística</p>', unsafe_allow_html=True)
 with c3:
     if st.button("🔄 Sincronizar Base", use_container_width=True):
         st.cache_data.clear()
@@ -188,7 +180,7 @@ df_pc = carregar_dados_seguros()
 
 
 # ==========================================
-# 6. MOTOR DE BUSCA MANTER LÓGICA CONGELADA
+# 6. MOTOR DE BUSCA DIRECIONADO APENAS NA GUIA PC
 # ==========================================
 if busca:
     termo_busca = busca.strip()
