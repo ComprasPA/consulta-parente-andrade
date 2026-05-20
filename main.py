@@ -24,7 +24,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Alinhamento do título da gaveta à direita perfeitamente limpo)
+# 3. CSS MODERNIZADO (Alinhamento do título da gaveta à direita com rotação de seta nativa)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -113,11 +113,6 @@ st.markdown(f"""
         outline: none !important;
     }}
     
-    /* Oculta a seta nativa do Streamlit para não gerar duplicidade ou desalinhamento */
-    div[data-testid="stExpander"] summary svg {{
-        display: none !important;
-    }}
-    
     /* Remove contornos residuais e força fundo limpo na barra do expander */
     div[data-testid="stExpander"] summary,
     div[data-testid="stExpander"] [role="button"],
@@ -131,8 +126,14 @@ st.markdown(f"""
         /* ALINHAMENTO DO TÍTULO À DIREITA */
         display: flex !important;
         justify-content: flex-end !important;
+        flex-direction: row-reverse !important; /* Inverte para posicionar a seta ao lado direito do texto */
         text-align: right !important;
-        gap: 4px !important;
+        gap: 8px !important;
+    }}
+    
+    /* CONTROLADOR DO ÍCONE: Restaura a animação nativa de giro controlada pelo Streamlit */
+    div[data-testid="stExpander"] summary svg {{
+        transition: transform 0.2s ease-in-out !important;
     }}
     
     /* Garante cor estável de alta visibilidade (Grafite) independente do estado */
@@ -277,20 +278,15 @@ if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
     st.session_state.filtro_data_val = ()
-if "gaveta_aberta" not in st.session_state:
-    st.session_state.gaveta_aberta = False
 
 
 # ==========================================
-# GAVETA RETRÁTIL OPERACIONAL - TOTALMENTE ALINHADA COM SETA DINÂMICA
+# GAVETA RETRÁTIL OPERACIONAL - GRID REORGANIZADO E EXPANDIDO
 # ==========================================
-# Lógica Python que renderiza a seta correta colada ao texto alinhado à direita
-texto_gaveta = "Filtros Avançados 🔼" if st.session_state.gaveta_aberta else "Filtros Avançados 🔽"
-
-with st.expander(texto_gaveta, expanded=st.session_state.gaveta_aberta):
+with st.expander("Filtros Avançados", expanded=False):
     with st.form("form_filtros", clear_on_submit=False):
-        # 4 colunas distribuídas simetricamente na mesma linha horizontal
-        f_col1, f_col2, f_col3, f_col4 = st.columns([3.5, 3.5, 2.5, 2.5])
+        # AJUSTE DE PROPORÇÃO (SILVIO): Caixas maiores nas pontas e botões encolhidos para 2/3 do tamanho
+        f_col1, f_col2, f_col3, f_col4 = st.columns([4.5, 4.5, 1.5, 1.5])
         
         with f_col1:
             col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
@@ -312,17 +308,15 @@ with st.expander(texto_gaveta, expanded=st.session_state.gaveta_aberta):
             if btn_pesquisar:
                 st.session_state.filtro_status_val = filtro_status
                 st.session_state.filtro_data_val = filtro_data
-                st.session_state.gaveta_aberta = True  # Mantém aberta ao pesquisar
                 st.rerun()
 
         with f_col4:
             st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
-            btn_limpar = st.form_submit_button("❌ Limpar Filtros", use_container_width=True)
+            btn_limpar = st.form_submit_button("❌ Limpar", use_container_width=True)
             
             if btn_limpar:
                 st.session_state.filtro_status_val = "Todos"
                 st.session_state.filtro_data_val = ()
-                st.session_state.gaveta_aberta = False # Fecha ao limpar tudo
                 st.cache_data.clear()
                 st.rerun()
 
