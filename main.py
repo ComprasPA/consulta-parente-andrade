@@ -155,9 +155,16 @@ st.markdown(f"""
     }}
     
     /* Impedir quebras de palavras e truncamento nos títulos das colunas */
-    div[data-testid="stDataFrame"] table th {{
+    div[data-testid="stDataFrame"] data-testid="stTable" th {{
         white-space: nowrap !important;
         min-width: max-content !important;
+    }}
+
+    /* REGRA DE CSS INJETADA: Força o cabeçalho específico da coluna STATUS a alinhar estritamente ao meio (center) */
+    div[data-testid="stDataFrame"] th[data-field="STATUS"], 
+    div[data-testid="stDataFrame"] th[data-field="status"] {{
+        text-align: center !important;
+        justify-content: center !important;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -350,8 +357,10 @@ if busca:
             nome_tela = col_config["tela"]
             tipo_campo = col_config["tipo"]
             
-            # Formatação numérica mantendo alinhamento à direita
-            if tipo_campo == "moeda":
+            if nome_tela == "STATUS":
+                # REGRA SOLICITADA: Força estritamente o alinhamento da célula do STATUS ao meio
+                configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center", width=None)
+            elif tipo_campo == "moeda":
                 configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right", width=None)
             elif tipo_campo == "numero":
                 configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right", width=None)
@@ -359,18 +368,10 @@ if busca:
                 if nome_tela in ["Fornecedor", "Descrição"]:
                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="left", width=None)
                 else:
-                    # Deixamos o alinhamento das células de dados normais à direita
                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right", width=None)
-
-        # SOLUÇÃO DEFINITIVA: Injeção de estilo em nível de compilação Styler do Pandas para a coluna STATUS
-        # th.col_heading aplica text-align no título do cabeçalho, e td.col aplica no corpo da tabela
-        tabela_estilizada = df_painel.style.set_table_styles([
-            {'selector': 'th.col_heading.level0.col0', 'props': [('text-align', 'center !important'), ('justify-content', 'center !important')]},
-            {'selector': 'td.col0', 'props': [('text-align', 'center !important')]}
-        ], overwrite=False)
         
-        # Renderização estável cruzando a estilização interna absoluta do Pandas com os parâmetros de largura do Streamlit
-        st.dataframe(tabela_estilizada, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
+        # Renderização final com colunas flexíveis baseadas no maior comprimento detectado
+        st.dataframe(df_painel, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
     else:
         # GESTÃO VISUAL DE ALERTAS COM DIVS CUSTOMIZADAS
         if valor_numerico_inteiro >= 170000:
