@@ -24,7 +24,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Ajustes de cores fixas, remoção absoluta de bordas e alinhamentos)
+# 3. CSS MODERNIZADO (Alinhamento à direita do título da gaveta)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
