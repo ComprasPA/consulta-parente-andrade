@@ -63,7 +63,6 @@ st.markdown('</div>', unsafe_allow_html=True)
 # ==========================================
 # 5. ESTRUTURA DE COLUNAS ATUALIZADA
 # ==========================================
-# Linha do "Cod Fornecedor" removida conforme solicitado
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "Envio", "tela": "Envio", "tipo": "data"},
@@ -239,10 +238,17 @@ if busca:
                     alignment="right"
                 )
             else:
-                configuracao_colunas_tela[nome_tela] = st.column_config.TextColumn(
-                    nome_tela,
-                    alignment="right"
-                )
+                # Regra: Se for as colunas de texto Fornecedor ou Descrição, fixa alinhamento à esquerda
+                if nome_tela in ["Fornecedor", "Descrição"]:
+                    configuracao_colunas_tela[nome_tela] = st.column_config.TextColumn(
+                        nome_tela,
+                        alignment="left"
+                    )
+                else:
+                    configuracao_colunas_tela[nome_tela] = st.column_config.TextColumn(
+                        nome_tela,
+                        alignment="right"
+                    )
         
         # Renderização final na tela
         st.dataframe(
