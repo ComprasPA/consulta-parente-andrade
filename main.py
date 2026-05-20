@@ -28,7 +28,7 @@ base64_logo = get_base64_logo()
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
-    #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
+    #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{hidden;}}
     
     /* Remove o espacamento forcado no topo e nas laterais da pagina */
     .block-container {{
@@ -53,7 +53,7 @@ st.markdown(f"""
         align-items: center;
         justify-content: space-between;
         margin-top: 0px !important;
-        margin-bottom: 4px;
+        margin-bottom: 16px;
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
     }}
     
@@ -267,7 +267,7 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "Nº Solicitação (SC)", "tela": "Nº Solicitação (SC)", "tipo": "texto"},
     {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"},   
     {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
-    {"planilha": "Data Emissao", "tela": "Emissão", "tipo": "data"},
+    {"planilha": "Data Envia", "tela": "Emissão", "tipo": "data"}, # Cruzamento com Data Emissao original
     {"planilha": "Data Liberação", "tela": "Aprovação", "tipo": "data"},
     {"planilha": "Envio", "tela": "Envio", "tipo": "data"},
     {"planilha": "Pagamento", "tela": "Pagamento", "tipo": "texto"}, 
@@ -363,65 +363,74 @@ if not df_pc.empty:
 
 
 # ==========================================
-# GAVETA RETRÁTIL OPERACIONAL - POSICIONADA À DIREITA ABAIXO DA BUSCA
+# 4. GAVETA RETRÁTIL OPERACIONAL CONVERTIDA PARA LARGURA HORIZONTAL COMPLETA
 # ==========================================
 sub_c1, sub_c2 = st.columns([8.0, 2.0])
 with sub_c2:
-    # CORREÇÃO DEFINITIVA: Todos os componentes agora herdam a árvore interna do Expander
-    with st.expander("⚙️ Filtros Avançados", expanded=False):
-        col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
-        if col_status_verificacao:
-            lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
-        else:
-            lista_status = ["Todos"]
+    # O expander atua estritamente como a barra-gatilho alinhada no canto direito abaixo da busca
+    show_filters = st.expander("⚙️ Filtros Avançados", expanded=False)
 
-        data_hoje = datetime.now().date()
-        trinta_dias_atras = data_hoje - timedelta(days=30)
+# SOLUÇÃO DEFINITIVA (SILVIO): O bloco de colunas herda o contexto do expander aberto, mas renderiza em 100% da tela
+with show_filters:
+    col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
+    if col_status_verificacao:
+        lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
+    else:
+        lista_status = ["Todos"]
 
-        df_excel_ready = pd.DataFrame()
-        if not df_final.empty:
-            df_excel_ready = pd.DataFrame(index=df_final.index)
-            for col_config in DICIONARIO_COLUNAS_EXATAS:
-                c_plan, c_tela, c_tipo = col_config["planilha"], col_config["tela"], col_config["tipo"]
-                if c_plan in df_final.columns:
-                    if c_tipo == "data":
-                        df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace(['nan', 'NONE', '', '0'], '')
-                    elif c_tipo == "pedido":
-                        df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 6))
-                    elif c_tipo == "produto":
-                        df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 10))
-                    elif c_tipo in ["moeda", "numero"]:
-                        df_excel_ready[c_tela] = df_final[c_plan].apply(converter_para_numerico)
-                    else:
-                        df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
-            
-            for col_data in ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]:
-                if col_data in df_excel_ready.columns:
-                    df_excel_ready[col_data] = df_excel_ready[col_data].apply(formatar_para_dd_mm_aa)
+    data_hoje = datetime.now().date()
+    trinta_dias_atras = data_hoje - timedelta(days=30)
 
-        out = BytesIO()
-        with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
-            df_excel_ready.to_excel(wr, index=False)
+    df_excel_ready = pd.DataFrame()
+    if not df_final.empty:
+        df_excel_ready = pd.DataFrame(index=df_final.index)
+        for col_config in DICIONARIO_COLUNAS_EXATAS:
+            c_plan, c_tela, c_tipo = col_config["planilha"], col_config["tela"], col_config["tipo"]
+            if c_plan in df_final.columns:
+                if c_tipo == "data":
+                    df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace(['nan', 'NONE', '', '0'], '')
+                elif c_tipo == "pedido":
+                    df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 6))
+                elif c_tipo == "produto":
+                    df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 10))
+                elif c_tipo in ["moeda", "numero"]:
+                    df_excel_ready[c_tela] = df_final[c_plan].apply(converter_para_numerico)
+                else:
+                    df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
+        
+        for col_data in ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]:
+            if col_data in df_excel_ready.columns:
+                df_excel_ready[col_data] = df_excel_ready[col_data].apply(formatar_para_dd_mm_aa)
 
-        # Renderização simétrica das 4 colunas planas dentro do expander
-        f_col1, f_col2, f_col3, f_col4 = st.columns([3.0, 3.0, 3.5, 2.5])
-        with f_col1:
-            filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed", key="status_gaveta")
-        with f_col2:
-            filtro_data = st.date_input("", value=(trinta_dias_atras, data_hoje), format="DD/MM/YYYY", label_visibility="collapsed", key="data_gaveta")
-        with f_col3:
-            st.download_button(
-                label="📥 Exportar Excel",
-                data=out.getvalue(),
-                file_name=f"Relatorio_Compras_{termo_busca if termo_busca else 'Geral'}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                key="excel_gaveta"
-            )
-        with f_col4:
-            if st.button("🔄 Sincronizar Base", use_container_width=True, key="sinc_gaveta"):
-                st.cache_data.clear()
-                st.rerun()
+    out = BytesIO()
+    with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
+        df_excel_ready.to_excel(wr, index=False)
+
+    # Grid expandido que se estende por toda a largura horizontal da tela ao abrir
+    f_col1, f_col2, f_col3, f_col4 = st.columns([3.0, 3.0, 3.5, 2.5])
+    with f_col1:
+        filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed", key="status_gaveta")
+    with f_col2:
+        filtro_data = st.date_input("", value=(trinta_dias_atras, data_hoje), format="DD/MM/YYYY", label_visibility="collapsed", key="data_gaveta")
+    with f_col3:
+        st.download_button(
+            label="📥 Exportar Excel",
+            data=out.getvalue(),
+            file_name=f"Relatorio_Compras_{termo_busca if termo_busca else 'Geral'}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key="excel_gaveta"
+        )
+    with f_col4:
+        if st.button("🔄 Sincronizar Base", use_container_width=True, key="sinc_gaveta"):
+            st.cache_data.clear()
+            st.rerun()
+
+# Lógica de fallback para manter estabilidade operacional na abertura inicial do portal
+if 'filtro_status' not in locals():
+    filtro_status = "Todos"
+if 'filtro_data' not in locals():
+    filtro_data = (datetime.now().date() - timedelta(days=30), datetime.now().date())
 
 
 # ==========================================
