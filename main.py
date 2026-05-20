@@ -146,7 +146,7 @@ st.markdown(f"""
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }}
     
-    /* Ajustes na visualização das tabelas para forçar a regra de maior comprimento (Texto x Cabeçalho) */
+    /* Ajustes na visualização das tabelas para acompanhar o design */
     div[data-testid="stDataFrame"] {{
         background: #ffffff;
         padding: 16px;
@@ -350,12 +350,14 @@ if busca:
             nome_tela = col_config["tela"]
             tipo_campo = col_config["tipo"]
             
-            if tipo_campo == "moeda":
+            if nome_tela == "STATUS":
+                # REGRA SOLICITADA: Força estritamente o alinhamento da coluna STATUS ao meio (centralizado)
+                configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center", width=None)
+            elif tipo_campo == "moeda":
                 configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right", width=None)
             elif tipo_campo == "numero":
                 configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right", width=None)
             else:
-                # REGRA EXECUTADA: Definindo width=None, o Streamlit expande a coluna obedecendo estritamente o maior tamanho (Texto ou Título do cabeçalho)
                 if nome_tela in ["Fornecedor", "Descrição"]:
                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="left", width=None)
                 else:
