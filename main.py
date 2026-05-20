@@ -24,7 +24,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Alinhamento limpo, assinatura fixa e Ajuste Mobile Completo)
+# 3. CSS MODERNIZADO (Alinhamento limpo do título à direita e assinatura fixa)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -237,7 +237,7 @@ st.markdown(f"""
         min-width: max-content !important;
     }}
 
-    /* Assinatura fixa no canto inferior esquerdo da tela */
+    /* CEREJA DO BOLO (SILVIO): Assinatura travada e fixa no canto inferior esquerdo da tela */
     .signature-fixed {{
         position: fixed;
         bottom: 12px;
@@ -248,35 +248,6 @@ st.markdown(f"""
         letter-spacing: 0.5px;
         z-index: 999999;
         pointer-events: none;
-    }}
-
-    /* MODIFICAÇÕES RESPONSIVAS MOBILE */
-    @media (max-width: 768px) {{
-        .header-modern {{
-            flex-direction: column !important;
-            gap: 16px !important;
-            text-align: center !important;
-        }}
-        .portal-title {{
-            font-size: 26px !important;
-            white-space: normal !important;
-        }}
-        div[data-testid="column"] {{
-            flex: 1 1 100% !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            padding: 4px 0px !important;
-        }}
-        div[data-testid="column"] div[style*="height: 28px"] {{
-            display: none !important;
-        }}
-        .signature-fixed {{
-            position: static !important;
-            text-align: center !important;
-            margin-top: 10px;
-            padding-bottom: 10px;
-            display: block;
-        }}
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -532,7 +503,7 @@ if busca:
                 mascara_vazia = (df_painel["Previsão de entrega"] == "") | (df_painel["Previsão de entrega"].isna())
                 df_painel.loc[mascara_vazia, "Previsão de entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
 
-            if "Pagamento" in df_painel.columns and ("CondITION_PAGAMENTO" in df_painel.columns or "Condição Pagamento" in df_painel.columns):
+            if "Pagamento" in df_painel.columns and "CondITION_PAGAMENTO" in df_painel.columns or "Condição Pagamento" in df_painel.columns:
                 col_cond_pag = "Condição Pagamento" if "Condição Pagamento" in df_painel.columns else "CondITION_PAGAMENTO"
                 condicao_normalizada = df_painel[col_cond_pag].astype(str).str.upper().str.strip()
                 mascara_na = (
