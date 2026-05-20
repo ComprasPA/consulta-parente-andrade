@@ -106,7 +106,7 @@ st.markdown(f"""
         width: 100%;
     }}
 
-    /* CAIXA AZUL: Para informações positivas (Solicitação em Cotação) */
+    /* CAIXA AZUL: Para informações positivas (Solicitação em Cotação ou CC localizado) */
     .custom-info-blue {{
         background-color: #1e40af !important;
         color: #ffffff !important;
@@ -155,16 +155,9 @@ st.markdown(f"""
     }}
     
     /* Impedir quebras de palavras e truncamento nos títulos das colunas */
-    div[data-testid="stDataFrame"] data-testid="stTable" th {{
+    div[data-testid="stDataFrame"] table th {{
         white-space: nowrap !important;
         min-width: max-content !important;
-    }}
-
-    /* REGRA DE CSS INJETADA: Força o cabeçalho específico da coluna STATUS a alinhar estritamente ao meio (center) */
-    div[data-testid="stDataFrame"] th[data-field="STATUS"], 
-    div[data-testid="stDataFrame"] th[data-field="status"] {{
-        text-align: center !important;
-        justify-content: center !important;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -182,7 +175,7 @@ with c3:
         st.cache_data.clear()
         st.rerun()
 with c4:
-    busca = st.text_input("", placeholder="🔍 Localizar SC ou Pedido...", label_visibility="collapsed")
+    busca = st.text_input("", placeholder="🔍 Localizar SC, Pedido ou CC...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -249,32 +242,44 @@ df_pc = carregar_dados_seguros()
 
 
 # ==========================================
-# 6. MOTOR DE BUSCA DIRECIONADO APENAS NA GUIA PC
+# 6. MOTOR DE BUSCA DIRECIONADO OPERACIONAL
 # ==========================================
 if busca:
     termo_busca = busca.strip()
     termo_numerico = re.sub(r'[^0-9]', '', termo_busca)
     valor_numerico_inteiro = int(termo_numerico) if termo_numerico else 0
+    tamanho_digitos = len(termo_numerico)
     
-    if termo_numerico:
-        padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
-    else:
-        padrao_regex = re.escape(termo_busca)
-        
     df_final = pd.DataFrame()
+    modo_centro_custo = False
     
     if not df_pc.empty:
-        if valor_numerico_inteiro >= 170000:
-            col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
+        # REGRA ATIVADA (SILVIO): Se tiver exatamente 4 dígitos numéricos, busca por Centro de Custo (CC)
+        if tamanho_digitos == 4:
+            modo_centro_custo = True
+            col_busca_pc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
+            if col_busca_pc:
+                # Faz busca exata ou parcial contendo os 4 dígitos do CC informado
+                df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, regex=True, na=False)].copy()
+        
+        # Caso contrário, segue a regra normal para Pedidos (PC) ou Solicitações (SC)
         else:
-            col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
-            
-        if not col_busca_pc:
-            col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), df_pc.columns[0])
+            if termo_numerico:
+                padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
+            else:
+                padrao_regex = re.escape(termo_busca)
+                
+            if valor_numerico_inteiro >= 170000:
+                col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
+            else:
+                col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
+                
+            if not col_busca_pc:
+                col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), df_pc.columns[0])
 
-        res_pc = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)]
-        if not res_pc.empty:
-            df_final = res_pc.copy()
+            res_pc = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)]
+            if not res_pc.empty:
+                df_final = res_pc.copy()
 
     # ---- MONTAGEM DA LISTA TRATADA PARA EXIBIÇÃO ----
     if not df_final.empty:
@@ -306,10 +311,13 @@ if busca:
                 else:
                     df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
             else:
-                if nome_exibicao_tela == "Nº Solicitação (SC)" and valor_numerico_inteiro < 170000:
+                # Preenchimento inteligente baseado no tipo de busca se a coluna sumir do arquivo físico
+                if nome_exibicao_tela == "Nº Solicitação (SC)" and valor_numerico_inteiro < 170000 and not modo_centro_custo:
                     df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
-                elif nome_exibicao_tela == "Nº Pedido (PC)" and valor_numerico_inteiro >= 170000:
+                elif nome_exibicao_tela == "Nº Pedido (PC)" and valor_numerico_inteiro >= 170000 and not modo_centro_custo:
                     df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
+                elif nome_exibicao_tela == "Centro de Custo (CC)" and modo_centro_custo:
+                    df_painel[nome_exibicao_tela] = busca.strip()
                 else:
                     df_painel[nome_exibicao_tela] = ""
 
@@ -335,7 +343,8 @@ if busca:
 
         df_painel = df_painel.dropna(how='all')
 
-        st.markdown('<div class="status-card">🔍 Registro Localizado na Base de Pedidos Firme</div>', unsafe_allow_html=True)
+        txt_status = f"🔍 Registros Localizados para o Centro de Custo: {termo_busca}" if modo_centro_custo else "🔍 Registro Localizado na Base de Pedidos Firme"
+        st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
         
         c_down, _ = st.columns([2.5, 7.5])
         with c_down:
@@ -345,7 +354,7 @@ if busca:
             st.download_button(
                 label="📥 Extrair Relatório Operacional",
                 data=out.getvalue(),
-                file_name="Portal_Compras_Parente.xlsx",
+                file_name=f"Relatorio_Compras_{termo_busca}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
@@ -358,7 +367,6 @@ if busca:
             tipo_campo = col_config["tipo"]
             
             if nome_tela == "STATUS":
-                # REGRA SOLICITADA: Força estritamente o alinhamento da célula do STATUS ao meio
                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center", width=None)
             elif tipo_campo == "moeda":
                 configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right", width=None)
@@ -369,16 +377,23 @@ if busca:
                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="left", width=None)
                 else:
                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right", width=None)
+
+        # Estilização absoluta em nível de compilação Styler para alinhar cabeçalho e células da coluna STATUS
+        tabela_estilizada = df_painel.style.set_table_styles([
+            {'selector': 'th.col_heading.level0.col0', 'props': [('text-align', 'center !important'), ('justify-content', 'center !important')]},
+            {'selector': 'td.col0', 'props': [('text-align', 'center !important')]}
+        ], overwrite=False)
         
-        # Renderização final com colunas flexíveis baseadas no maior comprimento detectado
-        st.dataframe(df_painel, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
+        st.dataframe(tabela_estilizada, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
     else:
-        # GESTÃO VISUAL DE ALERTAS COM DIVS CUSTOMIZADAS
-        if valor_numerico_inteiro >= 170000:
+        # GESTÃO VISUAL DE ALERTAS CONDICIONAIS SEGUNDO AS TRÊS REGRAS NUMÉRICAS
+        if modo_centro_custo:
+            st.markdown(f'<div class="custom-info-blue">ℹ️ O Centro de Custo \'{termo_busca}\' informado não possui pedidos ou solicitações pendentes.</div>', unsafe_allow_html=True)
+        elif valor_numerico_inteiro >= 170000:
             st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
         else:
             st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!</div>', unsafe_allow_html=True)
 else:
-    st.markdown('<div class="custom-welcome-info">💡 Insira o número da SC ou do Pedido de Compras no campo superior direito para rastrear o status.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="custom-welcome-info">💡 Insira o número da SC, Pedido de Compras ou Centro de Custo (4 dígitos) para rastrear o status.</div>', unsafe_allow_html=True)
 
 st.markdown("<div style='text-align:center; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;'><p style='color:#64748b; font-size:13px; font-weight:600;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
