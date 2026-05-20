@@ -271,7 +271,7 @@ if busca:
         )
     else:
         # NOVA REGRA: Se a SC não foi localizada na aba PC, exibe o aviso customizado em uma caixa informativa amarela
-        st.info("ℹ️ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!")
+        st.info("ℹ️ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!")
 else:
     st.info("💡 Digite o número da SC para iniciar o acompanhamento operacional.")
 
