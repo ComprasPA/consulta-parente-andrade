@@ -23,7 +23,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Remoção do espaço superior e alinhamento fino das letras)
+# 3. CSS MODERNIZADO (Alinhamento absoluto em linha e remoção de espaços)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -43,10 +43,10 @@ st.markdown(f"""
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }}
     
-    /* Topo moderno sem recortes ou espaços extras */
+    /* Topo moderno forçando todos os elementos na mesma linha verticalmente alinhados */
     .header-modern {{
         background: #ffffff;
-        padding: 24px;
+        padding: 16px 24px;
         border-radius: 12px;
         display: flex;
         align-items: center;
@@ -55,13 +55,27 @@ st.markdown(f"""
         margin-bottom: 24px;
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
     }}
+    
+    /* Força os elementos internos das colunas do Streamlit a centralizarem verticalmente */
+    div[data-testid="column"] {{
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }}
+    
+    /* Alinha o título à esquerda dentro da sua respectiva coluna */
+    div[data-testid="column"]:nth-child(2) {{
+        justify-content: flex-start !important;
+    }}
+    
     .portal-title {{ 
         color: #1e293b !important; 
-        font-size: 60px !important; /* Ampliado estritamente para 60px conforme solicitado */
+        font-size: 60px !important; 
         font-weight: 800 !important; 
         margin: 0 !important;
         letter-spacing: -1.5px;
-        line-height: 1.1;
+        line-height: 1;
+        white-space: nowrap;
     }}
     
     /* Customização fina para campos de input e botões */
@@ -72,6 +86,7 @@ st.markdown(f"""
         border: 1px solid #e2e8f0 !important;
         box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
         transition: border-color 0.2s;
+        width: 100%;
     }}
     div[data-testid="stVerticalBlock"] > div:has(input):focus-within {{
         border-color: #478c3b !important;
@@ -100,12 +115,12 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CABEÇALHO REESTRUTURADO (Layout Limpo e Alinhado)
+# 4. CABEÇALHO INTEGRADO (Alinhamento milimétrico em uma única linha)
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
-c1, c2, c3, c4 = st.columns([1.1, 4.6, 1.4, 2.3])
+c1, c2, c3, c4 = st.columns([1.2, 5.0, 1.5, 2.3])
 with c1:
     if base64_logo: 
-        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:130px; margin-top:2px;">', unsafe_allow_html=True)
+        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:125px; display:block; margin:auto 0;">', unsafe_allow_html=True)
 with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras</p>', unsafe_allow_html=True)
 with c3:
