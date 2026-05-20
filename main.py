@@ -24,7 +24,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Zera bordas do botão, trava cor de fundo e otimiza fontes)
+# 3. CSS MODERNIZADO (Ajustes de cores fixas, remoção absoluta de bordas e alinhamentos)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -44,7 +44,7 @@ st.markdown(f"""
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }}
     
-    /* Topo moderno forcando todos os elementos na mesma linha */
+    /* Topo moderno forcando todos os elementos na mesma linha verticalmente alinhados */
     .header-modern {{
         background: #ffffff;
         padding: 16px 24px;
@@ -86,7 +86,7 @@ st.markdown(f"""
     /* Customizacao fina para campos de input, seletores, botoes */
     div[data-testid="stVerticalBlock"] > div:has(input), 
     div[data-testid="stVerticalBlock"] > div:has(select),
-    div[data-testid="stVerticalBlock"] > div:has(button):not(:has(button[key="btn_gatilho"])) {{
+    div[data-testid="stVerticalBlock"] > div:has(button) {{
         background-color: #ffffff; 
         padding: 2px 6px !important; 
         border-radius: 8px; 
@@ -100,36 +100,43 @@ st.markdown(f"""
         border-color: #478c3b !important;
     }}
     
-    /* MODIFICAÇÃO DE BLINDAGEM DO BOTÃO GATILHO (SILVIO): Remove caixa preta e deixa plano sobre a tela */
-    button[key="btn_gatilho"] {{
+    /* REMOÇÃO TOTAL DA LINHA DE CONTORNO (FECHADA OU ABERTA) */
+    div[data-testid="stExpander"], 
+    div[data-testid="stExpander"] > div,
+    div[data-testid="stExpander"][data-open="true"],
+    div[data-testid="stExpander"][data-open="false"],
+    .stElementContainer:has(div[data-testid="stExpander"]) {{
         background-color: transparent !important;
         border: none !important;
+        border-width: 0px !important;
+        box-shadow: none !important;
+        outline: none !important;
+    }}
+    
+    /* Remove contornos residuais e força fundo limpo na barra do expander */
+    div[data-testid="stExpander"] summary,
+    div[data-testid="stExpander"] [role="button"],
+    .streamlit-expanderHeader {{
+        background-color: transparent !important;
+        border: none !important;
+        border-width: 0px !important;
+        outline: none !important;
+        box-shadow: none !important;
+    }}
+    
+    /* Garante cor estável de alta visibilidade (Grafite) independente do estado */
+    div[data-testid="stExpander"] summary p,
+    div[data-testid="stExpander"] [data-open="true"] summary p,
+    .streamlit-expanderHeader p,
+    .streamlit-expanderHeader:focus p {{
         color: #1e293b !important;
         font-weight: 700 !important;
-        font-size: 15px !important;
-        box-shadow: none !important;
-        outline: none !important;
-        text-align: right !important;
-        justify-content: flex-end !important;
-        padding: 0px !important;
-        margin: 0px !important;
-        height: auto !important;
-        width: auto !important;
+        font-size: 16px !important;
     }}
     
-    button[key="btn_gatilho"]:hover, button[key="btn_gatilho"]:focus, button[key="btn_gatilho"]:active {{
+    /* Mudança suave para verde apenas no hover */
+    div[data-testid="stExpander"] summary:hover p {{
         color: #478c3b !important;
-        background-color: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        outline: none !important;
-    }}
-    
-    /* Container do botão de gatilho alinhado perfeitamente à direita */
-    div.element-container:has(button[key="btn_gatilho"]) {{
-        display: flex !important;
-        justify-content: flex-end !important;
-        width: 100% !important;
     }}
     
     /* Ajuste de largura do input de data nativo */
@@ -147,7 +154,6 @@ st.markdown(f"""
         font-size: 16px; 
         border-left: 5px solid #478c3b;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        margin-top: 16px;
         margin-bottom: 16px;
         width: 100%;
     }}
@@ -161,7 +167,6 @@ st.markdown(f"""
         font-weight: 600;
         font-size: 16px;
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-        margin-top: 16px;
         margin-bottom: 16px;
         width: 100%;
         border-left: 5px solid #3b82f6;
@@ -176,7 +181,6 @@ st.markdown(f"""
         font-weight: 600;
         font-size: 16px;
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-        margin-top: 16px;
         margin-bottom: 16px;
         width: 100%;
         border-left: 5px solid #ef4444;
@@ -209,18 +213,6 @@ st.markdown(f"""
         white-space: nowrap !important;
         min-width: max-content !important;
     }}
-
-    /* ASSINATURA SILVIO: Fixada no canto inferior esquerdo */
-    .system-signature {{
-        position: fixed;
-        bottom: 8px;
-        left: 12px;
-        font-size: 10px !important;
-        color: #94a3b8 !important;
-        font-weight: 500;
-        z-index: 9999;
-        user-select: none;
-    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -243,7 +235,49 @@ df_pc = carregar_dados_seguros()
 
 
 # ==========================================
-# ESTRUTURAÇÃO DO BANCO OPERACIONAL (DICIONÁRIO)
+# 4. CABEÇALHO INTEGRADO (REDUÇÃO DA BUSCA E CENTRALIZAÇÃO DO TÍTULO)
+# ==========================================
+st.markdown('<div class="header-modern">', unsafe_allow_html=True)
+c1, c2, c3 = st.columns([1.5, 6.5, 2.0])
+
+with c1:
+    if base64_logo: 
+        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:120px; display:block; margin:auto 0;">', unsafe_allow_html=True)
+with c2:
+    st.markdown('<div class="center-title-container"><p class="portal-title">Portal Gestão de Compras</p></div>', unsafe_allow_html=True)
+with c3:
+    busca = st.text_input("", placeholder="🔍 Rastrear SC, PC ou CC...", label_visibility="collapsed")
+st.markdown('</div>', unsafe_allow_html=True)
+
+
+# ==========================================
+# GAVETA RETRÁTIL OPERACIONAL - TOTALMENTE CLEAN E SEM BORDAS
+# ==========================================
+with st.expander("⚙️ Filtros Avançados (Status, Emissão e Atualização)", expanded=False):
+    f_col1, f_col2, f_col3 = st.columns([3.5, 3.5, 3.0])
+    
+    with f_col1:
+        col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
+        if col_status_verificacao:
+            lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
+        else:
+            lista_status = ["Todos"]
+        filtro_status = st.selectbox("Filtrar por Status Operacional:", options=lista_status, index=0)
+        
+    with f_col2:
+        data_hoje = datetime.now().date()
+        trinta_dias_atras = data_hoje - timedelta(days=30)
+        filtro_data = st.date_input("Filtrar por Período de Emissão:", value=(trinta_dias_atras, data_hoje), format="DD/MM/YYYY")
+        
+    with f_col3:
+        st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
+        if st.button("🔄 Atualizar Dados da Planilha", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+
+
+# ==========================================
+# 5. ESTRUTURA DE COLUNAS REORGANIZADA
 # ==========================================
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
@@ -292,156 +326,53 @@ def formatar_para_dd_mm_aa(valor):
 
 
 # ==========================================
-# 4. CABEÇALHO INTEGRADO (REDUÇÃO DA BUSCA E CENTRALIZAÇÃO DO TÍTULO)
-# ==========================================
-st.markdown('<div class="header-modern">', unsafe_allow_html=True)
-c1, c2, c3 = st.columns([1.5, 6.5, 2.0])
-
-with c1:
-    if base64_logo: 
-        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:120px; display:block; margin:auto 0;">', unsafe_allow_html=True)
-with c2:
-    st.markdown('<div class="center-title-container"><p class="portal-title">Portal Gestão de Compras</p></div>', unsafe_allow_html=True)
-with c3:
-    busca = st.text_input("", placeholder="🔍 Rastrear SC, PC ou CC...", label_visibility="collapsed")
-st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ==========================================
-# CONSTRUÇÃO DO CONTEÚDO DINÂMICO DIRECIONADO
-# ==========================================
-termo_busca = busca.strip() if busca else ""
-termo_numerico = re.sub(r'[^0-9]', '', termo_busca)
-valor_numerico_inteiro = int(termo_numerico) if termo_numerico else 0
-tamanho_digitos = len(termo_numerico)
-
-df_final = pd.DataFrame()
-modo_centro_custo = False
-
-if not df_pc.empty:
-    if termo_busca:
-        if tamanho_digitos == 4:
-            modo_centro_custo = True
-            col_busca_pc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
-            if col_busca_pc:
-                df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, regex=True, na=False)].copy()
-        else:
-            if termo_numerico:
-                padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
-            else:
-                padrao_regex = re.escape(termo_busca)
-                
-            if valor_numerico_inteiro >= 170000:
-                col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
-            else:
-                col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
-                
-            if not col_busca_pc:
-                col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), df_pc.columns[0])
-
-            res_pc = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)]
-            if not res_pc.empty:
-                df_final = res_pc.copy()
-    else:
-        df_final = df_pc.copy()
-
-
-# ==========================================
-# GATILHO SEGURO INSTANTÂNEO COM SESSION STATE (SEM CAIXA PRETA)
-# ==========================================
-if 'mostrar_gaveta' not in st.session_state:
-    st.session_state.mostrar_gaveta = False
-
-sub_c1, sub_c2 = st.columns([8.2, 1.8])
-with sub_c2:
-    # O clique apenas altera uma chave lógica booleana na memória rápida, sem rodar rotinas pesadas
-    if st.button("⚙️ Filtros Avançados", key="btn_gatilho"):
-        st.session_state.mostrar_gaveta = not st.session_state.mostrar_gaveta
-
-
-# ==========================================
-# VARIÁVEIS DE OPERAÇÃO DOS SELETORES
-# ==========================================
-col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
-if col_status_verificacao:
-    lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
-else:
-    lista_status = ["Todos"]
-
-data_hoje = datetime.now().date()
-trinta_dias_atras = data_hoje - timedelta(days=30)
-
-filtro_status = "Todos"
-filtro_data = (trinta_dias_atras, data_hoje)
-
-
-# ==========================================
-# RENDEREZAÇÃO DA GAVETA EM LARGURA CHEIA (100% DA PÁGINA)
-# ==========================================
-if st.session_state.mostrar_gaveta:
-    f_col1, f_col2, f_col3, f_col4 = st.columns([3.0, 3.0, 3.5, 2.5])
-    
-    with f_col1:
-        filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed", key="status_gaveta")
-    with f_col2:
-        filtro_data = st.date_input("", value=(trinta_dias_atras, data_hoje), format="DD/MM/YYYY", label_visibility="collapsed", key="data_gaveta")
-    with f_col3:
-        # OTURAÇÃO INTELIGENTE: A função de compilação pesada do Excel foi encapsulada em uma função interna rápida de callback
-        def gerar_excel_on_demand():
-            df_excel_ready = pd.DataFrame()
-            if not df_final.empty:
-                df_excel_ready = pd.DataFrame(index=df_final.index)
-                for col_config in DICIONARIO_COLUNAS_EXATAS:
-                    c_plan, c_tela, c_tipo = col_config["planilha"], col_config["tela"], col_config["tipo"]
-                    if c_plan in df_final.columns:
-                        if c_tipo == "data":
-                            df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace(['nan', 'NONE', '', '0'], '')
-                        elif c_tipo == "pedido":
-                            df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 6))
-                        elif c_tipo == "produto":
-                            df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 10))
-                        elif c_tipo in ["moeda", "numero"]:
-                            df_excel_ready[c_tela] = df_final[c_plan].apply(converter_para_numerico)
-                        else:
-                            df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
-                
-                for col_data in ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]:
-                    if col_data in df_excel_ready.columns:
-                        df_excel_ready[col_data] = df_excel_ready[col_data].apply(formatar_para_dd_mm_aa)
-            
-            out_buffer = BytesIO()
-            with pd.ExcelWriter(out_buffer, engine='xlsxwriter') as wr: 
-                df_excel_ready.to_excel(wr, index=False)
-            return out_buffer.getvalue()
-
-        # O Streamlit só executa a função acima de conversão se o usuário de fato clicar no botão
-        st.download_button(
-            label="📥 Exportar Excel",
-            data=gerar_excel_on_demand(),
-            file_name=f"Relatorio_Compras_{termo_busca if termo_busca else 'Geral'}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-            key="excel_gaveta"
-        )
-    with f_col4:
-        if st.button("🔄 Sincronizar Base", use_container_width=True, key="sinc_gaveta"):
-            st.cache_data.clear()
-            st.rerun()
-
-
-# ==========================================
-# 6. MOTOR DE PROCESSAMENTO E FILTRAGEM DA TELA
+# 6. MOTOR DE BUSCA DIRECIONADO OPERACIONAL
 # ==========================================
 if busca:
+    termo_busca = busca.strip()
+    termo_numerico = re.sub(r'[^0-9]', '', termo_busca)
+    valor_numerico_inteiro = int(termo_numerico) if termo_numerico else 0
+    tamanho_digitos = len(termo_numerico)
+    
+    df_final = pd.DataFrame()
+    modo_centro_custo = False
+    
     try:
-        if not df_final.empty and filtro_status != "Todos" and col_status_verificacao:
-            df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == filtro_status]
+        if not df_pc.empty:
+            if tamanho_digitos == 4:
+                modo_centro_custo = True
+                col_busca_pc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
+                if col_busca_pc:
+                    df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, regex=True, na=False)].copy()
+            
+            else:
+                if termo_numerico:
+                    padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
+                else:
+                    padrao_regex = re.escape(termo_busca)
+                    
+                if valor_numerico_inteiro >= 170000:
+                    col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
+                else:
+                    col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
+                    
+                if not col_busca_pc:
+                    col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), df_pc.columns[0])
 
-        if not df_final.empty and filtro_data and len(filtro_data) == 2:
-            col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
-            if col_emissao_original:
-                datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed').dt.date
-                df_final = df_final[(datas_convertidas >= filtro_data[0]) & (datas_convertidas <= filtro_data[1])]
+                res_pc = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)]
+                if not res_pc.empty:
+                    df_final = res_pc.copy()
+
+            if not df_final.empty and filtro_status != "Todos" and col_status_verificacao:
+                df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == filtro_status]
+
+            if not df_final.empty and filtro_data and len(filtro_data) == 2:
+                col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
+                if col_emissao_original:
+                    datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed').dt.date
+                    data_inicio = filtro_data[0]
+                    data_fim = filtro_data[1]
+                    df_final = df_final[(datas_convertidas >= data_inicio) & (datas_convertidas <= data_fim)]
 
         if not df_final.empty:
             df_painel = pd.DataFrame(index=df_final.index)
@@ -451,16 +382,24 @@ if busca:
                 nome_exibicao_tela = col_config["tela"]
                 tipo_campo = col_config["tipo"]
                 
-                if nome_original_planilha in df_final.columns:
-                    valores_originais = df_final[nome_original_planilha]
+                col_real = nome_original_planilha
+                if col_real in df_final.columns:
+                    valores_originais = df_final[col_real]
+                    
                     if tipo_campo == "data":
-                        df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace(['nan', 'NONE', '', '0'], '')
+                        datas_limpas = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+                        datas_limpas = datas_limpas.replace(['nan', 'NONE', '', '0'], '')
+                        df_painel[nome_exibicao_tela] = datas_limpas
+                    
                     elif tipo_campo == "pedido":
                         df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: ajustar_zeros_protheus(val, 6))
+                    
                     elif tipo_campo == "produto":
                         df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: ajustar_zeros_protheus(val, 10))
+                    
                     elif tipo_campo in ["moeda", "numero"]:
                         df_painel[nome_exibicao_tela] = valores_originais.apply(converter_para_numerico)
+                    
                     else:
                         df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
                 else:
@@ -487,7 +426,8 @@ if busca:
                 )
                 df_painel.loc[mascara_na, "Pagamento"] = "N/A"
 
-            for col_data in ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]:
+            colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]
+            for col_data in colunas_para_formatar:
                 if col_data in df_painel.columns:
                     df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
 
@@ -504,6 +444,20 @@ if busca:
                     txt_status += f" (Período: {filtro_data[0].strftime('%d/%m/%y')} até {filtro_data[1].strftime('%d/%m/%y')})"
                     
                 st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
+                
+                c_down, _ = st.columns([2.5, 7.5])
+                with c_down:
+                    out = BytesIO()
+                    with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
+                        df_painel.to_excel(wr, index=False)
+                    st.download_button(
+                        label="📥 Extrair Relatório Operacional",
+                        data=out.getvalue(),
+                        file_name=f"Relatorio_Compras_{termo_busca}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+                st.write("")
 
                 configuracao_colunas_tela = {}
                 for col_config in DICIONARIO_COLUNAS_EXATAS:
@@ -511,16 +465,16 @@ if busca:
                     tipo_campo = col_config["tipo"]
                     
                     if nome_tela == "STATUS":
-                        configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center")
+                        configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center", width=None)
                     elif tipo_campo == "moeda":
-                        configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right")
+                        configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right", width=None)
                     elif tipo_campo == "numero":
-                        configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right")
+                        configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right", width=None)
                     else:
                         if nome_tela in ["Fornecedor", "Descrição"]:
-                            configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="left")
+                            configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="left", width=None)
                         else:
-                            configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right")
+                            configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right", width=None)
 
                 tabela_estilizada = df_painel.style.set_table_styles([
                     {'selector': 'th.col_heading.level0.col0', 'props': [('text-align', 'center !important'), ('justify-content', 'center !important')]},
@@ -543,6 +497,3 @@ else:
     st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
 
 st.markdown("<div style='text-align:center; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;'><p style='color:#64748b; font-size:13px; font-weight:600;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
-
-# 7. ASSINATURA INJETADA NO CANTO INFERIOR ESQUERDO
-st.markdown('<div class="system-signature">System created by SS</div>', unsafe_allow_html=True)
