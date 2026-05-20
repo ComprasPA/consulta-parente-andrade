@@ -70,7 +70,7 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"},   
     {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
     {"planilha": "Envio", "tela": "Envio", "tipo": "data"},
-    {"planilha": "Pagamento", "tela": "Pagamento", "tipo": "texto"}, # Mantido como texto devido ao "N/A"
+    {"planilha": "Pagamento", "tela": "Pagamento", "tipo": "texto"}, 
     {"planilha": "Previsão de entrega", "tela": "Previsão de entrega", "tipo": "data"},
     {"planilha": "Entrega", "tela": "Entrega", "tipo": "data"},
     {"planilha": "Fornecedor", "tela": "Fornecedor", "tipo": "texto"},
@@ -107,7 +107,6 @@ def formatar_para_dd_mm_aa(valor):
     if txt == "" or txt.lower() in ["nan", "none", "0", "n/a"]:
         return txt
     try:
-        # Força o pandas a interpretar de forma flexível e cospe no formato DD/MM/AA
         return pd.to_datetime(txt, errors='coerce', format='mixed').strftime('%d/%m/%y')
     except:
         return txt
@@ -208,8 +207,9 @@ if busca:
                 else:
                     df_painel[nome_exibicao_tela] = ""
 
+        # REGRA REESTABELECIDA: Se os dados vierem da aba de Solicitações (SC), o status vira obrigatoriamente "EM COTAÇÃO"
         if origem.startswith("Planilha de Solicitações") and "STATUS" in df_painel.columns:
-            df_painel["STATUS"] = df_painel["STATUS"].replace('', 'SC ABERTA')
+            df_painel["STATUS"] = "EM COTAÇÃO"
 
         # ==========================================
         # REGRAS OPERACIONAIS INTER-COLUNAS
@@ -234,7 +234,6 @@ if busca:
         # ==========================================
         # FORMATAÇÃO COMPACTA UNIFICADA (DD/MM/AA)
         # ==========================================
-        # Garante de forma absoluta o formato DD/MM/AA em todas as colunas de data (e na de Pagamento se contiver data)
         colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Data Emissão", "Data Liberação"]
         for col_data in colunas_para_formatar:
             if col_data in df_painel.columns:
