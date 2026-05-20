@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit st
 import pandas as pd
 import base64
 import re
@@ -61,19 +61,20 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
-# 5. ESTRUTURA DE COLUNAS ATUALIZADA
+# 5. ESTRUTURA DE COLUNAS REORGANIZADA (NOVA ORDEM)
 # ==========================================
+# Sequência reordenada exatamente conforme o layout solicitado para a tela e extração
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
+    {"planilha": "Centro de Custo (CC)", "tela": "Centro de Custo (CC)", "tipo": "texto"},
+    {"planilha": "Nº Solicitação (SC)", "tela": "Nº Solicitação (SC)", "tipo": "texto"},
+    {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"},   
+    {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
     {"planilha": "Envio", "tela": "Envio", "tipo": "data"},
     {"planilha": "Pagamento", "tela": "Pagamento", "tipo": "data"},
     {"planilha": "Previsão de entrega", "tela": "Previsão de entrega", "tipo": "data"},
     {"planilha": "Entrega", "tela": "Entrega", "tipo": "data"},
-    {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
-    {"planilha": "Nº Solicitação (SC)", "tela": "Nº Solicitação (SC)", "tipo": "texto"},
-    {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"},   
     {"planilha": "Fornecedor", "tela": "Fornecedor", "tipo": "texto"},
-    {"planilha": "Centro de Custo (CC)", "tela": "Centro de Custo (CC)", "tipo": "texto"},
     {"planilha": "Produto", "tela": "Produto", "tipo": "produto"},                 
     {"planilha": "Descricao", "tela": "Descrição", "tipo": "texto"},
     {"planilha": "UM", "tela": "UM", "tipo": "texto"},
@@ -238,7 +239,7 @@ if busca:
                     alignment="right"
                 )
             else:
-                # Regra: Se for as colunas de texto Fornecedor ou Descrição, fixa alinhamento à esquerda
+                # Mantém alinhamento à esquerda apenas para Fornecedor e Descrição
                 if nome_tela in ["Fornecedor", "Descrição"]:
                     configuracao_colunas_tela[nome_tela] = st.column_config.TextColumn(
                         nome_tela,
@@ -250,7 +251,7 @@ if busca:
                         alignment="right"
                     )
         
-        # Renderização final na tela
+        # Renderização final na tela seguindo a nova ordenação do índice do dataframe
         st.dataframe(
             df_painel, 
             use_container_width=True, 
