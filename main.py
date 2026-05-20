@@ -270,8 +270,8 @@ st.markdown('</div>', unsafe_allow_html=True)
 if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
-    # CORREÇÃO CRUCIAL (SILVIO): Inicializa como None puro (sem listas ou tuplas vazias) para a API aceitar o modo em branco real
-    st.session_state.filtro_data_val = None
+    # AJUSTE SEGURO: Inicializa com tupla vazia para abrir as duas caixas limpas no modo Range natural do Streamlit
+    st.session_state.filtro_data_val = ()
 
 
 # ==========================================
@@ -279,7 +279,7 @@ if "filtro_data_val" not in st.session_state:
 # ==========================================
 with st.expander("Filtros Avançados", expanded=False):
     with st.form("form_filtros", clear_on_submit=False):
-        # 4 colunas perfeitamente distribuídas na mesma linha horizontal
+        # 4 colunas distribuídas simetricamente na mesma linha horizontal
         f_col1, f_col2, f_col3, f_col4 = st.columns([3.5, 3.5, 2.5, 2.5])
         
         with f_col1:
@@ -293,7 +293,7 @@ with st.expander("Filtros Avançados", expanded=False):
             filtro_status = st.selectbox("Filtrar por Status Operacional:", options=lista_status, index=idx_padrao)
             
         with f_col2:
-            # Correção aplicada: Recebe None e abre 100% limpo sem travar ou herdar data de hoje automaticamente
+            # Mantém o seletor limpo permitindo que o usuário selecione data A (Início) e data B (Fim)
             filtro_data = st.date_input("Filtrar por Período de Emissão:", value=st.session_state.filtro_data_val, format="DD/MM/YYYY")
             
         with f_col3:
@@ -309,9 +309,9 @@ with st.expander("Filtros Avançados", expanded=False):
                 st.session_state.filtro_data_val = filtro_data
             
             if btn_limpar:
-                # CORREÇÃO DO BOTÃO: Força o reset completo para None na memória de sessão
+                # CORREÇÃO DO BOTÃO: Força o reset completo para tupla vazia, deixando Início e Fim em branco
                 st.session_state.filtro_status_val = "Todos"
-                st.session_state.filtro_data_val = None
+                st.session_state.filtro_data_val = ()
                 st.cache_data.clear()
                 st.rerun()
 
@@ -406,15 +406,14 @@ if busca:
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
-            # CONDICIONAL BLINDADO: Só aplica o filtro na tabela se as duas datas forem inseridas pelo usuário (não nulas)
+            # CONDICIONAL AJUSTADO: Só executa o corte temporal se o usuário escolheu as duas datas (Início e Fim)
             if not df_final.empty and st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
-                if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
-                    col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
-                    if col_emissao_original:
-                        datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed').dt.date
-                        data_inicio = st.session_state.filtro_data_val[0]
-                        data_fim = st.session_state.filtro_data_val[1]
-                        df_final = df_final[(datas_convertidas >= data_inicio) & (datas_convertidas <= data_fim)]
+                col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
+                if col_emissao_original:
+                    datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed').dt.date
+                    data_inicio = st.session_state.filtro_data_val[0]
+                    data_fim = st.session_state.filtro_data_val[1]
+                    df_final = df_final[(datas_convertidas >= data_inicio) & (datas_convertidas <= data_fim)]
 
         if not df_final.empty:
             df_painel = pd.DataFrame(index=df_final.index)
