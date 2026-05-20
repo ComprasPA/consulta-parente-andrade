@@ -212,7 +212,6 @@ with c1:
 with c2:
     st.markdown('<p class="portal-title">Portal Gestão de Compras</p>', unsafe_allow_html=True)
 with c3:
-    # A caixa de busca unificada fica fixa no topo para pesquisa imediata
     busca = st.text_input("", placeholder="🔍 Localizar SC, Pedido ou CC...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -224,7 +223,6 @@ with st.expander("⚙️ Filtros Avançados (Status, Emissão e Atualização)",
     f_col1, f_col2, f_col3 = st.columns([3.5, 3.5, 3.0])
     
     with f_col1:
-        # Filtro de Status Operacional oculto
         col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
         if col_status_verificacao:
             lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
@@ -233,13 +231,11 @@ with st.expander("⚙️ Filtros Avançados (Status, Emissão e Atualização)",
         filtro_status = st.selectbox("Filtrar por Status Operacional:", options=lista_status, index=0)
         
     with f_col2:
-        # Filtro de Intervalo de Data oculto (Padrão BR)
         data_hoje = datetime.now().date()
         trinta_dias_atras = data_hoje - timedelta(days=30)
         filtro_data = st.date_input("Filtrar por Período de Emissão:", value=(trinta_dias_atras, data_hoje), format="DD/MM/YYYY")
         
     with f_col3:
-        # Botão Sincronizar Base mantido na gaveta oculta
         st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
         if st.button("🔄 Atualizar Dados da Planilha", use_container_width=True):
             st.cache_data.clear()
@@ -307,169 +303,172 @@ if busca:
     df_final = pd.DataFrame()
     modo_centro_custo = False
     
-    if not df_pc.empty:
-        # Passo 1: Varredura por Centro de Custo (4 dígitos)
-        if tamanho_digitos == 4:
-            modo_centro_custo = True
-            col_busca_pc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
-            if col_busca_pc:
-                df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, regex=True, na=False)].copy()
-        
-        # Passo 2: Varredura normal para Pedidos (PC) ou Solicitações (SC)
-        else:
-            if termo_numerico:
-                padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
-            else:
-                padrao_regex = re.escape(termo_busca)
-                
-            if valor_numerico_inteiro >= 170000:
-                col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
-            else:
-                col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
-                
-            if not col_busca_pc:
-                col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), df_pc.columns[0])
-
-            res_pc = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)]
-            if not res_pc.empty:
-                df_final = res_pc.copy()
-
-        # Execução dos Filtros da Gaveta Oculta (Status)
-        if not df_final.empty and filtro_status != "Todos" and col_status_verificacao:
-            df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == filtro_status]
-
-        # Execução dos Filtros da Gaveta Oculta (Datas de Emissão)
-        if not df_final.empty and filtro_data and len(filtro_data) == 2:
-            col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
-            if col_emissao_original:
-                datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed').dt.date
-                data_inicio = filtro_data[0]
-                data_fim = filtro_data[1]
-                df_final = df_final[(datas_convertidas >= data_inicio) & (datas_convertidas <= data_fim)]
-
-    # ---- MONTAGEM DA LISTA TRATADA PARA EXIBIÇÃO ----
-    if not df_final.empty:
-        df_painel = pd.DataFrame(index=df_final.index)
-        
-        for col_config in DICIONARIO_COLUNAS_EXATAS:
-            nome_original_planilha = col_config["planilha"]
-            nome_exibicao_tela = col_config["tela"]
-            tipo_campo = col_config["tipo"]
+    try:
+        if not df_pc.empty:
+            # Passo 1: Varredura por Centro de Custo (4 dígitos)
+            if tamanho_digitos == 4:
+                modo_centro_custo = True
+                col_busca_pc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
+                if col_busca_pc:
+                    df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, regex=True, na=False)].copy()
             
-            col_real = nome_original_planilha
-            if col_real in df_final.columns:
-                valores_originais = df_final[col_real]
-                
-                if tipo_campo == "data":
-                    datas_limpas = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-                    datas_limpas = datas_limpas.replace(['nan', 'NONE', '', '0'], '')
-                    df_painel[nome_exibicao_tela] = datas_limpas
-                
-                elif tipo_campo == "pedido":
-                    df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: ajustar_zeros_protheus(val, 6))
-                
-                elif tipo_campo == "produto":
-                    df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: ajustar_zeros_protheus(val, 10))
-                
-                elif tipo_campo in ["moeda", "numero"]:
-                    df_painel[nome_exibicao_tela] = valores_originais.apply(converter_para_numerico)
-                
-                else:
-                    df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
+            # Passo 2: Varredura normal para Pedidos (PC) ou Solicitações (SC)
             else:
-                if nome_exibicao_tela == "Nº Solicitação (SC)" and valor_numerico_inteiro < 170000 and not modo_centro_custo:
-                    df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
-                elif nome_exibicao_tela == "Nº Pedido (PC)" and valor_numerico_inteiro >= 170000 and not modo_centro_custo:
-                    df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
-                elif nome_exibicao_tela == "Centro de Custo (CC)" and modo_centro_custo:
-                    df_painel[nome_exibicao_tela] = busca.strip()
+                if termo_numerico:
+                    padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
                 else:
-                    df_painel[nome_exibicao_tela] = ""
+                    padrao_regex = re.escape(termo_busca)
+                    
+                if valor_numerico_inteiro >= 170000:
+                    col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
+                else:
+                    col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
+                    
+                if not col_busca_pc:
+                    col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), df_pc.columns[0])
 
-        # ---- REGRAS OPERACIONAIS INTER-COLUNAS ----
-        if "Previsão de entrega" in df_painel.columns and "Entrega" in df_painel.columns:
-            mascara_vazia = (df_painel["Previsão de entrega"] == "") | (df_painel["Previsão de entrega"].isna())
-            df_painel.loc[mascara_vazia, "Previsão de entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
+                res_pc = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)]
+                if not res_pc.empty:
+                    df_final = res_pc.copy()
 
-        if "Pagamento" in df_painel.columns and "Condição Pagamento" in df_painel.columns:
-            condicao_normalizada = df_painel["Condição Pagamento"].astype(str).str.upper().str.strip()
-            mascara_na = (
-                (~condicao_normalizada.str.contains("A VISTA", na=False)) & 
-                (~condicao_normalizada.str.contains("ENT", na=False)) & 
-                (~condicao_normalizada.str.contains("VENCIDO", na=False)) & 
-                (~condicao_normalizada.str.contains("PAGO", na=False))
-            )
-            df_painel.loc[mascara_na, "Pagamento"] = "N/A"
+            # Execução dos Filtros da Gaveta Oculta (Status)
+            if not df_final.empty and filtro_status != "Todos" and col_status_verificacao:
+                df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == filtro_status]
 
-        # Formatacao das colunas de datas para o padrao resumido
-        colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]
-        for col_data in colunas_para_formatar:
-            if col_data in df_painel.columns:
-                df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
+            # Execução dos Filtros da Gaveta Oculta (Datas de Emissão)
+            if not df_final.empty and filtro_data and len(filtro_data) == 2:
+                col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
+                if col_emissao_original:
+                    datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed').dt.date
+                    data_inicio = filtro_data[0]
+                    data_fim = filtro_data[1]
+                    df_final = df_final[(datas_convertidas >= data_inicio) & (datas_convertidas <= data_fim)]
 
-        # Ocultar linhas de pagamento liquidado como "PAGO"
-        if "Condição Pagamento" in df_painel.columns:
-            df_painel = df_painel[~df_painel["Condição Pagamento"].astype(str).str.upper().str.contains("PAGO", na=False)]
-
-        df_painel = df_painel.dropna(how='all')
-
-        if not df_painel.empty:
-            txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}" if modo_centro_custo else "🔍 Registro Localizado na Base de Pedidos Firme"
-            if filtro_status != "Todos":
-                txt_status += f" (Status: {filtro_status})"
-            if filtro_data and len(filtro_data) == 2:
-                txt_status += f" (Período: {filtro_data[0].strftime('%d/%m/%y')} até {filtro_data[1].strftime('%d/%m/%y')})"
-                
-            st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
+        # ---- MONTAGEM DA LISTA TRATADA PARA EXIBIÇÃO ----
+        if not df_final.empty:
+            df_painel = pd.DataFrame(index=df_final.index)
             
-            c_down, _ = st.columns([2.5, 7.5])
-            with c_down:
-                out = BytesIO()
-                with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
-                    df_painel.to_excel(wr, index=False)
-                st.download_button(
-                    label="📥 Extrair Relatório Operacional",
-                    data=out.getvalue(),
-                    file_name=f"Relatorio_Compras_{termo_busca}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
-                )
-            st.write("")
-
-            # ---- 7. CONFIGURAÇÃO VISUAL DE ALINHAMENTO ----
-            configuracao_colunas_tela = {}
             for col_config in DICIONARIO_COLUNAS_EXATAS:
-                nome_tela = col_config["tela"]
+                nome_original_planilha = col_config["planilha"]
+                nome_exibicao_tela = col_config["tela"]
                 tipo_campo = col_config["tipo"]
                 
-                if nome_tela == "STATUS":
-                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center", width=None)
-                elif tipo_campo == "moeda":
-                    configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right", width=None)
-                elif tipo_campo == "numero":
-                    configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right", width=None)
-                else:
-                    if nome_tela in ["Fornecedor", "Descrição"]:
-                        configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="left", width=None)
+                col_real = nome_original_planilha
+                if col_real in df_final.columns:
+                    valores_originais = df_final[col_real]
+                    
+                    if tipo_campo == "data":
+                        datas_limpas = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+                        datas_limpas = datas_limpas.replace(['nan', 'NONE', '', '0'], '')
+                        df_painel[nome_exibicao_tela] = datas_limpas
+                    
+                    elif tipo_campo == "pedido":
+                        df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: ajustar_zeros_protheus(val, 6))
+                    
+                    elif tipo_campo == "produto":
+                        df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: ajustar_zeros_protheus(val, 10))
+                    
+                    elif tipo_campo in ["moeda", "numero"]:
+                        df_painel[nome_exibicao_tela] = valores_originais.apply(converter_para_numerico)
+                    
                     else:
-                        configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right", width=None)
+                        df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
+                else:
+                    if nome_exibicao_tela == "Nº Solicitação (SC)" and valor_numerico_inteiro < 170000 and not modo_centro_custo:
+                        df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
+                    elif nome_exibicao_tela == "Nº Pedido (PC)" and valor_numerico_inteiro >= 170000 and not modo_centro_custo:
+                        df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
+                    elif nome_exibicao_tela == "Centro de Custo (CC)" and modo_centro_custo:
+                        df_painel[nome_exibicao_tela] = busca.strip()
+                    else:
+                        df_painel[nome_exibicao_tela] = ""
 
-            # Estilização absoluta via Pandas Styler para centralizar cabeçalho e dados de STATUS
-            tabela_estilizada = df_painel.style.set_table_styles([
-                {'selector': 'th.col_heading.level0.col0', 'props': [('text-align', 'center !important'), ('justify-content', 'center !important')]},
-                {'selector': 'td.col0', 'props': [('text-align', 'center !important')]}
-            ], overwrite=False)
-            
-            st.dataframe(tabela_estilizada, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
+            # ---- REGRAS OPERACIONAIS INTER-COLUNAS ----
+            if "Previsão de entrega" in df_painel.columns and "Entrega" in df_painel.columns:
+                mascara_vazia = (df_painel["Previsão de entrega"] == "") | (df_painel["Previsão de entrega"].isna())
+                df_painel.loc[mascara_vazia, "Previsão de entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
+
+            if "Pagamento" in df_painel.columns and "Condição Pagamento" in df_painel.columns:
+                condicao_normalizada = df_painel["Condição Pagamento"].astype(str).str.upper().str.strip()
+                mascara_na = (
+                    (~condicao_normalizada.str.contains("A VISTA", na=False)) & 
+                    (~condicao_normalizada.str.contains("ENT", na=False)) & 
+                    (~condicao_normalizada.str.contains("VENCIDO", na=False)) & 
+                    (~condicao_normalizada.str.contains("PAGO", na=False))
+                )
+                df_painel.loc[mascara_na, "Pagamento"] = "N/A"
+
+            # Formatacao das colunas de datas para o padrao resumido
+            colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]
+            for col_data in colunas_para_formatar:
+                if col_data in df_painel.columns:
+                    df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
+
+            # Ocultar linhas de pagamento liquidado como "PAGO"
+            if "Condição Pagamento" in df_painel.columns:
+                df_painel = df_painel[~df_painel["Condição Pagamento"].astype(str).str.upper().str.contains("PAGO", na=False)]
+
+            df_painel = df_painel.dropna(how='all')
+
+            if not df_painel.empty:
+                txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}" if modo_centro_custo else "🔍 Registro Localizado na Base de Pedidos Firme"
+                if filtro_status != "Todos":
+                    txt_status += f" (Status: {filtro_status})"
+                if filtro_data and len(filtro_data) == 2:
+                    txt_status += f" (Período: {filtro_data[0].strftime('%d/%m/%y')} até {filtro_data[1].strftime('%d/%m/%y')})"
+                    
+                st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
+                
+                c_down, _ = st.columns([2.5, 7.5])
+                with c_down:
+                    out = BytesIO()
+                    with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
+                        df_painel.to_excel(wr, index=False)
+                    st.download_button(
+                        label="📥 Extrair Relatório Operacional",
+                        data=out.getvalue(),
+                        file_name=f"Relatorio_Compras_{termo_busca}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+                st.write("")
+
+                # ---- 7. CONFIGURAÇÃO VISUAL DE ALINHAMENTO ----
+                configuracao_colunas_tela = {}
+                for col_config in DICIONARIO_COLUNAS_EXATAS:
+                    nome_tela = col_config["tela"]
+                    tipo_campo = col_config["tipo"]
+                    
+                    if nome_tela == "STATUS":
+                        configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center", width=None)
+                    elif tipo_campo == "moeda":
+                        configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right", width=None)
+                    elif tipo_campo == "numero":
+                        configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right", width=None)
+                    else:
+                        if nome_tela in ["Fornecedor", "Descrição"]:
+                            configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="left", width=None)
+                        else:
+                            configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right", width=None)
+
+                # Estilização absoluta via Pandas Styler para centralizar cabeçalho e dados de STATUS
+                tabela_estilizada = df_painel.style.set_table_styles([
+                    {'selector': 'th.col_heading.level0.col0', 'props': [('text-align', 'center !important'), ('justify-content', 'center !important')]},
+                    {'selector': 'td.col0', 'props': [('text-align', 'center !important')]}
+                ], overwrite=False)
+                
+                st.dataframe(tabela_estilizada, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
+            else:
+                st.markdown('<div class="custom-info-blue">ℹ️ Nenhum registro ativo atende aos critérios de busca e aos filtros selecionados.</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="custom-info-blue">ℹ️ Nenhum registro ativo atende aos critérios de busca e aos filtros selecionados.</div>', unsafe_allow_html=True)
+            if modo_centro_custo:
+                st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
+            elif valor_numerico_inteiro >= 170000:
+                st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!</div>', unsafe_allow_html=True)
     except Exception as e:
-        if modo_centro_custo:
-            st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes com os filtros aplicados.</div>', unsafe_allow_html=True)
-        elif valor_numerico_inteiro >= 170000:
-            st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado com as configurações selecionadas, entre em contato com o comprador.</div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
+        st.markdown('<div class="custom-error-red">⚠️ Erro ao processar os dados da busca. Verifique as configurações dos filtros e tente novamente.</div>', unsafe_allow_html=True)
 else:
     # SAUDAÇÃO INICIAL EXCLUSIVA DO PORTAL
     st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
