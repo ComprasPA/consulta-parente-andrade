@@ -24,7 +24,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Ajustes visuais, ocultação de bordas e alinhamento do botão invisível)
+# 3. CSS MODERNIZADO (Zera bordas do botão, trava cor de fundo e otimiza fontes)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -44,7 +44,7 @@ st.markdown(f"""
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }}
     
-    /* Topo moderno forcando todos os elementos na mesma linha verticalmente alinhados */
+    /* Topo moderno forcando todos os elementos na mesma linha */
     .header-modern {{
         background: #ffffff;
         padding: 16px 24px;
@@ -86,7 +86,7 @@ st.markdown(f"""
     /* Customizacao fina para campos de input, seletores, botoes */
     div[data-testid="stVerticalBlock"] > div:has(input), 
     div[data-testid="stVerticalBlock"] > div:has(select),
-    div[data-testid="stVerticalBlock"] > div:has(button) {{
+    div[data-testid="stVerticalBlock"] > div:has(button):not(:has(button[key="btn_gatilho"])) {{
         background-color: #ffffff; 
         padding: 2px 6px !important; 
         border-radius: 8px; 
@@ -100,7 +100,32 @@ st.markdown(f"""
         border-color: #478c3b !important;
     }}
     
-    /* Customização do botão de gatilho para ficar plano e alinhado à direita */
+    /* MODIFICAÇÃO DE BLINDAGEM DO BOTÃO GATILHO (SILVIO): Remove caixa preta e deixa plano sobre a tela */
+    button[key="btn_gatilho"] {{
+        background-color: transparent !important;
+        border: none !important;
+        color: #1e293b !important;
+        font-weight: 700 !important;
+        font-size: 15px !important;
+        box-shadow: none !important;
+        outline: none !important;
+        text-align: right !important;
+        justify-content: flex-end !important;
+        padding: 0px !important;
+        margin: 0px !important;
+        height: auto !important;
+        width: auto !important;
+    }}
+    
+    button[key="btn_gatilho"]:hover, button[key="btn_gatilho"]:focus, button[key="btn_gatilho"]:active {{
+        color: #478c3b !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        outline: none !important;
+    }}
+    
+    /* Container do botão de gatilho alinhado perfeitamente à direita */
     div.element-container:has(button[key="btn_gatilho"]) {{
         display: flex !important;
         justify-content: flex-end !important;
@@ -283,7 +308,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
-# CONSTRUÇÃO DO CONTEÚDO DINÂMICO PARA O EXCEL
+# CONSTRUÇÃO DO CONTEÚDO DINÂMICO DIRECIONADO
 # ==========================================
 termo_busca = busca.strip() if busca else ""
 termo_numerico = re.sub(r'[^0-9]', '', termo_busca)
@@ -322,20 +347,20 @@ if not df_pc.empty:
 
 
 # ==========================================
-# GATILHO COMPACTO SEGURO COM GERENCIAMENTO DE ESTADO (SESSION STATE)
+# GATILHO SEGURO INSTANTÂNEO COM SESSION STATE (SEM CAIXA PRETA)
 # ==========================================
 if 'mostrar_gaveta' not in st.session_state:
     st.session_state.mostrar_gaveta = False
 
 sub_c1, sub_c2 = st.columns([8.2, 1.8])
 with sub_c2:
-    # Botão nativo limpo que gerencia o clique de forma estável no servidor
-    if st.button("⚙️ Filtros Avançados", key="btn_gatilho", use_container_width=True):
+    # O clique apenas altera uma chave lógica booleana na memória rápida, sem rodar rotinas pesadas
+    if st.button("⚙️ Filtros Avançados", key="btn_gatilho"):
         st.session_state.mostrar_gaveta = not st.session_state.mostrar_gaveta
 
 
 # ==========================================
-# CONSTANTES E VARIÁVEIS DO MOTOR FORA DO ESCOPO CONDICIONAL
+# VARIÁVEIS DE OPERAÇÃO DOS SELETORES
 # ==========================================
 col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
 if col_status_verificacao:
@@ -346,50 +371,53 @@ else:
 data_hoje = datetime.now().date()
 trinta_dias_atras = data_hoje - timedelta(days=30)
 
-# Declaração global estável dos filtros para não quebrar o motor de busca principal
 filtro_status = "Todos"
 filtro_data = (trinta_dias_atras, data_hoje)
 
 
 # ==========================================
-# RENDEREZAÇÃO DA GAVETA EXPANDIDA (LARGURA 100% DA PÁGINA)
+# RENDEREZAÇÃO DA GAVETA EM LARGURA CHEIA (100% DA PÁGINA)
 # ==========================================
 if st.session_state.mostrar_gaveta:
-    df_excel_ready = pd.DataFrame()
-    if not df_final.empty:
-        df_excel_ready = pd.DataFrame(index=df_final.index)
-        for col_config in DICIONARIO_COLUNAS_EXATAS:
-            c_plan, c_tela, c_tipo = col_config["planilha"], col_config["tela"], col_config["tipo"]
-            if c_plan in df_final.columns:
-                if c_tipo == "data":
-                    df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace(['nan', 'NONE', '', '0'], '')
-                elif c_tipo == "pedido":
-                    df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 6))
-                elif c_tipo == "produto":
-                    df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 10))
-                elif c_tipo in ["moeda", "numero"]:
-                    df_excel_ready[c_tela] = df_final[c_plan].apply(converter_para_numerico)
-                else:
-                    df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
-        
-        for col_data in ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]:
-            if col_data in df_excel_ready.columns:
-                df_excel_ready[col_data] = df_excel_ready[col_data].apply(formatar_para_dd_mm_aa)
-
-    out = BytesIO()
-    with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
-        df_excel_ready.to_excel(wr, index=False)
-
-    # As caixas agora ocupam 100% de toda a largura útil horizontal da tela sem deformar
     f_col1, f_col2, f_col3, f_col4 = st.columns([3.0, 3.0, 3.5, 2.5])
+    
     with f_col1:
         filtro_status = st.selectbox("", options=lista_status, index=0, label_visibility="collapsed", key="status_gaveta")
     with f_col2:
         filtro_data = st.date_input("", value=(trinta_dias_atras, data_hoje), format="DD/MM/YYYY", label_visibility="collapsed", key="data_gaveta")
     with f_col3:
+        # OTURAÇÃO INTELIGENTE: A função de compilação pesada do Excel foi encapsulada em uma função interna rápida de callback
+        def gerar_excel_on_demand():
+            df_excel_ready = pd.DataFrame()
+            if not df_final.empty:
+                df_excel_ready = pd.DataFrame(index=df_final.index)
+                for col_config in DICIONARIO_COLUNAS_EXATAS:
+                    c_plan, c_tela, c_tipo = col_config["planilha"], col_config["tela"], col_config["tipo"]
+                    if c_plan in df_final.columns:
+                        if c_tipo == "data":
+                            df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace(['nan', 'NONE', '', '0'], '')
+                        elif c_tipo == "pedido":
+                            df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 6))
+                        elif c_tipo == "produto":
+                            df_excel_ready[c_tela] = df_final[c_plan].apply(lambda val: ajustar_zeros_protheus(val, 10))
+                        elif c_tipo in ["moeda", "numero"]:
+                            df_excel_ready[c_tela] = df_final[c_plan].apply(converter_para_numerico)
+                        else:
+                            df_excel_ready[c_tela] = df_final[c_plan].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
+                
+                for col_data in ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]:
+                    if col_data in df_excel_ready.columns:
+                        df_excel_ready[col_data] = df_excel_ready[col_data].apply(formatar_para_dd_mm_aa)
+            
+            out_buffer = BytesIO()
+            with pd.ExcelWriter(out_buffer, engine='xlsxwriter') as wr: 
+                df_excel_ready.to_excel(wr, index=False)
+            return out_buffer.getvalue()
+
+        # O Streamlit só executa a função acima de conversão se o usuário de fato clicar no botão
         st.download_button(
             label="📥 Exportar Excel",
-            data=out.getvalue(),
+            data=gerar_excel_on_demand(),
             file_name=f"Relatorio_Compras_{termo_busca if termo_busca else 'Geral'}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
