@@ -136,16 +136,18 @@ st.markdown(f"""
         border-left: 5px solid #ef4444;
     }}
 
-    /* CAIXA CINZA: Boas-vindas operacional neutra inicial */
-    .custom-welcome-info {{
+    /* SAUDAÇÃO INICIAL: Estilização do card de boas-vindas na abertura */
+    .custom-welcome-salutation {{
         background-color: #ffffff;
-        color: #475569;
-        padding: 16px 24px;
-        border-radius: 8px;
-        font-weight: 500;
-        font-size: 15px;
-        border-left: 5px solid #94a3b8;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        color: #1e293b;
+        padding: 32px 24px;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 20px;
+        text-align: center;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+        margin-top: 20px;
     }}
     
     /* Ajustes na visualização das tabelas para acompanhar o design */
@@ -290,7 +292,7 @@ if busca:
             if valor_numerico_inteiro >= 170000:
                 col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
             else:
-                col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
+                col_busca_pc = next((c automatizada for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
                 
             if not col_busca_pc:
                 col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), df_pc.columns[0])
@@ -362,16 +364,12 @@ if busca:
             if col_data in df_painel.columns:
                 df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
 
-        # ==========================================
-        # REGRA ADICIONADA (SILVIO): Ocultar linhas onde a Condição de Pagamento for "PAGO"
-        # ==========================================
+        # Ocultar linhas de pagamento liquidado como "PAGO"
         if "Condição Pagamento" in df_painel.columns:
-            # Mantém apenas as linhas cujo texto da Condição de Pagamento NÃO contenha a palavra "PAGO"
             df_painel = df_painel[~df_painel["Condição Pagamento"].astype(str).str.upper().str.contains("PAGO", na=False)]
 
         df_painel = df_painel.dropna(how='all')
 
-        # Se após a ocultação dos pagos a tabela ficar vazia, tratamos como se não houvesse registros ativos
         if not df_painel.empty:
             txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}" if modo_centro_custo else "🔍 Registro Localizado na Base de Pedidos Firme"
             if filtro_status != "Todos":
@@ -432,6 +430,7 @@ if busca:
         else:
             st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o pedido de compras!</div>', unsafe_allow_html=True)
 else:
-    st.markdown('<div class="custom-welcome-info">💡 Insira o número da SC, Pedido de Compras ou Centro de Custo (4 dígitos) para rastrear o status. Itens liquidados como PAGO são ocultados automaticamente.</div>', unsafe_allow_html=True)
+    # REGRA AJUSTADA: Substituição da caixa informativa pela saudação inicial limpa
+    st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
 
 st.markdown("<div style='text-align:center; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;'><p style='color:#64748b; font-size:13px; font-weight:600;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
