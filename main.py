@@ -402,10 +402,11 @@ def ajustar_zeros_protheus(valor, tamanho_alvo):
 
 def converter_para_numerico(valor):
     if not valor or str(valor).lower() == 'nan' or str(valor).strip() == '':
-        return 0.0  # Retorna número puro para não dar erro de tipo matemático
+        return 0.0
     dado = str(valor).replace('.', '').replace(',', '.').strip()
     try:
-        return float(dado)
+        # AJUSTE (SILVIO): Converte e força o arredondamento matemático para no máximo 2 casas
+        return round(float(dado), 2)
     except:
         return 0.0
 
@@ -471,7 +472,7 @@ if busca:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
             # Filtros de Data da Gaveta
-            if not df_final.empty and st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
+            if not df_final.empty && st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
                 if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
                     col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
                     if col_emissao_original:
@@ -561,19 +562,17 @@ if busca:
                 c_down, _ = st.columns([2.5, 7.5])
                 with c_down:
                     out = BytesIO()
-                    # APLICAÇÃO DA FORMATAÇÃO (SILVIO): xlsxwriter criando máscaras contábeis de Reais
                     with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
                         df_painel.to_excel(wr, index=False, sheet_name="Relatório")
                         workbook  = wr.book
                         worksheet = wr.sheets["Relatório"]
                         
-                        # Cria o formato contábil nativo do Excel em Reais
-                        formato_moeda = workbook.add_format({'num_format': 'R$ #,##0.00'})
+                        # AJUSTE (SILVIO): Modificado para formato oficial de quatro casas decimais (,0000)
+                        formato_moeda = workbook.add_format({'num_format': 'R$ #,##0.0000'})
                         
-                        # Varre o dicionário para achar o índice exato das colunas monetárias e formata as colunas inteiras
                         for idx, col_config in enumerate(DICIONARIO_COLUNAS_EXATAS):
                             if col_config["tipo"] == "moeda":
-                                worksheet.set_column(idx, idx, 18, formato_moeda)
+                                worksheet.set_column(idx, idx, 22, formato_moeda)
 
                     st.download_button(
                         label="📥 Extrair Relatório Operacional",
@@ -592,6 +591,7 @@ if busca:
                     if nome_tela == "STATUS":
                         configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center", width=None)
                     elif tipo_campo == "moeda":
+                        # Mantendo a exibição em tela padrão e organizada
                         configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right", width=None)
                     elif tipo_campo == "numero":
                         configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right", width=None)
