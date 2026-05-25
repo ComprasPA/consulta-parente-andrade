@@ -30,7 +30,7 @@ st.markdown(f"""
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     
-    /* REMOVER CAIXA DE OPÇÕES FLUTUANTE DO DATAFRAME (Oolho, download, lupa) */
+    /* REMOVER CAIXA DE OPÇÕES FLUTUANTE DO DATAFRAME (Olho, download, lupa) */
     div[data-testid="stElementToolbar"] {{
         display: none !important;
     }}
@@ -242,6 +242,19 @@ st.markdown(f"""
         min-width: max-content !important;
     }}
 
+    /* AJUSTE DO RODAPÉ INSTITUCIONAL: Forçado a ser flutuante no fluxo comum do scroll */
+    .custom-footer-block {{
+        text-align: center !important; 
+        margin-top: 50px !important; 
+        border-top: 1px solid #e2e8f0 !important; 
+        padding-top: 20px !important;
+        padding-bottom: 20px !important;
+        position: relative !important;
+        width: 100% !important;
+        display: block !important;
+        clear: both !important;
+    }}
+
     /* Assinatura fixa no canto inferior esquerdo da tela */
     .signature-fixed {{
         position: fixed;
@@ -358,7 +371,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
             btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True)
             
             if btn_pesquisar:
-                st.session_state.filtro_status_val = filter_status if 'filter_status' in locals() else filtro_status
+                st.session_state.filtro_status_val = filtro_status
                 st.session_state.filtro_data_val = filtro_data
                 st.session_state.gaveta_aberta = True  
                 st.rerun()
@@ -635,8 +648,8 @@ if busca:
 else:
     st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
 
-# 7. RODAPÉ INSTITUCIONAL CENTRALIZADO NO FLUXO DA PÁGINA
-st.markdown("<div style='text-align:center; margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px;'><p style='color:#64748b; font-size:13px; font-weight:600;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
+# 7. RODAPÉ INSTITUCIONAL: Totalmente flutuante com a página (Acompanha o scroll nativo)
+st.markdown("<div class=\"custom-footer-block\"><p style='color:#64748b; font-size:13px; font-weight:600; margin:0;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
 
 # 8. MARCA D'ÁGUA FIXA EXCLUSIVA DA AUTORIA NO CANTO INFERIOR ESQUERDO DA TELA
 st.markdown('<div class="signature-fixed">Created by SS.</div>', unsafe_allow_html=True)
