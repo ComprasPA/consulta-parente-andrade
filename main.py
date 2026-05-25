@@ -403,9 +403,27 @@ def ajustar_zeros_protheus(valor, tamanho_alvo):
 def converter_para_numerico(valor):
     if not valor or str(valor).lower() == 'nan' or str(valor).strip() == '':
         return 0.0
-    dado = str(valor).replace('.', '').replace(',', '.').strip()
+    
+    # Limpeza de caracteres invisíveis e espaços residuais
+    dado = str(valor).strip().replace(' ', '')
+    
+    # RECALIBRAÇÃO TOTAL DO PARSER (SILVIO):
     try:
-        return round(float(dado), 2)
+        # Cenário 1: Formato padrão BR (ex: 1.094,99)
+        if ',' in dado and '.' in dado:
+            dado = dado.replace('.', '').replace(',', '.')
+        # Cenário 2: Sem ponto de milhar mas com vírgula decimal (ex: 1094,99)
+        elif ',' in dado:
+            dado = dado.replace(',', '.')
+        
+        val_float = float(dado)
+        
+        # Cenário 3: Proteção contra string contínua sem pontuação (ex: "10949998" significando 1094.99)
+        # Se o número for gigante e não tiver nenhuma pontuação na string original, divide por 100 para resgatar as decimais.
+        if '.' not in str(valor) and ',' not in str(valor) and len(dado) >= 5:
+            val_float = val_float / 100.0
+
+        return round(val_float, 2)
     except:
         return 0.0
 
@@ -470,7 +488,7 @@ if busca:
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
-            # CORRIGIDO (SILVIO): Trocado '&&' por 'and' nativo do Python
+            # Filtro de Data corrigido
             if not df_final.empty and st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
                 if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
                     col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
