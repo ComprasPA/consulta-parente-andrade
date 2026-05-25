@@ -405,7 +405,6 @@ def converter_para_numerico(valor):
         return 0.0
     dado = str(valor).replace('.', '').replace(',', '.').strip()
     try:
-        # AJUSTE (SILVIO): Converte e força o arredondamento matemático para no máximo 2 casas
         return round(float(dado), 2)
     except:
         return 0.0
@@ -471,8 +470,8 @@ if busca:
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
-            # Filtros de Data da Gaveta
-            if not df_final.empty && st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
+            # CORRIGIDO (SILVIO): Trocado '&&' por 'and' nativo do Python
+            if not df_final.empty and st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
                 if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
                     col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
                     if col_emissao_original:
@@ -567,7 +566,6 @@ if busca:
                         workbook  = wr.book
                         worksheet = wr.sheets["Relatório"]
                         
-                        # AJUSTE (SILVIO): Modificado para formato oficial de quatro casas decimais (,0000)
                         formato_moeda = workbook.add_format({'num_format': 'R$ #,##0.0000'})
                         
                         for idx, col_config in enumerate(DICIONARIO_COLUNAS_EXATAS):
@@ -591,7 +589,6 @@ if busca:
                     if nome_tela == "STATUS":
                         configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center", width=None)
                     elif tipo_campo == "moeda":
-                        # Mantendo a exibição em tela padrão e organizada
                         configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right", width=None)
                     elif tipo_campo == "numero":
                         configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right", width=None)
