@@ -1,655 +1,288 @@
 import streamlit as st
+import matplotlib.pyplot as plt
 import pandas as pd
-import base64
-import re
-from datetime import datetime, timedelta
-from io import BytesIO
+import numpy as np
+import io
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
 
-# 1. CONFIGURAÇÃO DA PÁGINA (Interface limpa com barra recolhida)
-st.set_page_config(
-    page_title="Portal Gestão de Compras | Parente Andrade",
-    page_icon="🏗️",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+# Configuração da página
+st.set_page_config(page_title="VEDA.IA - Diagnóstico Estratégico", layout="wide", initial_sidebar_state="collapsed")
 
-# 2. FUNÇÃO LOGO
-@st.cache_data(ttl=86400)
-def get_base64_logo(image_path="logo"):
-    try:
-        with open(image_path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
-    except: 
-        return None
-
-base64_logo = get_base64_logo()
-
-# 3. CSS MODERNIZADO (Alinhamento limpo, assinatura fixa, Ajuste Mobile e Ocultação da Toolbar)
-st.markdown(f"""
+# --- Interface de Design Premium (CSS) ---
+st.markdown("""
     <style>
-    /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
-    #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
-    
-    /* REMOVER CAIXA DE OPÇÕES FLUTUANTE DO DATAFRAME (Olho, download, lupa) */
-    div[data-testid="stElementToolbar"] {{
-        display: none !important;
-    }}
-    
-    /* Remove o espacamento forcado no topo e nas laterais da pagina */
-    .block-container {{
-        padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
-        padding-left: 2rem !important;
-        padding-right: 2rem !important;
-    }}
-    
-    /* Fundo geral suave e tipografia limpa */
-    .stApp {{ 
-        background-color: #f8fafc; 
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    }}
-    
-    /* Topo moderno forcando todos os elementos na mesma linha verticalmente alinhados */
-    .header-modern {{
-        background: #ffffff;
-        padding: 16px 24px;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-top: 0px !important;
-        margin-bottom: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
-    }}
-    
-    /* Forca os elementos internos das colunas do Streamlit a centralizarem verticalmente */
-    div[data-testid="column"] {{
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }}
-    
-    /* Alinhamento do título ao meio da página */
-    .center-title-container {{
-        width: 100%;
-        text-align: center;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }}
-    
-    .portal-title {{ 
-        color: #1e293b !important; 
-        font-size: 38px !important; 
-        font-weight: 800 !important; 
-        margin: 0 auto !important;
-        letter-spacing: -1px;
-        line-height: 1;
-        white-space: nowrap;
-    }}
-    
-    /* Customizacao fina para campos de input, seletores, botoes */
-    div[data-testid="stVerticalBlock"] > div:has(input), 
-    div[data-testid="stVerticalBlock"] > div:has(select),
-    div[data-testid="stVerticalBlock"] > div:has(button) {{
-        background-color: #ffffff; 
-        padding: 2px 6px !important; 
-        border-radius: 8px; 
-        border: 1px solid #e2e8f0 !important;
-        box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
-        transition: border-color 0.2s;
-        width: 100%;
-    }}
-    div[data-testid="stVerticalBlock"] > div:has(input):focus-within,
-    div[data-testid="stVerticalBlock"] > div:has(select):focus-within {{
-        border-color: #478c3b !important;
-    }}
-    
-    /* REMOÇÃO TOTAL DA LINHA DE CONTORNO (FECHADA OU ABERTA) */
-    div[data-testid="stExpander"], 
-    div[data-testid="stExpander"] > div,
-    div[data-testid="stExpander"][data-open="true"],
-    div[data-testid="stExpander"][data-open="false"],
-    .stElementContainer:has(div[data-testid="stExpander"]) {{
-        background-color: transparent !important;
-        border: none !important;
-        border-width: 0px !important;
-        box-shadow: none !important;
-        outline: none !important;
-    }}
-    
-    /* Remove contornos residuais e força fundo limpo na barra do expander */
-    div[data-testid="stExpander"] summary,
-    div[data-testid="stExpander"] [role="button"],
-    .streamlit-expanderHeader {{
-        background-color: transparent !important;
-        border: none !important;
-        border-width: 0px !important;
-        outline: none !important;
-        box-shadow: none !important;
-        display: inline-flex !important;
-        justify-content: flex-end !important;
-        flex-direction: row !important;  
-        float: right !important;
-        text-align: right !important;
-        gap: 8px !important;
-        width: auto !important;
-    }}
-    
-    /* INTERAÇÃO DA SETA: Permite o giro nativo e suave do componente original */
-    div[data-testid="stExpander"] summary svg {{
-        transition: transform 0.2s ease-in-out !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }}
-    
-    /* Garante cor estável de alta visibilidade (Grafite) independente do estado */
-    div[data-testid="stExpander"] summary p,
-    div[data-testid="stExpander"] [data-open="true"] summary p,
-    .streamlit-expanderHeader p,
-    .streamlit-expanderHeader:focus p {{
-        color: #1e293b !important;
-        font-weight: 700 !important;
-        font-size: 16px !important;
-        margin: 0 !important;
-    }}
-    
-    /* Mudança suave para verde apenas no hover */
-    div[data-testid="stExpander"] summary:hover p {{
-        color: #478c3b !important;
-    }}
-    
-    /* Ajuste de largura do input de data nativo */
-    div[data-testid="stDateInput"] {{
-        width: 100%;
-    }}
-    
-    /* Remove a borda e contorno do sub-formulario interno dos filtros */
-    div[data-testid="stForm"] {{
-        border: none !important;
-        padding: 0px !important;
-        box-shadow: none !important;
-        background-color: transparent !important;
-    }}
-    
-    /* Caixa padrao de sucesso (Registro Localizado) */
-    .status-card {{ 
-        background: #ffffff; 
-        color: #1e293b; 
-        padding: 16px 24px; 
-        border-radius: 8px; 
-        font-weight: 600; 
-        font-size: 16px; 
-        border-left: 5px solid #478c3b;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        margin-bottom: 16px;
-        width: 100%;
-    }}
-
-    /* CAIXA AZUL: Para informacoes positivas */
-    .custom-info-blue {{
-        background-color: #1e40af !important;
-        color: #ffffff !important;
-        padding: 16px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-        margin-bottom: 16px;
-        width: 100%;
-        border-left: 5px solid #3b82f6;
-    }}
-
-    /* CAIXA VERMELHA: Para alertas/erros */
-    .custom-error-red {{
-        background-color: #fee2e2 !important;
-        color: #991b1b !important;
-        padding: 16px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-        margin-bottom: 16px;
-        width: 100%;
-        border-left: 5px solid #ef4444;
-    }}
-
-    /* SAUDACAO INICIAL */
-    .custom-welcome-salutation {{
-        background-color: #ffffff;
-        color: #1e293b;
-        padding: 32px 24px;
-        border-radius: 12px;
-        font-weight: 600;
-        font-size: 20px;
-        text-align: center;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
-        margin-top: 20px;
-    }}
-    
-    /* Ajustes na visualizacao das tabelas */
-    div[data-testid="stDataFrame"] {{
-        background: #ffffff;
-        padding: 16px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-    }}
-    
-    /* Impedir quebras de palavras e truncamento nos titulos das colunas */
-    div[data-testid="stDataFrame"] table th {{
-        white-space: nowrap !important;
-        min-width: max-content !important;
-    }}
-
-    /* CORREÇÃO DEFINITIVA DO RODAPÉ FLUTUANTE (Sem amarras e solto na página) */
-    .custom-footer-block {{
-        text-align: center !important; 
-        margin-top: 60px !important; 
-        border-top: 1px solid #e2e8f0 !important; 
-        padding-top: 24px !important;
-        padding-bottom: 24px !important;
-        position: static !important; /* Força comportamento nativo de fluxo de texto */
-        clear: both !important;
-        width: 100% !important;
-        display: block !important;
-    }}
-
-    /* Assinatura fixa no canto inferior esquerdo da tela */
-    .signature-fixed {{
-        position: fixed;
-        bottom: 12px;
-        left: 20px;
-        color: #94a3b8;
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.5px;
-        z-index: 999999;
-        pointer-events: none;
-    }}
-
-    /* MODIFICAÇÕES RESPONSIVAS MOBILE */
-    @media (max-width: 768px) {{
-        .header-modern {{
-            flex-direction: column !important;
-            gap: 16px !important;
-            text-align: center !important;
-        }}
-        .portal-title {{
-            font-size: 26px !important;
-            white-space: normal !important;
-        }}
-        div[data-testid="column"] {{
-            flex: 1 1 100% !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            padding: 4px 0px !important;
-        }}
-        div[data-testid="column"] div[style*="height: 28px"] {{
-            display: none !important;
-        }}
-        .signature-fixed {{
-            position: static !important;
-            text-align: center !important;
-            margin-top: 10px;
-            padding-bottom: 10px;
-            display: block;
-        }}
-    }}
+    .stApp { background-color: #1E293B !important; color: #F8FAFC !important; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    .stMarkdown, p, span, label, .stTextArea label { color: #F8FAFC !important; }
+    .main-header {
+        background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%);
+        padding: 20px; border-radius: 12px; color: white !important; margin-bottom: 25px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); border: 1px solid #334155;
+    }
+    .main-title { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; margin: 0; color: #FFFFFF !important; }
+    .subtitle { font-size: 15px; color: #93C5FD !important; margin-top: 5px; opacity: 0.9; }
+    .section-box {
+        background-color: #334155 !important; padding: 24px; border-radius: 10px;
+        border-left: 6px solid #38BDF8; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .section-title { font-size: 18px; font-weight: 700; color: #38BDF8 !important; margin: 0; }
+    .stTextArea textarea { background-color: #1E293B !important; color: #FFFFFF !important; border: 1px solid #475569 !important; border-radius: 6px !important; }
+    .kpi-card { background: #334155 !important; padding: 20px; border-radius: 8px; border-top: 4px solid #475569; text-align: center; }
+    .kpi-value { font-size: 24px; font-weight: 700; margin-top: 5px; }
+    .stTabs [data-baseweb="tab"] { background-color: #334155 !important; color: #94A3B8 !important; border-radius: 4px 4px 0px 0px; padding: 10px 20px; }
+    .stTabs [aria-selected="true"] { background-color: #38BDF8 !important; color: #0F172A !important; font-weight: bold; }
     </style>
-    """, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
+# Topo Fixo
+st.markdown("""
+    <div class="main-header" style="margin-bottom: 0px;">
+        <div class="main-title">📊 VEDA.IA</div>
+        <div class="subtitle">Inteligência Estratégica em Compras • Auditoria de Processos & Strategic Sourcing</div>
+    </div>
+""", unsafe_allow_html=True)
 
-# ==========================================
-# BACKEND: CARREGAMENTO DOS DADOS
-# ==========================================
-@st.cache_data(ttl=60)
-def carregar_dados_seguros():
-    URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
-    try:
-        excel = pd.ExcelFile(URL, engine='openpyxl')
-        df_pc = pd.read_excel(excel, sheet_name=0, dtype=str).fillna('')
-        df_pc.columns = [str(c).strip() for c in df_pc.columns]
-        return df_pc
-    except Exception as e:
-        return pd.DataFrame()
+st.markdown("<br>", unsafe_allow_html=True)
 
-df_pc = carregar_dados_seguros()
+# Inicialização de Variáveis e Perfis de Acesso
+if 'perfil' not in st.session_state: st.session_state.perfil = None
+if 'passo' not in st.session_state: st.session_state.passo = 1
+if 'respostas' not in st.session_state: st.session_state.respostas = {}
 
-
-# ==========================================
-# 4. CABEÇALHO INTEGRADO (REDUÇÃO DA BUSCA E CENTRALIZAÇÃO DO TÍTULO)
-# ==========================================
-st.markdown('<div class="header-modern">', unsafe_allow_html=True)
-c1, c2, c3 = st.columns([1.5, 6.5, 2.0])
-
-with c1:
-    if base64_logo: 
-        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:120px; display:block; margin:auto 0;">', unsafe_allow_html=True)
-with c2:
-    st.markdown('<div class="center-title-container"><p class="portal-title">Portal Gestão de Compras</p></div>', unsafe_allow_html=True)
-with c3:
-    busca = st.text_input("", placeholder="🔍 Rastrear SC, PC ou CC...", label_visibility="collapsed")
-st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ==========================================
-# CONFIGURAÇÃO DE SESSÃO ESTÁVEL PARA OS FILTROS
-# ==========================================
-if "filtro_status_val" not in st.session_state:
-    st.session_state.filtro_status_val = "Todos"
-if "filtro_data_val" not in st.session_state:
-    st.session_state.filtro_data_val = ()
-if "gaveta_aberta" not in st.session_state:
-    st.session_state.gaveta_aberta = False
-
-
-# ==========================================
-# GAVETA RETRÁTIL OPERACIONAL - GRID EXPANDIDO E SETA INTERATIVA
-# ==========================================
-rotulo_seta = "Filtros Avançados ▲" if st.session_state.gaveta_aberta else "Filtros Avançados ▼"
-
-with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
-    with st.form("form_filtros", clear_on_submit=False):
-        f_col1, f_col2, f_col3, f_col4 = st.columns([4.5, 4.5, 1.5, 1.5])
-        
-        with f_col1:
-            col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
-            if col_status_verificacao:
-                lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
-            else:
-                lista_status = ["Todos"]
-                
-            idx_padrao = lista_status.index(st.session_state.filtro_status_val) if st.session_state.filtro_status_val in lista_status else 0
-            filtro_status = st.selectbox("Filtrar por Status Operacional:", options=lista_status, index=idx_padrao)
+# --- TELA DE LOGIN / SELEÇÃO DE PERFIL ---
+if st.session_state.perfil is None:
+    st.markdown('<div class="section-box"><h3 style="color:#38BDF8; margin-top:0;">🔐 Controle de Acesso</h3><p>Selecione o seu perfil para entrar no sistema:</p></div>', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.info("**👤 VISÃO DO CLIENTE**\nAcesso exclusivo para preencher o diagnóstico operacional.")
+        if st.button("Entrar como Cliente", use_container_width=True):
+            st.session_state.perfil = 'cliente'
+            st.rerun()
             
-        with f_col2:
-            filtro_data = st.date_input("Filtrar por Período de Emissão:", value=st.session_state.filtro_data_val, format="DD/MM/YYYY")
-            
-        with f_col3:
-            st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
-            btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True)
-            
-            if btn_pesquisar:
-                st.session_state.filtro_status_val = filtro_status
-                st.session_state.filtro_data_val = filtro_data
-                st.session_state.gaveta_aberta = True  
+    with col2:
+        st.warning("**💼 VISÃO DO CONSULTOR**\nAcesso total ao Painel de Resultados e PDF (Área Restrita).")
+        senha = st.text_input("Senha de Acesso", type="password", placeholder="Digite a senha...")
+        if st.button("Entrar como Consultor", use_container_width=True):
+            if senha == "vedaadmin": # Senha definida aqui
+                st.session_state.perfil = 'consultor'
                 st.rerun()
+            elif senha != "":
+                st.error("Senha incorreta. Tente novamente.")
+    st.stop() # Pausa o aplicativo até que um perfil seja escolhido
 
-        with f_col4:
-            st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
-            btn_limpar = st.form_submit_button("❌ Limpar", use_container_width=True)
+# --- CABEÇALHO DO USUÁRIO LOGADO ---
+col_head1, col_head2 = st.columns([8, 2])
+with col_head1:
+    passos_totais = 6
+    st.progress(st.session_state.passo / passos_totais)
+    st.markdown(f"<p style='color: #94A3B8; font-size: 12px;'>Etapa {st.session_state.passo} de {passos_totais}</p>", unsafe_allow_html=True)
+with col_head2:
+    st.markdown(f"<div style='text-align:right; color:#38BDF8; font-weight:bold;'>Perfil: {st.session_state.perfil.upper()}</div>", unsafe_allow_html=True)
+    if st.button("Sair / Trocar Perfil", key="logout"):
+        st.session_state.perfil = None
+        st.session_state.passo = 1
+        st.rerun()
+
+# --- FUNÇÃO PARA GERAR GRÁFICO (Apenas Consultor usa) ---
+def gerar_ishikawa_pdf():
+    fig, ax = plt.subplots(figsize=(10, 3.5))
+    fig.patch.set_facecolor('#FFFFFF'); ax.set_facecolor('#FFFFFF')
+    ax.axhline(0, color='#1B365D', linewidth=4)
+    ax.annotate('MÉTODO:\nFollow-up manual e reativo', xy=(2.5, 0), xytext=(1.0, 1.2), arrowprops=dict(arrowstyle="->", color='#4A777A', lw=2), fontsize=9, color='black')
+    ax.annotate('SISTEMAS:\nRedigitação manual de PDF', xy=(6.5, 0), xytext=(5.0, 1.2), arrowprops=dict(arrowstyle="->", color='#4A777A', lw=2), fontsize=9, color='black')
+    ax.annotate('DADOS:\nFalta de Spend Analysis', xy=(3.5, 0), xytext=(2.0, -1.4), arrowprops=dict(arrowstyle="->", color='#4A777A', lw=2), fontsize=9, color='black')
+    ax.annotate('MANUTENÇÃO:\nCompras de MRO urgentes', xy=(7.5, 0), xytext=(5.5, -1.4), arrowprops=dict(arrowstyle="->", color='#4A777A', lw=2), fontsize=9, color='black')
+    ax.text(10.2, 0, "PERDA DE\nSAVING", fontsize=10, fontweight='bold', color='white', bbox=dict(boxstyle="square,pad=0.5", fc="#A93226", ec="none"))
+    ax.set_xlim(0, 12); ax.set_ylim(-2.2, 2.2); ax.axis('off')
+    img_buffer = io.BytesIO()
+    fig.savefig(img_buffer, format='png', bbox_inches='tight', dpi=150)
+    img_buffer.seek(0); plt.close(fig)
+    return img_buffer
+
+# --- FUNÇÃO PARA GERAR PDF (Apenas Consultor usa) ---
+def gerar_pdf(respostas, dados_tabela, ishikawa_buffer):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    story = []
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=20, textColor=colors.HexColor('#1B365D'), spaceAfter=15)
+    h2_style = ParagraphStyle('H2Style', parent=styles['Heading2'], fontSize=14, textColor=colors.HexColor('#4A777A'), spaceBefore=12, spaceAfter=6)
+    text_style = ParagraphStyle('TextStyle', parent=styles['Normal'], fontSize=10, leading=14, textColor=colors.HexColor('#333333'), spaceAfter=8)
+    alert_style = ParagraphStyle('AlertStyle', parent=styles['Normal'], fontSize=10, leading=14, textColor=colors.HexColor('#B7950B'), spaceAfter=8, fontName='Helvetica-Bold')
+    table_text = ParagraphStyle('TableText', parent=styles['Normal'], fontSize=9, leading=12, textColor=colors.HexColor('#333333'))
+    table_header = ParagraphStyle('TableHeader', parent=styles['Normal'], fontSize=10, leading=12, textColor=colors.whitesmoke, fontName='Helvetica-Bold')
+
+    story.append(Paragraph("RELATÓRIO EXECUTIVO DE AUDITORIA - VEDA.IA", title_style))
+    story.append(Paragraph("Maturidade Avaliada do Negócio: 5.2 / 10", h2_style))
+    story.append(Spacer(1, 10))
+    story.append(Paragraph("1. DIAGNÓSTICO DOS PILARES", h2_style))
+    story.append(Paragraph("<b>Visão & Estratégia:</b> Existe desejo latente de crescimento e saving na diretoria, porém há uma falta crônica de visibilidade analítica estruturada de despesas (Spend Analysis).", text_style))
+    story.append(Paragraph("<b>Direcionamento & Ação:</b> Ruído operacional grave detectado. A equipe gasta a maior parte do dia ativa em processos manuais de redigitação de propostas e rotinas reativas.", text_style))
+    story.append(Paragraph("2. ENGENHARIA DA QUALIDADE (CAUSA E EFEITO)", h2_style))
+    story.append(RLImage(ishikawa_buffer, width=460, height=160))
+    story.append(Spacer(1, 15))
+    story.append(Paragraph("3. MATRIZ DE DESALINHAMENTO CRÍTICO", h2_style))
+    story.append(Paragraph("O desejo corporativo de obter Saving Estratégico (Visão) encontra-se bloqueado pelo sufocamento burocrático na operação (Ação).", alert_style))
+    story.append(Spacer(1, 15))
+    story.append(Paragraph("4. PLANO DE AÇÃO DETALHADO E CRONOGRAMA", h2_style))
+    
+    headers = [Paragraph("Gargalo (Causa Raiz)", table_header), Paragraph("Ação Corretiva (Descrição do Trabalho)", table_header), Paragraph("Prazo e Tempo Necessário", table_header), Paragraph("Status", table_header)]
+    table_data = [headers]
+    for i in range(len(dados_tabela["Gargalo (Causa Raiz)"])):
+        table_data.append([ Paragraph(dados_tabela["Gargalo (Causa Raiz)"][i], table_text), Paragraph(dados_tabela["Ação Corretiva (Descrição do Trabalho)"][i], table_text), Paragraph(dados_tabela["Prazo e Tempo Necessário"][i], table_text), Paragraph(dados_tabela["Status / Reanálise"][i], table_text) ])
+        
+    t = Table(table_data, colWidths=[110, 200, 110, 90])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1B365D')), ('ALIGN', (0,0), (-1,-1), 'LEFT'), ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BOTTOMPADDING', (0,0), (-1,0), 8), ('TOPPADDING', (0,0), (-1,-1), 8), ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#F8FAFC')),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
+    ]))
+    story.append(t); doc.build(story); buffer.seek(0)
+    return buffer
+
+# --- MÓDULOS DE PERGUNTAS (1 A 5) ---
+if st.session_state.passo == 1:
+    st.markdown('<div class="section-box"><div class="section-title">MÓDULO A: VISÃO ESTRATÉGICA, ANÁLISE DE GASTOS (Spend Analysis) E STRATEGIC SOURCING</div></div>', unsafe_allow_html=True)
+    st.session_state.respostas['q_vol_forn'] = st.text_area("1. Qual é o volume médio mensal de requisições de compras e quantos fornecedores ativos a empresa possui hoje?", value=st.session_state.respostas.get('q_vol_forn', ''), height=100)
+    st.session_state.respostas['q_kpis'] = st.text_area("2. Quais são os principais KPIs cobrados do setor hoje (ex: Saving, lead time)?", value=st.session_state.respostas.get('q_kpis', ''), height=100)
+    st.session_state.respostas['q_perda_tempo'] = st.text_area("3. Onde a gerência sente que perde mais tempo, controle ou dinheiro no processo atual?", value=st.session_state.respostas.get('q_perda_tempo', ''), height=100)
+    st.session_state.respostas['q_kraljic'] = st.text_area("4. Como a gestão acompanha a Curva ABC de estoque e o quadrante estratégico dos itens na Matriz de Kraljic?", value=st.session_state.respostas.get('q_kraljic', ''), height=100)
+    st.session_state.respostas['q_spend'] = st.text_area("5. Como é feita a visibilidade do Spend Analysis (Análise de Gastos) hoje?", value=st.session_state.respostas.get('q_spend', ''), height=100)
+    st.session_state.respostas['q_tail'] = st.text_area("6. Existe controle consolidado de cauda de fornecedores (Tail Spend)?", value=st.session_state.respostas.get('q_tail', ''), height=100)
+    st.session_state.respostas['q_tco'] = st.text_area("7. A empresa adota a cultura de avaliar o Custo Total de Propriedade (TCO)?", value=st.session_state.respostas.get('q_tco', ''), height=100)
+    col1, col2 = st.columns([8, 2])
+    with col2:
+        if st.button("Avançar Módulo B ➔", use_container_width=True): st.session_state.passo = 2; st.rerun()
+
+elif st.session_state.passo == 2:
+    st.markdown('<div class="section-box"><div class="section-title">MÓDULO B: ROTINA DIÁRIA E RITMO DE TRABALHO</div></div>', unsafe_allow_html=True)
+    st.session_state.respostas['q_primeira_hora'] = st.text_area("1. Como é a primeira hora do seu dia de trabalho?", value=st.session_state.respostas.get('q_primeira_hora', ''), height=100)
+    st.session_state.respostas['q_planilhas_fora'] = st.text_area("2. Quais planilhas de Excel 'por fora' você usa na rotina?", value=st.session_state.respostas.get('q_planilhas_fora', ''), height=100)
+    st.session_state.respostas['q_falha_erp'] = st.text_area("3. Por que o ERP atual não atende essa demanda?", value=st.session_state.respostas.get('q_falha_erp', ''), height=100)
+    st.session_state.respostas['q_telas_abertas'] = st.text_area("4. Quantas telas ou sistemas diferentes você precisa manter abertos?", value=st.session_state.respostas.get('q_telas_abertas', ''), height=100)
+    st.session_state.respostas['q_interrupcoes'] = st.text_area("5. Quantas vezes por dia você precisa interromper suas tarefas?", value=st.session_state.respostas.get('q_interrupcoes', ''), height=100)
+    st.session_state.respostas['q_canal_cobranca'] = st.text_area("6. Como eles cobram (WhatsApp, e-mail, presencial)?", value=st.session_state.respostas.get('q_canal_cobranca', ''), height=100)
+    st.session_state.respostas['q_tempo_burocracia'] = st.text_area("7. Qual a porcentagem do seu dia gasta em tarefas burocráticas vs. estratégicas?", value=st.session_state.respostas.get('q_tempo_burocracia', ''), height=100)
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("⬅ Voltar", use_container_width=True): st.session_state.passo = 1; st.rerun()
+    with col2:
+        if st.button("Avançar Módulo C ➔", use_container_width=True): st.session_state.passo = 3; st.rerun()
+
+elif st.session_state.passo == 3:
+    st.markdown('<div class="section-box"><div class="section-title">MÓDULO C: CADASTROS, OEM E ACURACIDADE</div></div>', unsafe_allow_html=True)
+    st.session_state.respostas['q_resp_tecnico'] = st.text_area("1. Quem é o responsável técnico por fornecer as especificações exatas (OEM)?", value=st.session_state.respostas.get('q_resp_tecnico', ''), height=100)
+    st.session_state.respostas['q_erro_req'] = st.text_area("2. O que acontece quando uma informação vem errada na requisição?", value=st.session_state.respostas.get('q_erro_req', ''), height=100)
+    st.session_state.respostas['q_fluxo_correcao'] = st.text_area("3. Como é o fluxo de correção e quanto tempo trava?", value=st.session_state.respostas.get('q_fluxo_correcao', ''), height=100)
+    st.session_state.respostas['q_acuracidade_fisica'] = st.text_area("4. Como é garantida a acuracidade de estoque no recebimento?", value=st.session_state.respostas.get('q_acuracidade_fisica', ''), height=100)
+    st.session_state.respostas['q_leitura_xml'] = st.text_area("5. Existe cruzamento automatizado do pedido com a NF-e via XML?", value=st.session_state.respostas.get('q_leitura_xml', ''), height=100)
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("⬅ Voltar", use_container_width=True): st.session_state.passo = 2; st.rerun()
+    with col2:
+        if st.button("Avançar Módulo D ➔", use_container_width=True): st.session_state.passo = 4; st.rerun()
+
+elif st.session_state.passo == 4:
+    st.markdown('<div class="section-box"><div class="section-title">MÓDULO D: FLUXO DE MANUTENÇÃO (MRO) E CONTRATAÇÃO DE SERVIÇOS</div></div>', unsafe_allow_html=True)
+    st.session_state.respostas['q_diff_serv_mat'] = st.text_area("1. Como é diferenciado o fluxo de 'Serviços' vs 'Materiais'?", value=st.session_state.respostas.get('q_diff_serv_mat', ''), height=100)
+    st.session_state.respostas['q_regras_validacao'] = st.text_area("2. Os sistemas e contratos possuem regras de validação distintas?", value=st.session_state.respostas.get('q_regras_validacao', ''), height=100)
+    st.session_state.respostas['q_validacao_escopo'] = st.text_area("3. Como o time de compras valida o escopo técnico enviado pela Engenharia?", value=st.session_state.respostas.get('q_validacao_escopo', ''), height=100)
+    st.session_state.respostas['q_corretiva_urgente'] = st.text_area("4. Em manutenção corretiva urgente, qual é o fluxo rápido adotado?", value=st.session_state.respostas.get('q_corretiva_urgente', ''), height=100)
+    st.session_state.respostas['q_impacto_alcadas'] = st.text_area("5. Como isso impacta a governança de alçadas?", value=st.session_state.respostas.get('q_impacto_alcadas', ''), height=100)
+    st.session_state.respostas['q_integracao_ppcm'] = st.text_area("6. Existe integração nativa entre as Ordens de Serviço do PPCM e suprimentos?", value=st.session_state.respostas.get('q_integracao_ppcm', ''), height=100)
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("⬅ Voltar", use_container_width=True): st.session_state.passo = 3; st.rerun()
+    with col2:
+        if st.button("Avançar Módulo E ➔", use_container_width=True): st.session_state.passo = 5; st.rerun()
+
+elif st.session_state.passo == 5:
+    st.markdown('<div class="section-box"><div class="section-title">MÓDULO E: FOLLOW-UP E RELACIONAMENTO COM FORNECEDORES</div></div>', unsafe_allow_html=True)
+    st.session_state.respostas['q_cobranca_prazos'] = st.text_area("1. Como é feita a cobrança de prazos junto aos fornecedores?", value=st.session_state.respostas.get('q_cobranca_prazos', ''), height=100)
+    st.session_state.respostas['q_processo_manual'] = st.text_area("2. É um processo manual ou possui algum tipo de automação?", value=st.session_state.respostas.get('q_processo_manual', ''), height=100)
+    st.session_state.respostas['q_atraso_forn'] = st.text_area("3. Se um fornecedor atrasar, como compras descobre? É preventivo ou reativo?", value=st.session_state.respostas.get('q_atraso_forn', ''), height=100)
+    st.session_state.respostas['q_cotacao_pdf'] = st.text_area("4. Como as cotações em PDF entram no sistema? Há digitação manual?", value=st.session_state.respostas.get('q_cotacao_pdf', ''), height=100)
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("⬅ Voltar", use_container_width=True): st.session_state.passo = 4; st.rerun()
+    with col2:
+        # Texto do botão muda dependendo de quem está preenchendo
+        btn_label = "Enviar Diagnóstico 🚀" if st.session_state.perfil == 'cliente' else "Gerar Relatório VEDA.IA 🚀"
+        if st.button(btn_label, use_container_width=True): st.session_state.passo = 6; st.rerun()
+
+# --- FASE 6: FINALIZAÇÃO (DIVIDIDA POR PERFIL) ---
+elif st.session_state.passo == 6:
+    
+    # ---------------- VISÃO DO CLIENTE ----------------
+    if st.session_state.perfil == 'cliente':
+        st.markdown('<div class="section-box" style="text-align:center; padding: 50px;">'
+                    '<h1 style="color:#10B981; font-size:60px; margin:0;">✅</h1>'
+                    '<h2 style="color:#38BDF8;">Auditoria Concluída com Sucesso!</h2>'
+                    '<p style="font-size:16px; color:#94A3B8;">Suas respostas foram registradas e enviadas de forma segura para o nosso sistema.</p>'
+                    '<p style="font-size:16px; color:#94A3B8;">O seu Consultor Estratégico fará a análise profunda dos dados através da metodologia VEDA.IA e agendará a apresentação do Plano de Ação em breve.</p>'
+                    '</div>', unsafe_allow_html=True)
+        
+    # ---------------- VISÃO DO CONSULTOR ----------------
+    elif st.session_state.perfil == 'consultor':
+        st.markdown('<h3 style="color:#38BDF8; font-weight:700; margin-top:10px;">📝 Relatório Analítico Consolidado (Visão Restrita)</h3>', unsafe_allow_html=True)
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1: st.markdown('<div class="kpi-card" style="border-top-color:#E11D48;"><span style="color:#94A3B8; font-size:13px; font-weight:600;">SCORE VEDA</span><div class="kpi-value" style="color:#E11D48;">5.2 / 10</div></div>', unsafe_allow_html=True)
+        with col2: st.markdown('<div class="kpi-card" style="border-top-color:#F59E0B;"><span style="color:#94A3B8; font-size:13px; font-weight:600;">SPEND ANALYSIS</span><div class="kpi-value" style="color:#F59E0B;">Incipiente</div></div>', unsafe_allow_html=True)
+        with col3: st.markdown('<div class="kpi-card" style="border-top-color:#10B981;"><span style="color:#94A3B8; font-size:13px; font-weight:600;">CADASTRO OEM</span><div class="kpi-value" style="color:#10B981;">Acuracidade Regular</div></div>', unsafe_allow_html=True)
+        with col4: st.markdown('<div class="kpi-card" style="border-top-color:#3B82F6;"><span style="color:#94A3B8; font-size:13px; font-weight:600;">FOLLOW-UP</span><div class="kpi-value" style="color:#3B82F6;">100% Manual</div></div>', unsafe_allow_html=True)
             
-            if btn_limpar:
-                st.session_state.filtro_status_val = "Todos"
-                st.session_state.filtro_data_val = ()
-                st.session_state.gaveta_aberta = False  
-                st.cache_data.clear()
+        st.markdown("<br>", unsafe_allow_html=True)
+        tab1, tab2, tab3 = st.tabs(["🔍 Diagnóstico por Pilar", "📊 Engenharia da Qualidade", "📅 Cronograma e Ação (5W2H)"])
+        
+        with tab1:
+            st.markdown("#### Análise Estratégica Baseada em Suprimentos")
+            st.write("**Visão & Estratégia:** Existe desejo latente de crescimento e saving na diretoria, porém há uma falta crônica de visibilidade analítica estruturada de despesas (*Spend Analysis*).")
+            st.write("**Direcionamento & Ação:** Ruído operacional grave detectado. A equipe gasta a maior parte do dia ativa em processos manuais de redigitação de propostas comerciais recebidas em PDF e rotinas puramente reativas.")
+            st.markdown('<div style="background-color:#1E293B; padding:15px; border-radius:6px; border:1px solid #F59E0B; font-size:14px; color:#F59E0B;"><strong>Matriz de Desalinhamento Crítico:</strong> O desejo corporativo de obter Saving Estratégico (Visão) encontra-se totalmente bloqueado pelo sufocamento burocrático na operação (Ação).</div>', unsafe_allow_html=True)
+            
+        with tab2:
+            st.write("#### Diagrama de Causa e Efeito (Ishikawa)")
+            fig, ax = plt.subplots(figsize=(11, 3.5))
+            fig.patch.set_facecolor('#1E293B'); ax.set_facecolor('#1E293B')
+            ax.axhline(0, color='#38BDF8', linewidth=4)
+            ax.annotate('MÉTODO:\nFollow-up manual e reativo', xy=(2.5, 0), xytext=(1.0, 1.2), arrowprops=dict(arrowstyle="->", color='#94A3B8', lw=2), fontsize=9, color='#F8FAFC')
+            ax.annotate('SISTEMAS:\nRedigitação manual de PDF', xy=(6.5, 0), xytext=(5.0, 1.2), arrowprops=dict(arrowstyle="->", color='#94A3B8', lw=2), fontsize=9, color='#F8FAFC')
+            ax.annotate('DADOS:\nFalta de Spend Analysis', xy=(3.5, 0), xytext=(2.0, -1.4), arrowprops=dict(arrowstyle="->", color='#94A3B8', lw=2), fontsize=9, color='#F8FAFC')
+            ax.annotate('MANUTENÇÃO:\nCompras de MRO urgentes', xy=(7.5, 0), xytext=(5.5, -1.4), arrowprops=dict(arrowstyle="->", color='#94A3B8', lw=2), fontsize=9, color='#F8FAFC')
+            ax.text(10.2, 0, "PERDA DE\nSAVING", fontsize=10, fontweight='bold', color='white', bbox=dict(boxstyle="square,pad=0.5", fc="#E11D48", ec="none"))
+            ax.set_xlim(0, 12); ax.set_ylim(-2.2, 2.2); ax.axis('off')
+            st.pyplot(fig)
+            
+        with tab3:
+            st.write("#### Plano de Ação Estruturado e Cronograma (5W2H Executivo)")
+            cronograma_dados = {
+                "Gargalo (Causa Raiz)": ["Follow-up de prazos 100% manual e reativo", "Cadastros técnicos sem especificação OEM", "Falta de visibilidade analítica (Spend Analysis)", "Serviços contratados sem medição física"],
+                "Ação Corretiva (Descrição do Trabalho)": [
+                    "Padronizar rotina semanal de extração de pedidos em aberto (relatório nativo do ERP) e criar template de e-mail em lote. Definir 'Dia D' na semana.", 
+                    "Implementar política de 'Tolerância Zero' com formulário padrão. Requisições sem Part Number/OEM serão devolvidas imediatamente à Engenharia.", 
+                    "Extrair relatório de compras dos últimos 6 meses do ERP e montar Matriz de Kraljic e Curva ABC inicial via Excel/PowerBI.", 
+                    "Criar um Boletim de Medição (BM) em formato doc/Excel. Estabelecer regra junto ao Financeiro para bloquear faturas sem BM assinado."
+                ],
+                "Prazo e Tempo Necessário": ["7 Dias", "10 Dias", "20 Dias", "15 Dias"],
+                "Status / Reanálise": ["Semanalmente", "Quinzenal", "Mensal", "Mensal"]
+            }
+            st.table(pd.DataFrame(cronograma_dados))
+
+        # Exportação apenas para Consultor
+        st.markdown("---")
+        st.markdown("### 📥 Exportação Executiva")
+        ishikawa_buffer = gerar_ishikawa_pdf()
+        pdf_data = gerar_pdf(st.session_state.respostas, cronograma_dados, ishikawa_buffer)
+        
+        col_btn1, col_btn2 = st.columns([2, 8])
+        with col_btn1:
+            st.download_button(label="Download Relatório PDF 📄", data=pdf_data, file_name="Relatorio_Diagnostico_VEDA_IA.pdf", mime="application/pdf", use_container_width=True)
+        with col_btn2:
+            if st.button("🔄 Iniciar Nova Auditoria", use_container_width=True):
+                st.session_state.passo = 1
+                st.session_state.respostas = {}
                 st.rerun()
-
-
-# ==========================================
-# 5. ESTRUTURA DE COLUNAS REORGANIZADA
-# ==========================================
-DICIONARIO_COLUNAS_EXATAS = [
-    {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
-    {"planilha": "Centro de Custo (CC)", "tela": "Centro de Custo (CC)", "tipo": "texto"},
-    {"planilha": "Nº Solicitação (SC)", "tela": "Nº Solicitação (SC)", "tipo": "texto"},
-    {"planilha": "Nº Pedido (PC)", "tela": "Nº Pedido (PC)", "tipo": "pedido"},   
-    {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
-    {"planilha": "Data Emissao", "tela": "Emissão", "tipo": "data"},
-    {"planilha": "Data Liberação", "tela": "Aprovação", "tipo": "data"},
-    {"planilha": "Envio", "tela": "Envio", "tipo": "data"},
-    {"planilha": "Pagamento", "tela": "Pagamento", "tipo": "texto"}, 
-    {"planilha": "Previsão de entrega", "tela": "Previsão de entrega", "tipo": "data"},
-    {"planilha": "Entrega", "tela": "Entrega", "tipo": "data"},
-    {"planilha": "Fornecedor", "tela": "Fornecedor", "tipo": "texto"},
-    {"planilha": "Produto", "tela": "Produto", "tipo": "produto"},                 
-    {"planilha": "Descricao", "tela": "Descrição", "tipo": "texto"},
-    {"planilha": "UM", "tela": "UM", "tipo": "texto"},
-    {"planilha": "Qtd", "tela": "Qtd", "tipo": "numero"},
-    {"planilha": "Preço Unitário", "tela": "Preço Unitário", "tipo": "moeda"},
-    {"planilha": "Valor Total", "tela": "Valor Total", "tipo": "moeda"}
-]
-
-def ajustar_zeros_protheus(valor, tamanho_alvo):
-    val_limpo = str(valor).split('.')[0].strip()
-    if val_limpo and val_limpo.lower() != 'nan' and val_limpo != '0' and val_limpo != '':
-        return val_limpo.zfill(tamanho_alvo)
-    return ""
-
-def converter_para_numerico(valor):
-    if not valor or str(valor).lower() == 'nan' or str(valor).strip() == '':
-        return 0.0
-    
-    dado = str(valor).strip().replace(' ', '')
-    
-    try:
-        if ',' in dado and '.' in dado:
-            dado = dado.replace('.', '').replace(',', '.')
-        elif ',' in dado:
-            dado = dado.replace(',', '.')
-        
-        val_float = float(dado)
-        
-        if '.' not in str(valor) and ',' not in str(valor) and len(dado) >= 5:
-            val_float = val_float / 100.0
-
-        return round(val_float, 2)
-    except:
-        return 0.0
-
-def formatar_para_dd_mm_aa(valor):
-    txt = str(valor).strip()
-    if txt == "" or txt.lower() in ["nan", "none", "0", "n/a"]:
-        return txt
-    try:
-        return pd.to_datetime(txt, errors='coerce', format='mixed').strftime('%d/%m/%y')
-    except:
-        return txt
-
-
-# ==========================================
-# 6. MOTOR DE BUSCA DIRECIONADO OPERACIONAL
-# ==========================================
-if busca:
-    termo_busca = busca.strip()
-    tamanho_total_caracteres = len(termo_busca)
-    
-    # Extração numérica limpa
-    termo_numerico = re.sub(r'[^0-9]', '', termo_busca)
-    valor_numerico_inteiro = int(termo_numerico) if termo_numerico else 0
-    
-    df_final = pd.DataFrame()
-    modo_centro_custo = False
-    modo_solicitacao = False
-    modo_pedido = False
-    
-    try:
-        if not df_pc.empty:
-            # 1. PEDIDO DE COMPRAS (Dígitos >= 170000)
-            if valor_numerico_inteiro >= 170000:
-                modo_pedido = True
-                col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
-                if col_busca_pc:
-                    padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
-                    df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)].copy()
-            
-            # 2. SOLICITAÇÃO DE COMPRAS (Dígitos > 0 e < 170000, excluindo CC de tamanho 4)
-            elif valor_numerico_inteiro > 0 and valor_numerico_inteiro < 170000 and tamanho_total_caracteres != 4:
-                modo_solicitacao = True
-                col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
-                if col_busca_pc:
-                    padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
-                    df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)].copy()
-            
-            # 3. CENTRO DE CUSTO (Exatos 4 caracteres numéricos)
-            elif len(termo_numerico) == 4 and tamanho_total_caracteres == 4:
-                modo_centro_custo = True
-                col_busca_pc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
-                if col_busca_pc:
-                    df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, regex=True, na=False)].copy()
-            
-            # Fallback caso não encontre correspondência direta
-            else:
-                padrao_regex = re.escape(termo_busca)
-                col_busca_pc = df_pc.columns[0]
-                df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)].copy()
-
-            # Filtros de Status da Gaveta
-            if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
-                df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
-
-            # Filtro de Data corrigido
-            if not df_final.empty and st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
-                if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
-                    col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
-                    if col_emissao_original:
-                        datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed').dt.date
-                        data_inicio = st.session_state.filtro_data_val[0]
-                        data_fim = st.session_state.filtro_data_val[1]
-                        df_final = df_final[(datas_convertidas >= data_inicio) & (datas_convertidas <= data_fim)]
-
-        if not df_final.empty:
-            df_painel = pd.DataFrame(index=df_final.index)
-            
-            for col_config in DICIONARIO_COLUNAS_EXATAS:
-                nome_original_planilha = col_config["planilha"]
-                nome_exibicao_tela = col_config["tela"]
-                tipo_campo = col_config["tipo"]
-                
-                col_real = nome_original_planilha
-                if col_real in df_final.columns:
-                    valores_originais = df_final[col_real]
-                    
-                    if tipo_campo == "data":
-                        datas_limpas = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-                        datas_limpas = datas_limpas.replace(['nan', 'NONE', '', '0'], '')
-                        df_painel[nome_exibicao_tela] = datas_limpas
-                    
-                    elif tipo_campo == "pedido":
-                        df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: ajustar_zeros_protheus(val, 6))
-                    
-                    elif tipo_campo == "produto":
-                        df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: ajustar_zeros_protheus(val, 10))
-                    
-                    elif tipo_campo in ["moeda", "numero"]:
-                        df_painel[nome_exibicao_tela] = valores_originais.apply(converter_para_numerico)
-                    
-                    else:
-                        df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
-                else:
-                    if nome_exibicao_tela == "Nº Solicitação (SC)" and modo_solicitacao:
-                        df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
-                    elif nome_exibicao_tela == "Nº Pedido (PC)" and modo_pedido:
-                        df_painel[nome_exibicao_tela] = ajustar_zeros_protheus(busca, 6) if busca.strip().isdigit() else busca.strip()
-                    elif nome_exibicao_tela == "Centro de Custo (CC)" and modo_centro_custo:
-                        df_painel[nome_exibicao_tela] = busca.strip()
-                    else:
-                        df_painel[nome_exibicao_tela] = ""
-
-            if "Previsão de entrega" in df_painel.columns and "Entrega" in df_painel.columns:
-                mascara_vazia = (df_painel["Previsão de entrega"] == "") | (df_painel["Previsão de entrega"].isna())
-                df_painel.loc[mascara_vazia, "Previsão de entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
-
-            if "Pagamento" in df_painel.columns and ("CondITION_PAGAMENTO" in df_painel.columns or "Condição Pagamento" in df_painel.columns):
-                col_cond_pag = "Condição Pagamento" if "Condição Pagamento" in df_painel.columns else "CondITION_PAGAMENTO"
-                condicao_normalizada = df_painel[col_cond_pag].astype(str).str.upper().str.strip()
-                mascara_na = (
-                    (~condicao_normalizada.str.contains("A VISTA", na=False)) & 
-                    (~condicao_normalizada.str.contains("ENT", na=False)) & 
-                    (~condicao_normalizada.str.contains("VENCIDO", na=False)) & 
-                    (~condicao_normalizada.str.contains("PAGO", na=False))
-                )
-                df_painel.loc[mascara_na, "Pagamento"] = "N/A"
-
-            colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]
-            for col_data in colunas_para_formatar:
-                if col_data in df_painel.columns:
-                    df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
-
-            if "Condição Pagamento" in df_painel.columns:
-                df_painel = df_painel[~df_painel["Condição Pagamento"].astype(str).str.upper().str.contains("PAGO", na=False)]
-
-            df_painel = df_painel.dropna(how='all')
-
-            if not df_painel.empty:
-                if modo_centro_custo:
-                    txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}"
-                elif modo_pedido:
-                    txt_status = f"🔍 Registro Localizado na Base de Pedidos Firme: {termo_busca}"
-                else:
-                    txt_status = f"🔍 Registro Localizado na Base de Solicitações: {termo_busca}"
-                
-                if st.session_state.filtro_status_val != "Todos":
-                    txt_status += f" (Status: {st.session_state.filtro_status_val})"
-                if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2 and st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
-                    txt_status += f" (Período: {st.session_state.filtro_data_val[0].strftime('%d/%m/%y')} até {st.session_state.filtro_data_val[1].strftime('%d/%m/%y')})"
-                    
-                st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
-                
-                c_down, _ = st.columns([2.5, 7.5])
-                with c_down:
-                    out = BytesIO()
-                    with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
-                        df_painel.to_excel(wr, index=False, sheet_name="Relatório")
-                        workbook  = wr.book
-                        worksheet = wr.sheets["Relatório"]
-                        
-                        formato_moeda = workbook.add_format({'num_format': 'R$ #,##0.0000'})
-                        
-                        for idx, col_config in enumerate(DICIONARIO_COLUNAS_EXATAS):
-                            if col_config["tipo"] == "moeda":
-                                worksheet.set_column(idx, idx, 22, formato_moeda)
-
-                    st.download_button(
-                        label="📥 Extrair Relatório Operacional",
-                        data=out.getvalue(),
-                        file_name=f"Relatorio_Compras_{termo_busca}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True
-                    )
-                st.write("")
-
-                configuracao_colunas_tela = {}
-                for col_config in DICIONARIO_COLUNAS_EXATAS:
-                    nome_tela = col_config["tela"]
-                    tipo_campo = col_config["tipo"]
-                    
-                    if nome_tela == "STATUS":
-                        configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center", width=None)
-                    elif tipo_campo == "moeda":
-                        configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right", width=None)
-                    elif tipo_campo == "numero":
-                        configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right", width=None)
-                    else:
-                        if nome_tela in ["Fornecedor", "Descrição"]:
-                            configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="left", width=None)
-                        else:
-                            configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right", width=None)
-
-                tabela_estilizada = df_painel.style.set_table_styles([
-                    {'selector': 'th.col_heading.level0.col0', 'props': [('text-align', 'center !important'), ('justify-content', 'center !important')]},
-                    {'selector': 'td.col0', 'props': [('text-align', 'center !important')]}
-                ], overwrite=False)
-                
-                st.dataframe(tabela_estilizada, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
-            else:
-                st.markdown('<div class="custom-info-blue">ℹ️ Nenhum registro ativo atende aos critérios de busca e aos filtros selecionados.</div>', unsafe_allow_html=True)
-        else:
-            if modo_centro_custo:
-                st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
-            elif modo_pedido:
-                st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
-            else:
-                st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
-    except Exception as e:
-        st.markdown('<div class="custom-error-red">⚠️ Erro ao processar os dados da busca. Verifique as configurações dos filtros e tente novamente.</div>', unsafe_allow_html=True)
-else:
-    st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
-
-# 7. RODAPÉ INSTITUCIONAL: Totalmente flutuante com a página (Acompanha o scroll nativo)
-st.markdown("<div class=\"custom-footer-block\"><p style='color:#64748b; font-size:13px; font-weight:600; margin:0;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
-
-# 8. MARCA D'ÁGUA FIXA EXCLUSIVA DA AUTORIA NO CANTO INFERIOR ESQUERDO DA TELA
-st.markdown('<div class="signature-fixed">Created by SS.</div>', unsafe_allow_html=True)
