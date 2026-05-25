@@ -24,11 +24,16 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Alinhamento limpo, assinatura fixa e Ajuste Mobile Completo)
+# 3. CSS MODERNIZADO (Alinhamento limpo, assinatura fixa, Ajuste Mobile e Ocultação da Toolbar)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
+    
+    /* REMOVER CAIXA DE OPÇÕES FLUTUANTE DO DATAFRAME (Oolho, download, lupa) */
+    div[data-testid="stElementToolbar"] {{
+        display: none !important;
+    }}
     
     /* Remove o espacamento forcado no topo e nas laterais da pagina */
     .block-container {{
@@ -353,7 +358,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
             btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True)
             
             if btn_pesquisar:
-                st.session_state.filtro_status_val = filtro_status
+                st.session_state.filtro_status_val = filter_status if 'filter_status' in locals() else filtro_status
                 st.session_state.filtro_data_val = filtro_data
                 st.session_state.gaveta_aberta = True  
                 st.rerun()
@@ -404,22 +409,16 @@ def converter_para_numerico(valor):
     if not valor or str(valor).lower() == 'nan' or str(valor).strip() == '':
         return 0.0
     
-    # Limpeza de caracteres invisíveis e espaços residuais
     dado = str(valor).strip().replace(' ', '')
     
-    # RECALIBRAÇÃO TOTAL DO PARSER (SILVIO):
     try:
-        # Cenário 1: Formato padrão BR (ex: 1.094,99)
         if ',' in dado and '.' in dado:
             dado = dado.replace('.', '').replace(',', '.')
-        # Cenário 2: Sem ponto de milhar mas com vírgula decimal (ex: 1094,99)
         elif ',' in dado:
             dado = dado.replace(',', '.')
         
         val_float = float(dado)
         
-        # Cenário 3: Proteção contra string contínua sem pontuação (ex: "10949998" significando 1094.99)
-        # Se o número for gigante e não tiver nenhuma pontuação na string original, divide por 100 para resgatar as decimais.
         if '.' not in str(valor) and ',' not in str(valor) and len(dado) >= 5:
             val_float = val_float / 100.0
 
