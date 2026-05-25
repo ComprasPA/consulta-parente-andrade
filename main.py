@@ -24,7 +24,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Alinhamento limpo do título à direita e assinatura fixa)
+# 3. CSS MODERNIZADO (Alinhamento limpo, assinatura fixa e Ajuste Mobile Completo)
 st.markdown(f"""
     <style>
     /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
@@ -237,7 +237,7 @@ st.markdown(f"""
         min-width: max-content !important;
     }}
 
-    /* CEREJA DO BOLO (SILVIO): Assinatura travada e fixa no canto inferior esquerdo da tela */
+    /* Assinatura fixa no canto inferior esquerdo da tela */
     .signature-fixed {{
         position: fixed;
         bottom: 12px;
@@ -248,6 +248,35 @@ st.markdown(f"""
         letter-spacing: 0.5px;
         z-index: 999999;
         pointer-events: none;
+    }}
+
+    /* MODIFICAÇÕES RESPONSIVAS MOBILE */
+    @media (max-width: 768px) {{
+        .header-modern {{
+            flex-direction: column !important;
+            gap: 16px !important;
+            text-align: center !important;
+        }}
+        .portal-title {{
+            font-size: 26px !important;
+            white-space: normal !important;
+        }}
+        div[data-testid="column"] {{
+            flex: 1 1 100% !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 4px 0px !important;
+        }}
+        div[data-testid="column"] div[style*="height: 28px"] {{
+            display: none !important;
+        }}
+        .signature-fixed {{
+            position: static !important;
+            text-align: center !important;
+            margin-top: 10px;
+            padding-bottom: 10px;
+            display: block;
+        }}
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -373,12 +402,12 @@ def ajustar_zeros_protheus(valor, tamanho_alvo):
 
 def converter_para_numerico(valor):
     if not valor or str(valor).lower() == 'nan' or str(valor).strip() == '':
-        return ""
+        return 0.0  # Retorna número puro para não dar erro de tipo matemático
     dado = str(valor).replace('.', '').replace(',', '.').strip()
     try:
         return float(dado)
     except:
-        return ""
+        return 0.0
 
 def formatar_para_dd_mm_aa(valor):
     txt = str(valor).strip()
@@ -403,23 +432,21 @@ if busca:
     
     df_final = pd.DataFrame()
     modo_centro_custo = False
-    modo_produto = False
     modo_solicitacao = False
     modo_pedido = False
-    modo_fornecedor = False
     
     try:
         if not df_pc.empty:
-            # 1. PEDIDO DE COMPRAS (Dígitos >= 170000 e tamanho diferente de 10)
-            if valor_numerico_inteiro >= 170000 and tamanho_total_caracteres != 10:
+            # 1. PEDIDO DE COMPRAS (Dígitos >= 170000)
+            if valor_numerico_inteiro >= 170000:
                 modo_pedido = True
                 col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
                 if col_busca_pc:
                     padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
                     df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)].copy()
             
-            # 2. SOLICITAÇÃO DE COMPRAS (Dígitos > 0 e < 170000, excluindo CC de tamanho 4 e Produto de 10)
-            elif valor_numerico_inteiro > 0 and valor_numerico_inteiro < 170000 and tamanho_total_caracteres != 4 and tamanho_total_caracteres != 10:
+            # 2. SOLICITAÇÃO DE COMPRAS (Dígitos > 0 e < 170000, excluindo CC de tamanho 4)
+            elif valor_numerico_inteiro > 0 and valor_numerico_inteiro < 170000 and tamanho_total_caracteres != 4:
                 modo_solicitacao = True
                 col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
                 if col_busca_pc:
@@ -433,19 +460,11 @@ if busca:
                 if col_busca_pc:
                     df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, regex=True, na=False)].copy()
             
-            # 4. CÓDIGO DE PRODUTO (Exatos 10 caracteres iniciando obrigatoriamente com 0)
-            elif tamanho_total_caracteres == 10 and termo_busca.startswith("0"):
-                modo_produto = True
-                col_busca_pc = next((c for c in df_pc.columns if "PRODUTO" in c.upper()), None)
-                if col_busca_pc:
-                    df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, regex=True, na=False)].copy()
-            
-            # 5. FORNECEDOR (Se não se enquadrar em nenhuma regra numérica anterior, busca por nome)
+            # Fallback caso não encontre correspondência direta
             else:
-                modo_fornecedor = True
-                col_busca_pc = next((c for c in df_pc.columns if "FORNECEDOR" in c.upper()), None)
-                if col_busca_pc:
-                    df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, regex=True, na=False)].copy()
+                padrao_regex = re.escape(termo_busca)
+                col_busca_pc = df_pc.columns[0]
+                df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)].copy()
 
             # Filtros de Status da Gaveta
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
@@ -503,7 +522,7 @@ if busca:
                 mascara_vazia = (df_painel["Previsão de entrega"] == "") | (df_painel["Previsão de entrega"].isna())
                 df_painel.loc[mascara_vazia, "Previsão de entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
 
-            if "Pagamento" in df_painel.columns and "CondITION_PAGAMENTO" in df_painel.columns or "Condição Pagamento" in df_painel.columns:
+            if "Pagamento" in df_painel.columns and ("CondITION_PAGAMENTO" in df_painel.columns or "Condição Pagamento" in df_painel.columns):
                 col_cond_pag = "Condição Pagamento" if "Condição Pagamento" in df_painel.columns else "CondITION_PAGAMENTO"
                 condicao_normalizada = df_painel[col_cond_pag].astype(str).str.upper().str.strip()
                 mascara_na = (
@@ -525,14 +544,10 @@ if busca:
             df_painel = df_painel.dropna(how='all')
 
             if not df_painel.empty:
-                if modo_produto:
-                    txt_status = f"🔍 Registros Ativos Localizados para o Código de Produto: {termo_busca}"
-                elif modo_centro_custo:
+                if modo_centro_custo:
                     txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}"
                 elif modo_pedido:
                     txt_status = f"🔍 Registro Localizado na Base de Pedidos Firme: {termo_busca}"
-                elif modo_fornecedor:
-                    txt_status = f"🔍 Registros Ativos Localizados para o Fornecedor: {termo_busca}"
                 else:
                     txt_status = f"🔍 Registro Localizado na Base de Solicitações: {termo_busca}"
                 
@@ -546,8 +561,20 @@ if busca:
                 c_down, _ = st.columns([2.5, 7.5])
                 with c_down:
                     out = BytesIO()
+                    # APLICAÇÃO DA FORMATAÇÃO (SILVIO): xlsxwriter criando máscaras contábeis de Reais
                     with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
-                        df_painel.to_excel(wr, index=False)
+                        df_painel.to_excel(wr, index=False, sheet_name="Relatório")
+                        workbook  = wr.book
+                        worksheet = wr.sheets["Relatório"]
+                        
+                        # Cria o formato contábil nativo do Excel em Reais
+                        formato_moeda = workbook.add_format({'num_format': 'R$ #,##0.00'})
+                        
+                        # Varre o dicionário para achar o índice exato das colunas monetárias e formata as colunas inteiras
+                        for idx, col_config in enumerate(DICIONARIO_COLUNAS_EXATAS):
+                            if col_config["tipo"] == "moeda":
+                                worksheet.set_column(idx, idx, 18, formato_moeda)
+
                     st.download_button(
                         label="📥 Extrair Relatório Operacional",
                         data=out.getvalue(),
@@ -583,14 +610,10 @@ if busca:
             else:
                 st.markdown('<div class="custom-info-blue">ℹ️ Nenhum registro ativo atende aos critérios de busca e aos filtros selecionados.</div>', unsafe_allow_html=True)
         else:
-            if modo_produto:
-                st.markdown(f'<div class="custom-error-red">⚠️ O Código de Produto \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
-            elif modo_centro_custo:
+            if modo_centro_custo:
                 st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
             elif modo_pedido:
                 st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
-            elif modo_fornecedor:
-                st.markdown(f'<div class="custom-error-red">⚠️ O Fornecedor \'{termo_busca}\' informado não possui registros ativos correspondentes.</div>', unsafe_allow_html=True)
             else:
                 st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
     except Exception as e:
