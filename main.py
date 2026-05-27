@@ -271,24 +271,24 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# BACKEND: CARREGAMENTO DA SUA BASE EM TEXTO PURO CSV (GOOGLE DRIVE)
+# BACKEND: CAPTURA E LIMPEZA DA API CSV DO GOOGLE DRIVE
 # ==========================================
-@st.cache_data(ttl=15)
+@st.cache_data(ttl=10)
 def carregar_dados_seguros():
-    # LINK DEFINITIVO DO SEU GOOGLE DRIVE: Convertido para exportação direta de texto bruto CSV
-    URL = "https://docs.google.com/uc?export=download&id=1BJqpn9BcOD1Wdq8LFTUsuYF-eHex8m7x"
+    # URL CONVERTIDA DA API DO GOOGLE DRIVE (SILVIO): Puxa diretamente os bytes brutos do CSV textual
+    URL_DIRETA_API = "https://docs.google.com/uc?export=download&id=1BJqpn9BcOD1Wdq8LFTUsuYF-eHex8m7x"
     try:
-        # Lendo como string de texto puro para anular qualquer máscara científica do Excel
-        df = pd.read_csv(URL, dtype=str, encoding='utf-8').fillna('')
+        # Lê o CSV forçando tipo string pura para que o interpretador ignore pontos decimais ou notações científicas
+        df = pd.read_csv(URL_DIRETA_API, dtype=str, encoding='utf-8').fillna('')
         df.columns = [str(c).strip() for c in df.columns]
         
-        # Sanitização preventiva para eliminar resíduos de ponto flutuante (.0) nas colunas de busca
+        # Saneamento automático imediato nas colunas indexadoras de dados para casar perfeitamente com a busca
         if "Nº Pedido (PC)" in df.columns:
-            df["Nº Pedido (PC)"] = df["Nº Pedido (PC)"].astype(str).str.split('.').str[0].str.strip()
+            df["Nº Pedido (PC)"] = df["Nº Pedido (PC)"].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
         if "Nº Solicitação (SC)" in df.columns:
-            df["Nº Solicitação (SC)"] = df["Nº Solicitação (SC)"].astype(str).str.split('.').str[0].str.strip()
+            df["Nº Solicitação (SC)"] = df["Nº Solicitação (SC)"].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
         if "Centro de Custo (CC)" in df.columns:
-            df["Centro de Custo (CC)"] = df["Centro de Custo (CC)"].astype(str).str.split('.').str[0].str.strip()
+            df["Centro de Custo (CC)"] = df["Centro de Custo (CC)"].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
             
         return df
     except Exception as e:
@@ -414,7 +414,7 @@ def formatar_para_dd_mm_aa(valor):
         return txt
 
 # ==========================================
-# 6. MOTOR DE BUSCA EM STRING PURA (SEM CONVERSÕES MATEMÁTICAS)
+# 6. MOTOR DE BUSCA EM STRING PURA (SEM PARSERS MATEMÁTICOS DE RISCO)
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -427,18 +427,18 @@ if busca:
     
     try:
         if not df_pc.empty:
-            # A) VERIFICAÇÃO CENTRO DE CUSTO: 4 Caracteres numéricos exatos
+            # 1. VALIDAÇÃO DE CENTRO DE CUSTO (4 Dígitos de Texto Puro)
             if len(termo_busca) == 4 and termo_busca.isdigit():
                 modo_centro_custo = True
                 if "Centro de Custo (CC)" in df_pc.columns:
                     df_final = df_pc[df_pc["Centro de Custo (CC)"] == termo_numerico].copy()
             
-            # B) VERIFICAÇÃO DOS DOCUMENTOS PROTHEUS (SC / PC)
+            # 2. BUSCA POR MATCH TEXTUAL DIRETO CONTRA A BASE SANITIZADA DO CSV
             if df_final.empty and termo_numerico:
                 col_pc = "Nº Pedido (PC)"
                 col_sc = "Nº Solicitação (SC)"
                 
-                # Classificação de limite matemático do Protheus acordada (170000)
+                # Classificação estrutural pelo limite rígido (170000)
                 if int(termo_numerico) >= 170000:
                     modo_pedido = True
                     if col_pc in df_pc.columns:
@@ -449,18 +449,18 @@ if busca:
                         if not df_final.empty:
                             modo_solicitacao = True
                     
-                    # Contingência secundária se o ID for de pedido menor que 170000
+                    # Contingência secundária para Pedidos menores de 170000
                     if df_final.empty and col_pc in df_pc.columns:
                         df_final = df_pc[df_pc[col_pc] == termo_numerico].copy()
                         if not df_final.empty:
                             modo_pedido = True
 
-            # C) CONTINGÊNCIA TEXTO LIVRE
+            # 3. CONTINGÊNCIA GERAL DE TEXTO LIVRE
             if df_final.empty and not termo_busca.isdigit():
                 col_busca_geral = df_pc.columns[0]
                 df_final = df_pc[df_pc[col_busca_geral].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, na=False)].copy()
 
-            # --- APLICAÇÃO DOS FILTROS OPERACIONAIS DA GAVETA AVANÇADA ---
+            # --- FILTROS DA GAVETA AVANÇADA ---
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
