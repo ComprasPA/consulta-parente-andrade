@@ -409,7 +409,7 @@ def formatar_para_dd_mm_aa(valor):
         return txt
 
 # ==========================================
-# 6. MOTOR DE BUSCA CORRIGIDO E HIERARQUIZADO (SILVIO)
+# 6. MOTOR DE BUSCA RETIFICADO (BLINDAGEM DUPLA)
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -424,36 +424,47 @@ if busca:
     
     try:
         if not df_pc.empty:
-            # CONDIÇÃO 1: CENTRO DE CUSTO (CC) -> Trava estrita por tamanho de 4 dígitos numéricos
+            # REGRA 1: CENTRO DE CUSTO (CC) -> Tamanho exato de 4 caracteres numéricos
             if tamanho_total_caracteres == 4 and termo_numerico.isdigit():
                 modo_centro_custo = True
                 col_busca_cc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
                 if col_busca_cc:
                     df_final = df_pc[df_pc[col_busca_cc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, na=False)].copy()
             
-            # CONDIÇÃO 2: PEDIDO DE COMPRAS (PC) -> Maior ou igual a 170000
+            # REGRA 2: PEDIDO DE COMPRAS (PC) -> Maior ou igual a 170000
             elif valor_numerico_inteiro >= 170000:
                 modo_pedido = True
                 col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
                 if col_busca_pc:
-                    # Varre a coluna limpando resíduos decimais (.0) para dar match numérico exato
-                    serie_numerica_coluna = pd.to_numeric(df_pc[col_busca_pc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True), errors='coerce')
-                    df_final = df_pc[serie_numerica_coluna == valor_numerico_inteiro].copy()
+                    # Checagem 1: Match Numérico Direto
+                    serie_numerica = pd.to_numeric(df_pc[col_busca_pc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True), errors='coerce')
+                    df_final = df_pc[serie_numerica == valor_numerico_inteiro].copy()
+                    
+                    # Checagem 2 (Fallback): Match por Texto Contido (Trata zeros ocultos ou formatações textuais)
+                    if df_final.empty:
+                        serie_texto_limpo = df_pc[col_busca_pc].astype(str).str.split('.').str[0].str.strip()
+                        df_final = df_pc[serie_texto_limpo.str.contains(str(valor_numerico_inteiro), na=False)].copy()
             
-            # CONDIÇÃO 3: SOLICITAÇÃO DE COMPRAS (SC) -> Menor que 170000 (e maior que 4 dígitos)
+            # REGRA 3: SOLICITAÇÃO DE COMPRAS (SC) -> Menor que 170000
             elif valor_numerico_inteiro > 0 and valor_numerico_inteiro < 170000:
                 modo_solicitacao = True
                 col_busca_sc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
                 if col_busca_sc:
-                    serie_numerica_coluna = pd.to_numeric(df_pc[col_busca_sc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True), errors='coerce')
-                    df_final = df_pc[serie_numerica_coluna == valor_numerico_inteiro].copy()
+                    # Checagem 1: Match Numérico Direto
+                    serie_numerica = pd.to_numeric(df_pc[col_busca_sc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True), errors='coerce')
+                    df_final = df_pc[serie_numerica == valor_numerico_inteiro].copy()
+                    
+                    # Checagem 2 (Fallback): Match por Texto Contido
+                    if df_final.empty:
+                        serie_texto_limpo = df_pc[col_busca_sc].astype(str).str.split('.').str[0].str.strip()
+                        df_final = df_pc[serie_texto_limpo.str.contains(str(valor_numerico_inteiro), na=False)].copy()
             
-            # Fallback de texto aproximado genérico
+            # Fallback Geral aproximado
             else:
                 col_busca_geral = df_pc.columns[0]
                 df_final = df_pc[df_pc[col_busca_geral].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, na=False)].copy()
 
-            # Filtros adicionais da Gaveta Avançada
+            # Aplicação dos Filtros Avançados
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
@@ -464,7 +475,7 @@ if busca:
                         datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed').dt.date
                         df_final = df_final[(datas_convertidas >= st.session_state.filtro_data_val[0]) & (datas_convertidas <= st.session_state.filtro_data_val[1])]
 
-        # Renderização do Painel de Resultados
+        # Processamento e montagem da tabela
         if not df_final.empty:
             df_painel = pd.DataFrame(index=df_final.index)
             
@@ -563,6 +574,7 @@ if busca:
 
                 st.dataframe(df_painel, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
             else:
+                # Se após processar as colunas a tabela sumir, o erro é direcionado corretamente
                 if modo_pedido:
                     st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
                 elif modo_centro_custo:
@@ -570,6 +582,7 @@ if busca:
                 else:
                     st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
         else:
+            # RETORNO EXATO DE ERRO QUANDO A BUSCA VEM VAZIA DA PLANILHA
             if modo_pedido:
                 st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
             elif modo_centro_custo:
