@@ -24,15 +24,18 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO
+# 3. CSS MODERNIZADO (Alinhamento limpo, assinatura fixa, Ajuste Mobile e Ocultação da Toolbar)
 st.markdown(f"""
     <style>
+    /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     
+    /* REMOVER CAIXA DE OPÇÕES FLUTUANTE DO DATAFRAME (Olho, download, lupa) */
     div[data-testid="stElementToolbar"] {{
         display: none !important;
     }}
     
+    /* Remove o espacamento forcado no topo e nas laterais da pagina */
     .block-container {{
         padding-top: 1rem !important;
         padding-bottom: 1rem !important;
@@ -40,11 +43,13 @@ st.markdown(f"""
         padding-right: 2rem !important;
     }}
     
+    /* Fundo geral suave e tipografia limpa */
     .stApp {{ 
         background-color: #f8fafc; 
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }}
     
+    /* Topo moderno forcando todos os elementos na mesma linha verticalmente alinhados */
     .header-modern {{
         background: #ffffff;
         padding: 16px 24px;
@@ -57,12 +62,14 @@ st.markdown(f"""
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
     }}
     
+    /* Forca os elementos internos das colunas do Streamlit a centralizarem verticalmente */
     div[data-testid="column"] {{
         display: flex;
         align-items: center;
         justify-content: center;
     }}
     
+    /* Alinhamento do título ao meio da página */
     .center-title-container {{
         width: 100%;
         text-align: center;
@@ -81,6 +88,7 @@ st.markdown(f"""
         white-space: nowrap;
     }}
     
+    /* Customizacao fina para campos de input, seletores, botoes */
     div[data-testid="stVerticalBlock"] > div:has(input), 
     div[data-testid="stVerticalBlock"] > div:has(select),
     div[data-testid="stVerticalBlock"] > div:has(button) {{
@@ -97,7 +105,12 @@ st.markdown(f"""
         border-color: #478c3b !important;
     }}
     
-    div[data-testid="stExpander"] {{
+    /* REMOÇÃO TOTAL DA LINHA DE CONTORNO (FECHADA OU ABERTA) */
+    div[data-testid="stExpander"], 
+    div[data-testid="stExpander"] > div,
+    div[data-testid="stExpander"][data-open="true"],
+    div[data-testid="stExpander"][data-open="false"],
+    .stElementContainer:has(div[data-testid="stExpander"]) {{
         background-color: transparent !important;
         border: none !important;
         border-width: 0px !important;
@@ -105,12 +118,14 @@ st.markdown(f"""
         outline: none !important;
     }}
     
+    /* Remove contornos residuais e força fundo limpo na barra do expander */
     div[data-testid="stExpander"] summary,
     div[data-testid="stExpander"] [role="button"],
     .streamlit-expanderHeader {{
         background-color: transparent !important;
         border: none !important;
         border-width: 0px !important;
+        outline: none !important;
         box-shadow: none !important;
         display: inline-flex !important;
         justify-content: flex-end !important;
@@ -121,12 +136,14 @@ st.markdown(f"""
         width: auto !important;
     }}
     
+    /* INTERAÇÃO DA SETA: Permite o giro nativo e suave do componente original */
     div[data-testid="stExpander"] summary svg {{
         transition: transform 0.2s ease-in-out !important;
         margin: 0 !important;
         padding: 0 !important;
     }}
     
+    /* Garante cor estável de alta visibilidade (Grafite) independente do estado */
     div[data-testid="stExpander"] summary p,
     div[data-testid="stExpander"] [data-open="true"] summary p,
     .streamlit-expanderHeader p,
@@ -137,14 +154,17 @@ st.markdown(f"""
         margin: 0 !important;
     }}
     
+    /* Mudança suave para verde apenas no hover */
     div[data-testid="stExpander"] summary:hover p {{
         color: #478c3b !important;
     }}
     
+    /* Ajuste de largura do input de data nativo */
     div[data-testid="stDateInput"] {{
         width: 100%;
     }}
     
+    /* Remove a borda e contorno do sub-formulario interno dos filtros */
     div[data-testid="stForm"] {{
         border: none !important;
         padding: 0px !important;
@@ -152,6 +172,7 @@ st.markdown(f"""
         background-color: transparent !important;
     }}
     
+    /* Caixa padrao de sucesso (Registro Localizado) */
     .status-card {{ 
         background: #ffffff; 
         color: #1e293b; 
@@ -165,6 +186,7 @@ st.markdown(f"""
         width: 100%;
     }}
 
+    /* CAIXA AZUL: Para informacoes positivas */
     .custom-info-blue {{
         background-color: #e0f2fe !important;
         color: #0369a1 !important;
@@ -178,6 +200,7 @@ st.markdown(f"""
         border-left: 5px solid #0284c7;
     }}
 
+    /* CAIXA VERMELHA: Para alertas/erros */
     .custom-error-red {{
         background-color: #fee2e2 !important;
         color: #991b1b !important;
@@ -191,6 +214,7 @@ st.markdown(f"""
         border-left: 5px solid #ef4444;
     }}
 
+    /* SAUDACAO INICIAL */
     .custom-welcome-salutation {{
         background-color: #ffffff;
         color: #1e293b;
@@ -204,6 +228,7 @@ st.markdown(f"""
         margin-top: 20px;
     }}
     
+    /* Ajustes na visualizacao das tabelas */
     div[data-testid="stDataFrame"] {{
         background: #ffffff;
         padding: 16px;
@@ -211,6 +236,7 @@ st.markdown(f"""
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
     }}
     
+    /* Impedir quebras de palavras e truncamento nos titulos das colunas */
     div[data-testid="stDataFrame"] table th {{
         white-space: nowrap !important;
         min-width: max-content !important;
@@ -228,6 +254,7 @@ st.markdown(f"""
         display: block !important;
     }}
 
+    /* Assinatura fixa no canto inferior esquerdo da tela */
     .signature-fixed {{
         position: fixed;
         bottom: 12px;
@@ -271,16 +298,18 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# BACKEND: LINKS CONVERTIDOS PARA API DE DOWNLOAD DIRETO DO DRIVE
+# BACKEND: CARREGAMENTO DOS DADOS (RECALIBRADO EXPLICITAMENTE PARA A GUIA OPERACIONAL)
 # ==========================================
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=60)
 def carregar_dados_seguros():
-    # Link do teu Google Drive convertido automaticamente para endpoint de download direto
-    URL = "https://docs.google.com/uc?export=download&id=1BJqpn9BcOD1Wdq8LFTUsuYF-eHex8m7x"
+    # URL da sua planilha master original em formato .xlsx
+    URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
-        df = pd.read_csv(URL, dtype=str, encoding='utf-8').fillna('')
-        df.columns = [str(c).strip() for c in df.columns]
-        return df
+        excel = pd.ExcelFile(URL, engine='openpyxl')
+        # CORREÇÃO CRUCIAL (SILVIO): Força o código a pular o Dashboard e carregar a aba de dados reais
+        df_pc = pd.read_excel(excel, sheet_name="Protheus PC", dtype=str).fillna('')
+        df_pc.columns = [str(c).strip() for c in df_pc.columns]
+        return df_pc
     except Exception as e:
         return pd.DataFrame()
 
@@ -404,7 +433,7 @@ def formatar_para_dd_mm_aa(valor):
         return txt
 
 # ==========================================
-# 6. MOTOR DE BUSCA COM TRATAMENTO POR CONCURRÊNCIA TEXTUAL (.STR.CONTAINS)
+# 6. MOTOR DE BUSCA COM HIGIENIZAÇÃO RIGOROSA DE STRING MISTA
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -416,45 +445,49 @@ if busca:
     modo_centro_custo = False
     
     try:
-        if not df_pc.empty:
-            # 1. VALIDAÇÃO DE CENTRO DE CUSTO (4 Dígitos exatos)
+        if not df_pc.empty and termo_numerico:
+            # A) VALIDAÇÃO DO CENTRO DE CUSTO (Exatamente 4 dígitos numéricos)
             if len(termo_busca) == 4 and termo_busca.isdigit():
                 modo_centro_custo = True
                 col_busca_cc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
                 if col_busca_cc:
-                    df_final = df_pc[df_pc[col_busca_cc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip() == termo_busca].copy()
+                    # Limpeza para remover flutuantes mascarados (.0) gerados pelo Excel
+                    serie_cc_limpa = df_pc[col_busca_cc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
+                    df_final = df_pc[serie_cc_limpa == termo_numerico].copy()
             
-            # 2. SE NÃO FOR CC, BUSCA DINÂMICA POR CONTEÚDO PARCIAL DA COLUNA TEXTUAL
-            if df_final.empty and termo_numerico:
+            # B) SANEAMENTO OPERACIONAL DAS COLUNAS PROTHEUS (SC / PC) 
+            if df_final.empty:
                 col_pc = "Nº Pedido (PC)"
                 col_sc = "Nº Solicitação (SC)"
                 
-                # Normaliza limpando flutuantes fictícios e espaços gerados pelo Sheets
-                serie_pc_str = df_pc[col_pc].astype(str).str.split('.').str[0].str.strip() if col_pc in df_pc.columns else pd.Series()
-                serie_sc_str = df_pc[col_sc].astype(str).str.split('.').str[0].str.strip() if col_sc in df_pc.columns else pd.Series()
+                # Normaliza as colunas da planilha do Excel limpando os pontos flutuantes em tempo de execução
+                serie_pc_txt = df_pc[col_pc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip() if col_pc in df_pc.columns else pd.Series()
+                serie_sc_txt = df_pc[col_sc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip() if col_sc in df_pc.columns else pd.Series()
                 
+                # Regra hierárquica baseada no limite matemático padrão de corte (170000)
                 if int(termo_numerico) >= 170000:
                     modo_pedido = True
-                    if not serie_pc_str.empty:
-                        # Varre se o termo numérico está contido (captura mesmo com espaços invisíveis ocultos)
-                        df_final = df_pc[serie_pc_str.str.contains(termo_numerico, na=False)].copy()
+                    if not serie_pc_txt.empty:
+                        # Busca por string limpa idêntica (Evita que o "XXXXXX" ou nans quebrem a tabela)
+                        df_final = df_pc[serie_pc_txt == termo_numerico].copy()
                 else:
-                    if not serie_sc_str.empty:
-                        df_final = df_pc[serie_sc_str.str.contains(termo_numerico, na=False)].copy()
+                    if not serie_sc_txt.empty:
+                        df_final = df_pc[serie_sc_txt == termo_numerico].copy()
                         if not df_final.empty:
                             modo_solicitacao = True
                     
-                    if df_final.empty and not serie_pc_str.empty:
-                        df_final = df_pc[serie_pc_str.str.contains(termo_numerico, na=False)].copy()
+                    # Contingência se for uma numeração de pedido antiga menor de 170000
+                    if df_final.empty and not serie_pc_txt.empty:
+                        df_final = df_pc[serie_pc_txt == termo_numerico].copy()
                         if not df_final.empty:
                             modo_pedido = True
 
-            # 3. CONTINGÊNCIA GERAL DE TEXTO LIVRE
-            if df_final.empty:
+            # C) CONTINGÊNCIA GERAL DE TEXTO GENERATIVO
+            if df_final.empty and not termo_busca.isdigit():
                 col_busca_geral = df_pc.columns[0]
                 df_final = df_pc[df_pc[col_busca_geral].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, na=False)].copy()
 
-            # --- FILTROS DA GAVETA AVANÇADA ---
+            # --- FILTROS ADICIONAIS DA GAVETA AVANÇADA ---
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
@@ -511,12 +544,16 @@ if busca:
                 if col_data in df_painel.columns:
                     df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
 
+            # Filtro exclusor desativado conforme alinhamentos de segurança do histórico
+            # if "Condição Pagamento" in df_painel.columns:
+            #     df_painel = df_painel[~df_painel["Condição Pagamento"].astype(str).str.upper().str.contains("PAGO", na=False)]
+
             df_painel = df_painel.dropna(how='all')
 
             if not df_painel.empty:
                 if modo_centro_custo:
                     txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}"
-                elif modo_pedido:
+                elif modo_pedido or (termo_numerico and int(termo_numerico) >= 170000):
                     txt_status = f"📦 Pedido de Compras Firme Localizado: {termo_busca}"
                 elif modo_solicitacao:
                     txt_status = f"⏳ Solicitação de Compras Localizada: {termo_busca}"
