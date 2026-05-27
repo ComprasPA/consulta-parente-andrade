@@ -242,14 +242,14 @@ st.markdown(f"""
         min-width: max-content !important;
     }}
 
-    /* CORREÇÃO DEFINITIVA DO RODAPÉ FLUTUANTE (Sem amarras e solto na página) */
+    /* CORREÇÃO DEFINITIVA DO RODAPÉ FLUTUANTE */
     .custom-footer-block {{
         text-align: center !important; 
         margin-top: 60px !important; 
         border-top: 1px solid #e2e8f0 !important; 
         padding-top: 24px !important;
         padding-bottom: 24px !important;
-        position: static !important; /* Força comportamento nativo de fluxo de texto */
+        position: static !important; 
         clear: both !important;
         width: 100% !important;
         display: block !important;
@@ -450,15 +450,15 @@ def formatar_para_dd_mm_aa(valor):
 
 
 # ==========================================
-# 6. MOTOR DE BUSCA DIRECIONADO OPERACIONAL
+# 6. MOTOR DE BUSCA DIRECIONADO OPERACIONAL (HIERARQUIA AJUSTADA)
 # ==========================================
 if busca:
     termo_busca = busca.strip()
-    tamanho_total_caracteres = len(termo_busca)
     
-    # Extração numérica limpa
+    # Isolar apenas os dígitos para a verificação matemática de PC, SC e CC
     termo_numerico = re.sub(r'[^0-9]', '', termo_busca)
     valor_numerico_inteiro = int(termo_numerico) if termo_numerico else 0
+    tamanho_total_caracteres = len(termo_busca)
     
     df_final = pd.DataFrame()
     modo_centro_custo = False
@@ -467,40 +467,39 @@ if busca:
     
     try:
         if not df_pc.empty:
-            # 1. PEDIDO DE COMPRAS (Dígitos >= 170000)
-            if valor_numerico_inteiro >= 170000:
-                modo_pedido = True
-                col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
-                if col_busca_pc:
-                    padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
-                    df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)].copy()
-            
-            # 2. SOLICITAÇÃO DE COMPRAS (Dígitos > 0 e < 170000, excluindo CC de tamanho 4)
-            elif valor_numerico_inteiro > 0 and valor_numerico_inteiro < 170000 and tamanho_total_caracteres != 4:
-                modo_solicitacao = True
-                col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
-                if col_busca_pc:
-                    padrao_regex = f"^{int(termo_numerico)}(\\.0)?$"
-                    df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)].copy()
-            
-            # 3. CENTRO DE CUSTO (Exatos 4 caracteres numéricos)
-            elif len(termo_numerico) == 4 and tamanho_total_caracteres == 4:
+            # CONDICIONAL 1: CENTRO DE CUSTO (CC) -> Trava estrita por tamanho de 4 dígitos
+            if tamanho_total_caracteres == 4 and termo_numerico.isdigit():
                 modo_centro_custo = True
                 col_busca_pc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
                 if col_busca_pc:
                     df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, regex=True, na=False)].copy()
             
-            # Fallback caso não encontre correspondência direta
+            # CONDICIONAL 2: PEDIDO DE COMPRAS (PC) -> Maior ou igual a 170000
+            elif valor_numerico_inteiro >= 170000:
+                modo_pedido = True
+                col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
+                if col_busca_pc:
+                    padrao_regex = f"^{valor_numerico_inteiro}(\\.0)?$"
+                    df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)].copy()
+            
+            # CONDICIONAL 3: SOLICITAÇÃO DE COMPRAS (SC) -> Menor que 170000
+            elif valor_numerico_inteiro > 0 and valor_numerico_inteiro < 170000:
+                modo_solicitacao = True
+                col_busca_pc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
+                if col_busca_pc:
+                    padrao_regex = f"^{valor_numerico_inteiro}(\\.0)?$"
+                    df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)].copy()
+            
+            # Fallback Geral aproximado
             else:
                 padrao_regex = re.escape(termo_busca)
                 col_busca_pc = df_pc.columns[0]
                 df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(padrao_regex, flags=re.IGNORECASE, regex=True, na=False)].copy()
 
-            # Filtros de Status da Gaveta
+            # Filtros adicionais da Gaveta Operacional
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
-            # Filtro de Data corrigido
             if not df_final.empty and st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
                 if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
                     col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
@@ -635,12 +634,17 @@ if busca:
                 
                 st.dataframe(tabela_estilizada, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
             else:
-                st.markdown('<div class="custom-info-blue">ℹ️ Nenhum registro ativo atende aos critérios de busca e aos filtros selecionados.</div>', unsafe_allow_html=True)
+                if modo_pedido:
+                    st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
+                elif modo_centro_custo:
+                    st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
         else:
-            if modo_centro_custo:
-                st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
-            elif modo_pedido:
+            if modo_pedido:
                 st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
+            elif modo_centro_custo:
+                st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
             else:
                 st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
     except Exception as e:
