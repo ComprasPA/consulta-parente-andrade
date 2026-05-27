@@ -409,12 +409,10 @@ def formatar_para_dd_mm_aa(valor):
         return txt
 
 # ==========================================
-# 6. MOTOR DE BUSCA CORRIGIDO (FLEXIBILIDADE E DIRECIONAMENTO REAL)
+# 6. MOTOR DE BUSCA CORRIGIDO E HIERARQUIZADO (SILVIO)
 # ==========================================
 if busca:
     termo_busca = busca.strip()
-    
-    # Isolar estritamente os números digitados para a regra matemática de negócio
     termo_numerico = re.sub(r'[^0-9]', '', termo_busca)
     valor_numerico_inteiro = int(termo_numerico) if termo_numerico else 0
     tamanho_total_caracteres = len(termo_busca)
@@ -426,34 +424,36 @@ if busca:
     
     try:
         if not df_pc.empty:
-            # REGRA 1: CENTRO DE CUSTO (CC) -> Exatamente 4 dígitos na caixa de busca
+            # CONDIÇÃO 1: CENTRO DE CUSTO (CC) -> Trava estrita por tamanho de 4 dígitos numéricos
             if tamanho_total_caracteres == 4 and termo_numerico.isdigit():
                 modo_centro_custo = True
                 col_busca_cc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
                 if col_busca_cc:
                     df_final = df_pc[df_pc[col_busca_cc].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, na=False)].copy()
             
-            # REGRA 2: PEDIDO DE COMPRAS (PC) -> Maior ou igual a 170000
+            # CONDIÇÃO 2: PEDIDO DE COMPRAS (PC) -> Maior ou igual a 170000
             elif valor_numerico_inteiro >= 170000:
                 modo_pedido = True
                 col_busca_pc = next((c for c in df_pc.columns if "PEDID" in c.upper() or "PC" in c.upper()), None)
                 if col_busca_pc:
-                    # Busca flexível por contido (ignora formatações de string e zeros extras à esquerda)
-                    df_final = df_pc[df_pc[col_busca_pc].astype(str).str.strip().str.contains(str(valor_numerico_inteiro), flags=re.IGNORECASE, na=False)].copy()
+                    # Varre a coluna limpando resíduos decimais (.0) para dar match numérico exato
+                    serie_numerica_coluna = pd.to_numeric(df_pc[col_busca_pc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True), errors='coerce')
+                    df_final = df_pc[serie_numerica_coluna == valor_numerico_inteiro].copy()
             
-            # REGRA 3: SOLICITAÇÃO DE COMPRAS (SC) -> Menor que 170000 (e maior que 4 dígitos)
+            # CONDIÇÃO 3: SOLICITAÇÃO DE COMPRAS (SC) -> Menor que 170000 (e maior que 4 dígitos)
             elif valor_numerico_inteiro > 0 and valor_numerico_inteiro < 170000:
                 modo_solicitacao = True
                 col_busca_sc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), None)
                 if col_busca_sc:
-                    df_final = df_pc[df_pc[col_busca_sc].astype(str).str.strip().str.contains(str(valor_numerico_inteiro), flags=re.IGNORECASE, na=False)].copy()
+                    serie_numerica_coluna = pd.to_numeric(df_pc[col_busca_sc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True), errors='coerce')
+                    df_final = df_pc[serie_numerica_coluna == valor_numerico_inteiro].copy()
             
-            # Fallback Geral aproximado caso fuja das regras acima
+            # Fallback de texto aproximado genérico
             else:
                 col_busca_geral = df_pc.columns[0]
                 df_final = df_pc[df_pc[col_busca_geral].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, na=False)].copy()
 
-            # Aplicação dos filtros da gaveta avançada, se houver
+            # Filtros adicionais da Gaveta Avançada
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
@@ -464,7 +464,7 @@ if busca:
                         datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed').dt.date
                         df_final = df_final[(datas_convertidas >= st.session_state.filtro_data_val[0]) & (datas_convertidas <= st.session_state.filtro_data_val[1])]
 
-        # Construção da tabela de exibição final se existirem correspondências
+        # Renderização do Painel de Resultados
         if not df_final.empty:
             df_painel = pd.DataFrame(index=df_final.index)
             
@@ -491,7 +491,6 @@ if busca:
                 else:
                     df_painel[nome_exibicao_tela] = ""
 
-            # Ajustes automáticos de layout de colunas e regras de N/A
             if "Previsão de entrega" in df_painel.columns and "Entrega" in df_painel.columns:
                 mascara_vazia = (df_painel["Previsão de entrega"] == "") | (df_painel["Previsão de entrega"].isna())
                 df_painel.loc[mascara_vazia, "Previsão de entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
@@ -526,7 +525,6 @@ if busca:
                 
                 st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
                 
-                # Botão de download Excel
                 c_down, _ = st.columns([2.5, 7.5])
                 with c_down:
                     out = BytesIO()
@@ -547,7 +545,6 @@ if busca:
                         use_container_width=True
                     )
                 
-                # Configurações de alinhamento visual da tabela
                 configuracao_colunas_tela = {}
                 for col_config in DICIONARIO_COLUNAS_EXATAS:
                     nome_tela = col_config["tela"]
@@ -566,7 +563,6 @@ if busca:
 
                 st.dataframe(df_painel, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
             else:
-                # Fallback caso filtre tudo nas etapas pós-processamento
                 if modo_pedido:
                     st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
                 elif modo_centro_custo:
@@ -574,7 +570,6 @@ if busca:
                 else:
                     st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
         else:
-            # DIRECIONAMENTO REAL DE ERROS SE A BUSCA VOLTAR VAZIA DA PLANILHA
             if modo_pedido:
                 st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado, entre em contato com o comprador.</div>', unsafe_allow_html=True)
             elif modo_centro_custo:
