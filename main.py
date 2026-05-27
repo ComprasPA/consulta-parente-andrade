@@ -97,11 +97,7 @@ st.markdown(f"""
         border-color: #478c3b !important;
     }}
     
-    div[data-testid="stExpander"], 
-    div[data-testid="stExpander"] > div,
-    div[data-testid="stExpander"][data-open="true"],
-    div[data-testid="stExpander"][data-open="false"],
-    .stElementContainer:has(div[data-testid="stExpander"]) {{
+    div[data-testid="stExpander"] {{
         background-color: transparent !important;
         border: none !important;
         border-width: 0px !important;
@@ -278,7 +274,7 @@ st.markdown(f"""
 # ==========================================
 # BACKEND: CARREGAMENTO DOS DADOS
 # ==========================================
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=30)
 def carregar_dados_seguros():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
@@ -409,7 +405,7 @@ def formatar_para_dd_mm_aa(valor):
         return txt
 
 # ==========================================
-# 6. MOTOR DE BUSCA COM TRATAMENTO ULTRA-ESTRITO (MANTENDO AS REGRAS E GAVETAS)
+# 6. MOTOR DE BUSCA COM TRATAMENTO ULTRA-ESTRITO
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -442,7 +438,7 @@ if busca:
                     valores_pc_inteiros = pd.to_numeric(valores_pc_limpos, errors='coerce').fillna(-1).astype(int)
                     
                     df_final = df_pc[valores_pc_inteiros == valor_busca_int].copy()
-                    if not df_final.empty:
+                    if not df_final.empty or valor_busca_int >= 170000:
                         modo_pedido = True
                 
                 # --- BUSCA ULTRA-ESTRITA DE INTEIROS NA COLUNA DE SOLICITAÇÕES (SC) ---
@@ -451,7 +447,7 @@ if busca:
                     valores_sc_inteiros = pd.to_numeric(valores_sc_limpos, errors='coerce').fillna(-1).astype(int)
                     
                     df_final = df_pc[valores_sc_inteiros == valor_busca_int].copy()
-                    if not df_final.empty:
+                    if not df_final.empty and valor_busca_int < 170000:
                         modo_solicitacao = True
 
             # 3. FALLBACK CASO NÃO SEJA DIGITO PURO (Texto na primeira coluna)
@@ -516,15 +512,16 @@ if busca:
                 if col_data in df_painel.columns:
                     df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
 
-            if "Condição Pagamento" in df_painel.columns:
-                df_painel = df_painel[~df_painel["Condição Pagamento"].astype(str).str.upper().str.contains("PAGO", na=False)]
+            # --- CORREÇÃO CIRÚRGICA: DESATIVADO O FILTRO EXCLUSOR QUE REMOVIA PEDIDOS DE TELA ---
+            # if "Condição Pagamento" in df_painel.columns:
+            #     df_painel = df_painel[~df_painel["Condição Pagamento"].astype(str).str.upper().str.contains("PAGO", na=False)]
 
             df_painel = df_painel.dropna(how='all')
 
             if not df_painel.empty:
                 if modo_centro_custo:
                     txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}"
-                elif modo_pedido:
+                elif modo_pedido or (termo_numerico and int(termo_numerico) >= 170000):
                     txt_status = f"📦 Pedido de Compras Firme Localizado: {termo_busca}"
                 elif modo_solicitacao:
                     txt_status = f"⏳ Solicitação de Compras Localizada: {termo_busca}"
@@ -571,7 +568,6 @@ if busca:
 
                 st.dataframe(df_painel, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
             else:
-                # Fallback caso o dataframe esvazie após os tratamentos internos
                 if modo_centro_custo:
                     st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
                 elif termo_numerico and int(termo_numerico) >= 170000:
@@ -579,7 +575,6 @@ if busca:
                 else:
                     st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
         else:
-            # FALLBACK DE RETORNO QUANDO A PLANILHA RETORNA VERDADEIRAMENTE VAZIA NA BUSCA
             if modo_centro_custo:
                 st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
             elif termo_numerico and int(termo_numerico) >= 170000:
