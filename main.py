@@ -274,7 +274,7 @@ st.markdown(f"""
 # ==========================================
 # BACKEND: CARREGAMENTO DOS DADOS
 # ==========================================
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=15)
 def carregar_dados_seguros():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
@@ -405,7 +405,7 @@ def formatar_para_dd_mm_aa(valor):
         return txt
 
 # ==========================================
-# 6. MOTOR DE BUSCA COM TRATAMENTO ULTRA-ESTRITO
+# 6. MOTOR DE BUSCA COM RASTREAMENTO TEXTUAL DE SEGURANÇA
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -417,45 +417,47 @@ if busca:
     modo_centro_custo = False
     
     try:
-        if not df_pc.empty and termo_numerico:
-            valor_busca_int = int(termo_numerico)
-            
-            # 1. TRAVA ESTRITA: Se tiver exatamente 4 dígitos, é Centro de Custo
+        if not df_pc.empty:
+            # 1. VALIDAÇÃO DE CENTRO DE CUSTO (4 Dígitos exatos)
             if len(termo_busca) == 4 and termo_busca.isdigit():
                 modo_centro_custo = True
                 col_busca_cc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
                 if col_busca_cc:
-                    df_final = df_pc[df_pc[col_busca_cc].astype(str).str.strip().str.replace(r'\.0$', '', regex=True) == termo_busca].copy()
+                    df_final = df_pc[df_pc[col_busca_cc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip() == termo_busca].copy()
             
-            # 2. SE NÃO FOR CC, VERIFICAÇÃO RIGOROSA PARALELA NAS COLUNAS MAPEADAS
-            if df_final.empty:
+            # 2. VALIDAÇÃO TEXTUAL DIRETA CONTRA ERROS DE FORMATO DO PANDAS
+            if df_final.empty and termo_numerico:
                 col_pc = "Nº Pedido (PC)"
                 col_sc = "Nº Solicitação (SC)"
                 
-                # --- BUSCA ULTRA-ESTRITA DE INTEIROS NA COLUNA DE PEDIDOS (PC) ---
-                if col_pc in df_pc.columns:
-                    valores_pc_limpos = df_pc[col_pc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True)
-                    valores_pc_inteiros = pd.to_numeric(valores_pc_limpos, errors='coerce').fillna(-1).astype(int)
-                    
-                    df_final = df_pc[valores_pc_inteiros == valor_busca_int].copy()
-                    if not df_final.empty or valor_busca_int >= 170000:
-                        modo_pedido = True
+                # Normalização das séries de dados removendo flutuantes fictícios (.0)
+                serie_pc_normalizada = df_pc[col_pc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip() if col_pc in df_pc.columns else pd.Series()
+                serie_sc_normalizada = df_pc[col_sc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip() if col_sc in df_pc.columns else pd.Series()
                 
-                # --- BUSCA ULTRA-ESTRITA DE INTEIROS NA COLUNA DE SOLICITAÇÕES (SC) ---
-                if df_final.empty and col_sc in df_pc.columns:
-                    valores_sc_limpos = df_pc[col_sc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True)
-                    valores_sc_inteiros = pd.to_numeric(valores_sc_limpos, errors='coerce').fillna(-1).astype(int)
+                # Se o número digitado for >= 170000, força a prioridade absoluta na coluna de Pedidos (PC)
+                if int(termo_numerico) >= 170000:
+                    modo_pedido = True
+                    if not serie_pc_normalizada.empty:
+                        df_final = df_pc[serie_pc_normalizada == termo_numerico].copy()
+                else:
+                    # Se for menor que 170000, tenta localizar primeiro na Solicitação (SC)
+                    if not serie_sc_normalizada.empty:
+                        df_final = df_pc[serie_sc_normalizada == termo_numerico].copy()
+                        if not df_final.empty:
+                            modo_solicitacao = True
                     
-                    df_final = df_pc[valores_sc_inteiros == valor_busca_int].copy()
-                    if not df_final.empty and valor_busca_int < 170000:
-                        modo_solicitacao = True
+                    # Se não achou na SC, tenta achar na PC como contingência secundária
+                    if df_final.empty and not serie_pc_normalizada.empty:
+                        df_final = df_pc[serie_pc_normalizada == termo_numerico].copy()
+                        if not df_final.empty:
+                            modo_pedido = True
 
-            # 3. FALLBACK CASO NÃO SEJA DIGITO PURO (Texto na primeira coluna)
+            # 3. CONTINGÊNCIA GERAL DE TEXTO (Caso digitem nomes de fornecedores ou texto livre)
             if df_final.empty and not termo_busca.isdigit():
                 col_busca_geral = df_pc.columns[0]
                 df_final = df_pc[df_pc[col_busca_geral].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, na=False)].copy()
 
-            # --- PRESERVAÇÃO INTEGRAL DOS FILTROS DA GAVETA AVANÇADA ---
+            # --- FILTROS DA GAVETA AVANÇADA ---
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
@@ -512,16 +514,12 @@ if busca:
                 if col_data in df_painel.columns:
                     df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aa)
 
-            # --- CORREÇÃO CIRÚRGICA: DESATIVADO O FILTRO EXCLUSOR QUE REMOVIA PEDIDOS DE TELA ---
-            # if "Condição Pagamento" in df_painel.columns:
-            #     df_painel = df_painel[~df_painel["Condição Pagamento"].astype(str).str.upper().str.contains("PAGO", na=False)]
-
             df_painel = df_painel.dropna(how='all')
 
             if not df_painel.empty:
                 if modo_centro_custo:
                     txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}"
-                elif modo_pedido or (termo_numerico and int(termo_numerico) >= 170000):
+                elif modo_pedido:
                     txt_status = f"📦 Pedido de Compras Firme Localizado: {termo_busca}"
                 elif modo_solicitacao:
                     txt_status = f"⏳ Solicitação de Compras Localizada: {termo_busca}"
