@@ -111,6 +111,7 @@ st.markdown(f"""
         background-color: transparent !important;
         border: none !important;
         border-width: 0px !important;
+        outline: none !important;
         box-shadow: none !important;
         display: inline-flex !important;
         justify-content: flex-end !important;
@@ -271,26 +272,17 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# BACKEND: CARREGAMENTO E CONVERSÃO FORÇADA DA PLANILHA
+# BACKEND: CARREGAMENTO DOS DADOS (APONTANDO DIRETAMENTE PARA A GUIA DE DADOS "Protheus PC")
 # ==========================================
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=15)
 def carregar_dados_seguros():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
-        df = pd.read_excel(excel, sheet_name="Protheus PC", dtype=str).fillna('')
-        df.columns = [str(c).strip() for c in df.columns]
-        
-        # 🔄 CONVERSÃO DO BANCO DE DADOS EM TEMPO DE EXECUÇÃO:
-        # Limpa pontos flutuantes, textos e resíduos invisíveis para deixar os códigos idênticos ao que o usuário digita
-        if "Nº Pedido (PC)" in df.columns:
-            df["Nº Pedido (PC)"] = df["Nº Pedido (PC)"].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
-        if "Nº Solicitação (SC)" in df.columns:
-            df["Nº Solicitação (SC)"] = df["Nº Solicitação (SC)"].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
-        if "Centro de Custo (CC)" in df.columns:
-            df["Centro de Custo (CC)"] = df["Centro de Custo (CC)"].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
-            
-        return df
+        # Correção definitiva da aba: Lê explicitamente a guia de suprimentos operacionais filtrando o dashboard anterior
+        df_pc = pd.read_excel(excel, sheet_name="Protheus PC", dtype=str).fillna('')
+        df_pc.columns = [str(c).strip() for c in df_pc.columns]
+        return df_pc
     except Exception as e:
         return pd.DataFrame()
 
@@ -414,7 +406,7 @@ def formatar_para_dd_mm_aa(valor):
         return txt
 
 # ==========================================
-# 6. MOTOR DE BUSCA EM BANCO DE DADOS FORMATADO E NORMALIZADO
+# 6. MOTOR DE BUSCA NORMALIZADO COM COMPARAÇÃO STRING LIMPA
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -427,40 +419,47 @@ if busca:
     
     try:
         if not df_pc.empty:
-            # 1. VALIDAÇÃO DE CENTRO DE CUSTO (4 Dígitos exatos)
+            # A) VALIDAÇÃO DE CENTRO DE CUSTO (4 Dígitos exatos)
             if len(termo_busca) == 4 and termo_busca.isdigit():
                 modo_centro_custo = True
-                if "Centro de Custo (CC)" in df_pc.columns:
-                    df_final = df_pc[df_pc["Centro de Custo (CC)"] == termo_numerico].copy()
+                col_busca_cc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
+                if col_busca_cc:
+                    # Limpeza forçada na coluna CC remetendo a string pura
+                    col_cc_txt = df_pc[col_busca_cc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
+                    df_final = df_pc[col_cc_txt == termo_numerico].copy()
             
-            # 2. SE NÃO FOR CC, BUSCA NAS COLUNAS CONVERTIDAS EM STRING PURA
+            # B) RECALIBRAÇÃO TEXTUAL DAS COLUNAS PROTHEUS (SC / PC) - IGNORA MISTURA DE TIPOS DO EXCEL
             if df_final.empty and termo_numerico:
                 col_pc = "Nº Pedido (PC)"
                 col_sc = "Nº Solicitação (SC)"
                 
-                # Classificação de contexto pelo número de corte (170000)
+                # Transforma as duas séries em strings limpas de números puros sem decimais flutuantes fictícios
+                serie_pc_txt = df_pc[col_pc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip() if col_pc in df_pc.columns else pd.Series()
+                serie_sc_txt = df_pc[col_sc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip() if col_sc in df_pc.columns else pd.Series()
+                
+                # Classificação pelo limite matemático rígido acordado de 170000
                 if int(termo_numerico) >= 170000:
                     modo_pedido = True
-                    if col_pc in df_pc.columns:
-                        df_final = df_pc[df_pc[col_pc] == termo_numerico].copy()
+                    if not serie_pc_txt.empty:
+                        df_final = df_pc[serie_pc_txt == termo_numerico].copy()
                 else:
-                    if col_sc in df_pc.columns:
-                        df_final = df_pc[df_pc[col_sc] == termo_numerico].copy()
+                    if not serie_sc_txt.empty:
+                        df_final = df_pc[serie_sc_txt == termo_numerico].copy()
                         if not df_final.empty:
                             modo_solicitacao = True
                     
-                    # Contingência secundária para Pedidos menores de 170000
-                    if df_final.empty and col_pc in df_pc.columns:
-                        df_final = df_pc[df_pc[col_pc] == termo_numerico].copy()
+                    # Contingência secundária se o ID for de pedido menor que 170000
+                    if df_final.empty and not serie_pc_txt.empty:
+                        df_final = df_pc[serie_pc_txt == termo_numerico].copy()
                         if not df_final.empty:
                             modo_pedido = True
 
-            # 3. CONTINGÊNCIA GERAL DE TEXTO LIVRE
+            # C) CONTINGÊNCIA GERAL DE TEXTO LIVRE (Caso busquem fornecedores, etc.)
             if df_final.empty and not termo_busca.isdigit():
                 col_busca_geral = df_pc.columns[0]
                 df_final = df_pc[df_pc[col_busca_geral].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, na=False)].copy()
 
-            # --- FILTROS DA GAVETA AVANÇADA ---
+            # --- FILTROS DE SESSÃO DA GAVETA AVANÇADA ---
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
@@ -578,17 +577,9 @@ if busca:
         else:
             if modo_centro_custo:
                 st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
-            elif modo_pedido:
+            elif modo_pedido or (termo_numerico and int(termo_numerico) >= 170000):
                 st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado. Entre em contato com o comprador responsável.</div>', unsafe_allow_html=True)
             else:
                 st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
     except Exception as e:
-        st.markdown('<div class="custom-error-red">⚠️ Erro ao processar os dados da busca. Verifique as configurações dos filtros e tente novamente.</div>', unsafe_allow_html=True)
-else:
-    st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
-
-# 7. RODAPÉ INSTITUCIONAL
-st.markdown("<div class=\"custom-footer-block\"><p style='color:#64748b; font-size:13px; font-weight:600; margin:0;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
-
-# 8. MARCA D'ÁGUA FIXA EXCLUSIVA DA AUTORIA
-st.markdown('<div class="signature-fixed">Created by SS.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="custom-error-red">⚠️ Erro ao processar os dados da busca. Verifique as
