@@ -242,17 +242,17 @@ st.markdown(f"""
         min-width: max-content !important;
     }}
 
-    /* CORREÇÃO DEFINITIVA DO RODAPÉ FLUTUANTE (Sem amarras e solto na página) */
+    /* AJUSTE DO RODAPÉ INSTITUCIONAL: Forçado a ser flutuante no fluxo comum do scroll */
     .custom-footer-block {{
         text-align: center !important; 
-        margin-top: 60px !important; 
+        margin-top: 50px !important; 
         border-top: 1px solid #e2e8f0 !important; 
-        padding-top: 24px !important;
-        padding-bottom: 24px !important;
-        position: static !important; /* Força comportamento nativo de fluxo de texto */
-        clear: both !important;
+        padding-top: 20px !important;
+        padding-bottom: 20px !important;
+        position: relative !important;
         width: 100% !important;
         display: block !important;
+        clear: both !important;
     }}
 
     /* Assinatura fixa no canto inferior esquerdo da tela */
