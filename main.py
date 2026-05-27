@@ -274,7 +274,7 @@ st.markdown(f"""
 # ==========================================
 # BACKEND: CARREGAMENTO DOS DADOS
 # ==========================================
-@st.cache_data(ttl=15)
+@st.cache_data(ttl=5)
 def carregar_dados_seguros():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
@@ -405,7 +405,7 @@ def formatar_para_dd_mm_aa(valor):
         return txt
 
 # ==========================================
-# 6. MOTOR DE BUSCA COM RASTREAMENTO TEXTUAL DE SEGURANÇA
+# 6. MOTOR DE BUSCA COM RASTREAMENTO PARCIAL ULTRA-SEGURO (.CONTAINS)
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -425,39 +425,40 @@ if busca:
                 if col_busca_cc:
                     df_final = df_pc[df_pc[col_busca_cc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip() == termo_busca].copy()
             
-            # 2. VALIDAÇÃO TEXTUAL DIRETA CONTRA ERROS DE FORMATO DO PANDAS
+            # 2. MOTOR REFORMULADO: BUSCA POR CONTEÚDO PARCIAL (SUBSTRING)
             if df_final.empty and termo_numerico:
                 col_pc = "Nº Pedido (PC)"
                 col_sc = "Nº Solicitação (SC)"
                 
-                # Normalização das séries de dados removendo flutuantes fictícios (.0)
-                serie_pc_normalizada = df_pc[col_pc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip() if col_pc in df_pc.columns else pd.Series()
-                serie_sc_normalizada = df_pc[col_sc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip() if col_sc in df_pc.columns else pd.Series()
+                # Normaliza as colunas transformando tudo em string limpa e crua para comparação
+                serie_pc_str = df_pc[col_pc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip() if col_pc in df_pc.columns else pd.Series()
+                serie_sc_str = df_pc[col_sc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip() if col_sc in df_pc.columns else pd.Series()
                 
-                # Se o número digitado for >= 170000, força a prioridade absoluta na coluna de Pedidos (PC)
+                # Regra de classificação de contexto com base na numeração de corte (170000)
                 if int(termo_numerico) >= 170000:
                     modo_pedido = True
-                    if not serie_pc_normalizada.empty:
-                        df_final = df_pc[serie_pc_normalizada == termo_numerico].copy()
+                    if not serie_pc_str.empty:
+                        # Varre se o termo_numerico está contido em qualquer parte da célula da coluna de Pedidos
+                        df_final = df_pc[serie_pc_str.str.contains(termo_numerico, na=False)].copy()
                 else:
-                    # Se for menor que 170000, tenta localizar primeiro na Solicitação (SC)
-                    if not serie_sc_normalizada.empty:
-                        df_final = df_pc[serie_sc_normalizada == termo_numerico].copy()
+                    if not serie_sc_str.empty:
+                        # Varre se o termo_numerico está contido em qualquer parte da célula da coluna de Solicitações
+                        df_final = df_pc[serie_sc_str.str.contains(termo_numerico, na=False)].copy()
                         if not df_final.empty:
                             modo_solicitacao = True
                     
-                    # Se não achou na SC, tenta achar na PC como contingência secundária
-                    if df_final.empty and not serie_pc_normalizada.empty:
-                        df_final = df_pc[serie_pc_normalizada == termo_numerico].copy()
+                    # Contingência secundária para numeração menor que 170000 na coluna de Pedidos
+                    if df_final.empty and not serie_pc_str.empty:
+                        df_final = df_pc[serie_pc_str.str.contains(termo_numerico, na=False)].copy()
                         if not df_final.empty:
                             modo_pedido = True
 
-            # 3. CONTINGÊNCIA GERAL DE TEXTO (Caso digitem nomes de fornecedores ou texto livre)
-            if df_final.empty and not termo_busca.isdigit():
+            # 3. CONTINGÊNCIA GERAL DE TEXTO LIVRE (Caso digitem nomes ou descrições)
+            if df_final.empty:
                 col_busca_geral = df_pc.columns[0]
                 df_final = df_pc[df_pc[col_busca_geral].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, na=False)].copy()
 
-            # --- FILTROS DA GAVETA AVANÇADA ---
+            # --- PRESERVAÇÃO DOS FILTROS DA GAVETA AVANÇADA ---
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
