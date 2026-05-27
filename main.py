@@ -111,7 +111,6 @@ st.markdown(f"""
         background-color: transparent !important;
         border: none !important;
         border-width: 0px !important;
-        outline: none !important;
         box-shadow: none !important;
         display: inline-flex !important;
         justify-content: flex-end !important;
@@ -272,17 +271,26 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# BACKEND: CARREGAMENTO DOS DADOS (APONTANDO PARA A ABA CORRETA "Protheus PC")
+# BACKEND: CARREGAMENTO E CONVERSÃO FORÇADA DA PLANILHA
 # ==========================================
-@st.cache_data(ttl=10) # Tempo reduzido para agilizar o sincronismo com o Sheets
+@st.cache_data(ttl=5)
 def carregar_dados_seguros():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
-        # Força o direcionamento estrito para a aba que contém a base consolidada do Protheus
-        df_pc = pd.read_excel(excel, sheet_name="Protheus PC", dtype=str).fillna('')
-        df_pc.columns = [str(c).strip() for c in df_pc.columns]
-        return df_pc
+        df = pd.read_excel(excel, sheet_name="Protheus PC", dtype=str).fillna('')
+        df.columns = [str(c).strip() for c in df.columns]
+        
+        # 🔄 CONVERSÃO DO BANCO DE DADOS EM TEMPO DE EXECUÇÃO:
+        # Limpa pontos flutuantes, textos e resíduos invisíveis para deixar os códigos idênticos ao que o usuário digita
+        if "Nº Pedido (PC)" in df.columns:
+            df["Nº Pedido (PC)"] = df["Nº Pedido (PC)"].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
+        if "Nº Solicitação (SC)" in df.columns:
+            df["Nº Solicitação (SC)"] = df["Nº Solicitação (SC)"].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
+        if "Centro de Custo (CC)" in df.columns:
+            df["Centro de Custo (CC)"] = df["Centro de Custo (CC)"].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
+            
+        return df
     except Exception as e:
         return pd.DataFrame()
 
@@ -406,7 +414,7 @@ def formatar_para_dd_mm_aa(valor):
         return txt
 
 # ==========================================
-# 6. MOTOR DE BUSCA CORRIGIDO (VARREDURA TEXTUAL FLEXÍVEL POR CONTENÇÃO)
+# 6. MOTOR DE BUSCA EM BANCO DE DADOS FORMATADO E NORMALIZADO
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -419,47 +427,40 @@ if busca:
     
     try:
         if not df_pc.empty:
-            # A) REGRA DO CENTRO DE CUSTO: Se tiver 4 caracteres numéricos exatos
+            # 1. VALIDAÇÃO DE CENTRO DE CUSTO (4 Dígitos exatos)
             if len(termo_busca) == 4 and termo_busca.isdigit():
                 modo_centro_custo = True
-                col_busca_cc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
-                if col_busca_cc:
-                    df_final = df_pc[df_pc[col_busca_cc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip() == termo_busca].copy()
+                if "Centro de Custo (CC)" in df_pc.columns:
+                    df_final = df_pc[df_pc["Centro de Custo (CC)"] == termo_numerico].copy()
             
-            # B) RECALIBRAÇÃO TEXTUAL DOS DOCUMENTOS PROTHEUS (SC / PC)
+            # 2. SE NÃO FOR CC, BUSCA NAS COLUNAS CONVERTIDAS EM STRING PURA
             if df_final.empty and termo_numerico:
                 col_pc = "Nº Pedido (PC)"
                 col_sc = "Nº Solicitação (SC)"
                 
-                # Transforma as duas séries de ID em strings limpas removendo flutuantes do Excel
-                serie_pc_limpa = df_pc[col_pc].astype(str).str.split('.').str[0].str.strip() if col_pc in df_pc.columns else pd.Series()
-                serie_sc_limpa = df_pc[col_sc].astype(str).str.split('.').str[0].str.strip() if col_sc in df_pc.columns else pd.Series()
-                
-                # Se for maior ou igual a 170000, o foco absoluto é na coluna de Pedidos (PC)
+                # Classificação de contexto pelo número de corte (170000)
                 if int(termo_numerico) >= 170000:
                     modo_pedido = True
-                    if not serie_pc_limpa.empty:
-                        # Varre se o termo numérico está contido na célula (captura mesmo com espaços residuais)
-                        df_final = df_pc[serie_pc_limpa.str.contains(termo_numerico, na=False)].copy()
+                    if col_pc in df_pc.columns:
+                        df_final = df_pc[df_pc[col_pc] == termo_numerico].copy()
                 else:
-                    # Se for menor que 170000, busca na coluna de Solicitação (SC)
-                    if not serie_sc_limpa.empty:
-                        df_final = df_pc[serie_sc_limpa.str.contains(termo_numerico, na=False)].copy()
+                    if col_sc in df_pc.columns:
+                        df_final = df_pc[df_pc[col_sc] == termo_numerico].copy()
                         if not df_final.empty:
                             modo_solicitacao = True
                     
-                    # Caso de contingência: se não achar na SC, valida se o ID está na PC
-                    if df_final.empty and not serie_pc_limpa.empty:
-                        df_final = df_pc[serie_pc_limpa.str.contains(termo_numerico, na=False)].copy()
+                    # Contingência secundária para Pedidos menores de 170000
+                    if df_final.empty and col_pc in df_pc.columns:
+                        df_final = df_pc[df_pc[col_pc] == termo_numerico].copy()
                         if not df_final.empty:
                             modo_pedido = True
 
-            # C) CONTINGÊNCIA GERAL DE TEXTO LIVRE
+            # 3. CONTINGÊNCIA GERAL DE TEXTO LIVRE
             if df_final.empty and not termo_busca.isdigit():
                 col_busca_geral = df_pc.columns[0]
                 df_final = df_pc[df_pc[col_busca_geral].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, na=False)].copy()
 
-            # --- FILTROS DE SESSÃO DA GAVETA AVANÇADA ---
+            # --- FILTROS DA GAVETA AVANÇADA ---
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
@@ -570,14 +571,14 @@ if busca:
             else:
                 if modo_centro_custo:
                     st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
-                elif termo_numerico and int(termo_numerico) >= 170000:
+                elif modo_pedido:
                     st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado. Entre em contato com o comprador responsável.</div>', unsafe_allow_html=True)
                 else:
                     st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
         else:
             if modo_centro_custo:
                 st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
-            elif termo_numerico and int(termo_numerico) >= 170000:
+            elif modo_pedido:
                 st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado. Entre em contato com o comprador responsável.</div>', unsafe_allow_html=True)
             else:
                 st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
