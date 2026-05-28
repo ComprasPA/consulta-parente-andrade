@@ -269,12 +269,12 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# BACKEND: INGESTÃO CORRIGIDA PARA NOVA GUIA "Pedidos" E LINK DIRETO (.xlsx)
+# BACKEND: INGESTÃO CORRIGIDA PARA NOVA GUIA "Pedidos" E NOVO LINK DE BASE
 # ==========================================
 @st.cache_data(ttl=10)
 def carregar_dados_seguros():
-    # CORREÇÃO: Usando a API de download direto do Google Drive para evitar falha no carregamento
-    URL = "https://drive.google.com/uc?export=download&id=1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP"
+    # URL primária atualizada para exportação direta do Sheets
+    URL = "https://docs.google.com/spreadsheets/d/1hvVgN-eMojH1Q5mAl9rVUFGIUf9Z-YpiH0_uBDKXvQ0/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
         # Aponta explicitamente para a nova guia "Pedidos", ou usa a primeira caso haja erro no nome
@@ -349,7 +349,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.cache_data.clear()
                 st.rerun()
 
-# Mapeamento estrito das novas colunas físicas reais da guia "Pedidos" (SILVIO)
+# Mapeamento estrito das novas colunas físicas reais da guia "Pedidos"
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "Centro de Custo", "tela": "Centro de Custo (CC)", "tipo": "texto"},
@@ -412,9 +412,9 @@ if busca:
     modo_solicitacao = False
     modo_centro_custo = False
     
-    # CORREÇÃO DA REGRA DE NEGÓCIO: Classifica com base no comprimento apenas dos números!
+    # 1. DEFINIÇÃO DA REGRA DE NEGÓCIO (Feito antes da busca para garantir as mensagens corretas)
     if termo_numerico:
-        if len(termo_numerico) == 4:
+        if len(termo_busca) == 4 and termo_busca.isdigit():
             modo_centro_custo = True
         elif int(termo_numerico) >= 170000:
             modo_pedido = True
@@ -431,8 +431,7 @@ if busca:
                 # Procura a coluna Centro de Custo com flexibilidade
                 col_real_cc = next((c for c in df_pc.columns if "CUSTO" in c.upper() or "CC" in c.upper()), "Centro de Custo")
                 if col_real_cc in df_pc.columns:
-                    # Usa o termo_numerico para garantir que "1235" localize perfeitamente
-                    df_final = df_pc[df_pc[col_real_cc].astype(str).str.strip().str.contains(termo_numerico, na=False)].copy()
+                    df_final = df_pc[df_pc[col_real_cc].astype(str).str.strip().str.contains(termo_busca, na=False)].copy()
             
             # B) MÓDULO DOCUMENTOS (Pedido / Solicitação)
             else:
@@ -571,12 +570,12 @@ if busca:
                 else:
                     st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
         else:
-            # INTERCEPTAÇÃO OPERACIONAL CORRIGIDA: Evita mensagens falsas se df_pc.empty
+            # INTERCEPTAÇÃO OPERACIONAL: Isola os fallbacks impedindo mensagens falsas de cotação para CC
             if df_pc.empty:
                 st.markdown('<div class="custom-error-red">⚠️ Erro: Não foi possível carregar a base de dados. Verifique o link ou o nome da aba "Pedidos".</div>', unsafe_allow_html=True)
             elif modo_centro_custo:
                 st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes na base.</div>', unsafe_allow_html=True)
-            elif modo_pedido:
+            elif modo_pedido or (termo_numerico and int(termo_numerico) >= 170000):
                 st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado. Entre em contato com o comprador responsável.</div>', unsafe_allow_html=True)
             else:
                 st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
