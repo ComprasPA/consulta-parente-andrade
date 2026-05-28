@@ -39,71 +39,82 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. INGESTÃO DE DADOS (Configurada para aba "Pedidos")
+# 4. ENGENHARIA DE INGESTÃO (Varredura dinâmica de abas e colunas)
 @st.cache_data(ttl=10)
 def carregar_dados_seguros():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
-        df = pd.read_excel(URL, sheet_name="Pedidos", dtype=str).fillna('')
+        excel = pd.ExcelFile(URL, engine='openpyxl')
+        aba_alvo = "Pedidos" if "Pedidos" in excel.sheet_names else excel.sheet_names[0]
+        df = pd.read_excel(excel, sheet_name=aba_alvo, dtype=str).fillna('')
         df.columns = [str(c).strip() for c in df.columns]
         return df
     except: return pd.DataFrame()
 
 df_pc = carregar_dados_seguros()
 
-# CABEÇALHO E BUSCA
+# Identificação Dinâmica de Colunas (Engenharia de Dados para evitar KeyError)
+col_cc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper()), "Centro de Custo")
+col_ped = next((c for c in df_pc.columns if "PEDIDO" in c.upper()), "Pedido")
+col_sol = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper()), "Solicitação")
+col_stat = next((c for c in df_pc.columns if "STATUS" in c.upper()), None)
+
+# CABEÇALHO
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
 c1, c2, c3 = st.columns([1.5, 6.5, 2.0])
 with c2: st.markdown('<div class="center-title-container"><p class="portal-title">Portal Gestão de Compras</p></div>', unsafe_allow_html=True)
 with c3: busca = st.text_input("", placeholder="🔍 Rastrear SC, PC ou CC...")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# GAVETA DE FILTROS
+# GAVETA DE FILTROS (Com segurança para a coluna STATUS)
 if "filtro_status_val" not in st.session_state: st.session_state.filtro_status_val = "Todos"
 with st.expander("Filtros Avançados ▼"):
     with st.form("form_filtros"):
         col1, col2 = st.columns([1, 1])
-        filtro_status = col1.selectbox("Status", ["Todos"] + sorted(list(set(df_pc["STATUS"].astype(str)))))
+        # Filtro de Status seguro (só ativa se a coluna for encontrada)
+        opcoes_status = ["Todos"] + sorted(list(set(df_pc[col_stat].astype(str)))) if col_stat else ["Todos"]
+        filtro_status = col1.selectbox("Status", opcoes_status)
         if col2.form_submit_button("Pesquisar"):
             st.session_state.filtro_status_val = filtro_status
             st.rerun()
 
-# 6. MOTOR DE BUSCA (Engenharia Ajustada)
+# 6. MOTOR DE BUSCA INDUSTRIAL
 if busca:
     termo = busca.strip()
     df_final = pd.DataFrame()
+    modo_cc = len(termo) == 4 and termo.isdigit()
     
     try:
-        # A) Busca por Centro de Custo (4 dígitos)
-        if len(termo) == 4 and termo.isdigit():
-            df_final = df_pc[df_pc["Centro de Custo"].astype(str).str.contains(termo, na=False)].copy()
+        # A) Busca por Centro de Custo
+        if modo_cc:
+            if col_cc in df_pc.columns:
+                df_final = df_pc[df_pc[col_cc].astype(str).str.contains(termo, na=False)].copy()
         
         # B) Busca por Pedido ou Solicitação
         else:
             termo_limpo = re.sub(r'[^0-9]', '', termo)
-            if termo_limpo:
+            if termo_limpo and (col_ped or col_sol):
                 val = int(termo_limpo)
                 if val >= 170000:
-                    df_final = df_pc[df_pc["Pedido"].astype(str).str.strip() == termo_limpo].copy()
+                    df_final = df_pc[df_pc[col_ped].astype(str).str.strip() == termo_limpo].copy() if col_ped in df_pc.columns else df_final
                 else:
-                    df_final = df_pc[df_pc["Solicitação"].astype(str).str.strip() == termo_limpo].copy()
-
+                    df_final = df_pc[df_pc[col_sol].astype(str).str.strip() == termo_limpo].copy() if col_sol in df_pc.columns else df_final
+        
         # Filtro de Status
-        if not df_final.empty and st.session_state.filtro_status_val != "Todos":
-            df_final = df_final[df_final["STATUS"] == st.session_state.filtro_status_val]
+        if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_stat:
+            df_final = df_final[df_final[col_stat] == st.session_state.filtro_status_val]
 
+        # Exibição
         if not df_final.empty:
             st.markdown(f'<div class="status-card">🔍 Resultados encontrados: {termo}</div>', unsafe_allow_html=True)
             st.dataframe(df_final, use_container_width=True)
         else:
-            if len(termo) == 4 and termo.isdigit():
-                st.markdown(f'<div class="custom-error-red">⚠️ Centro de Custo {termo} não encontrado.</div>', unsafe_allow_html=True)
-            elif termo.isdigit() and int(re.sub(r'[^0-9]', '', termo)) >= 170000:
-                st.markdown(f'<div class="custom-error-red">⚠️ Pedido {termo} não localizado.</div>', unsafe_allow_html=True)
-            else:
-                st.markdown('<div class="custom-info-blue">⏳ Solicitação em cotação ou não localizada.</div>', unsafe_allow_html=True)
+            if modo_cc: st.markdown(f'<div class="custom-error-red">⚠️ Nenhum registro encontrado para o Centro de Custo: {termo}</div>', unsafe_allow_html=True)
+            elif termo.isdigit() and int(re.sub(r'[^0-9]', '', termo)) >= 170000: st.markdown(f'<div class="custom-error-red">⚠️ Pedido {termo} não localizado.</div>', unsafe_allow_html=True)
+            else: st.markdown('<div class="custom-info-blue">⏳ Solicitação em cotação ou não localizada.</div>', unsafe_allow_html=True)
+
     except Exception as e:
-        st.error(f"Erro no processamento: {e}")
+        st.error(f"Erro no motor: {e}")
 
 # RODAPÉ
 st.markdown("<div class=\"custom-footer-block\"><p style='color:#64748b; font-size:13px;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
