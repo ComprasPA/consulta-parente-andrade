@@ -62,7 +62,7 @@ st.markdown(f"""
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
     }}
     
-    /* Forca os elements internos das colunas do Streamlit a centralizarem verticalmente */
+    /* Forca os elementos internos das colunas do Streamlit a centralizarem verticalmente */
     div[data-testid="column"] {{
         display: flex;
         align-items: center;
@@ -297,14 +297,23 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# BACKEND: CARREGAMENTO DOS DADOS (ABA PROTHEUS PC)
+# BACKEND: MOTOR DE CAPTURA AUTOMÁTICA DE GUIA OPERACIONAL DO EXCEL
 # ==========================================
 @st.cache_data(ttl=60)
 def carregar_dados_seguros():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
-        df_pc = pd.read_excel(excel, sheet_name="Protheus PC", dtype=str).fillna('')
+        
+        # Faz varredura dinâmica para ignorar a aba "Dashboard" e mapear a base Protheus real
+        nome_aba = "Protheus PC"
+        if nome_aba not in excel.sheet_names:
+            for target in excel.sheet_names:
+                if "PC" in target.upper() or "PEDIDO" in target.upper() or "BASE" in target.upper():
+                    nome_aba = target
+                    break
+        
+        df_pc = pd.read_excel(excel, sheet_name=nome_aba, dtype=str).fillna('')
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
         return df_pc
     except Exception as e:
@@ -357,6 +366,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
             st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
             btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True)
             
+            # CORREÇÃO CIRÚRGICA: Apontamento correto das variáveis locais sem quebra de sessão
             if btn_pesquisar:
                 st.session_state.filtro_status_val = filtro_status
                 st.session_state.filtro_data_val = filtro_data
@@ -430,7 +440,7 @@ def formatar_para_dd_mm_aa(valor):
         return txt
 
 # ==========================================
-# 6. MOTOR DE BUSCA REPARADO COM HIGIENIZAÇÃO RÍGIDA E CHAVE DE CONTROLE CC
+# 6. MOTOR DE BUSCA COM HIGIENIZAÇÃO RIGOROSA E CHAVE DE CONTROLE CC
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -445,43 +455,45 @@ if busca:
         if not df_pc.empty and termo_numerico:
             valor_busca_int = int(termo_numerico)
             
-            # A) TRAVA ABSOLUTA DE CENTRO DE CUSTO: Entrada de 4 dígitos numéricos ativos
+            # A) VERIFICAÇÃO DO CENTRO DE CUSTO (Entrada com 4 dígitos numéricos exatos)
             if len(termo_busca) == 4 and termo_busca.isdigit():
                 modo_centro_custo = True
                 col_busca_cc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
                 if col_busca_cc:
-                    # Varre a coluna procurando se os 4 dígitos estão contidos (Resolve o padrão "1235 - DESCRIÇÃO")
+                    # Varre a coluna e localiza os 4 dígitos ignorando descrições residuais do Protheus
                     df_final = df_pc[df_pc[col_busca_cc].astype(str).str.strip().str.contains(termo_busca, na=False)].copy()
             
-            # B) SE NÃO FOR CENTRO DE CUSTO, SEGUE O FLUXO DOS DOCUMENTOS (PC / SC)
+            # B) SE NÃO FOR CENTRO DE CUSTO, SEGUE O FLUXO HIERÁRQUICO DOS DOCUMENTOS
             if not modo_centro_custo:
                 col_pc = "Nº Pedido (PC)"
                 col_sc = "Nº Solicitação (SC)"
                 
-                # --- BUSCA DE INTEIROS NA COLUNA DE PEDIDOS (PC) ---
-                if col_pc in df_pc.columns:
-                    valores_pc_limpos = df_pc[col_pc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True)
-                    valores_pc_inteiros = pd.to_numeric(valores_pc_limpos, errors='coerce').fillna(-1).astype(int)
-                    
-                    df_final = df_pc[valores_pc_inteiros == valor_busca_int].copy()
-                    if not df_final.empty or valor_busca_int >= 170000:
-                        modo_pedido = True
+                # Transforma a coluna em string crua purificada removendo pontos flutuantes do Excel (.0)
+                serie_pc_txt = df_pc[col_pc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip() if col_pc in df_pc.columns else pd.Series()
+                serie_sc_txt = df_pc[col_sc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip() if col_sc in df_pc.columns else pd.Series()
                 
-                # --- BUSCA DE INTEIROS NA COLUNA DE SOLICITAÇÕES (SC) ---
-                if df_final.empty and col_sc in df_pc.columns:
-                    valores_sc_limpos = df_pc[col_sc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True)
-                    valores_sc_inteiros = pd.to_numeric(valores_sc_limpos, errors='coerce').fillna(-1).astype(int)
+                if valor_busca_int >= 170000:
+                    modo_pedido = True
+                    if not serie_pc_txt.empty:
+                        df_final = df_pc[serie_pc_txt == str(valor_busca_int)].copy()
+                else:
+                    if not serie_sc_txt.empty:
+                        df_final = df_pc[serie_sc_txt == str(valor_busca_int)].copy()
+                        if not df_final.empty:
+                            modo_solicitacao = True
                     
-                    df_final = df_pc[valores_sc_inteiros == valor_busca_int].copy()
-                    if not df_final.empty and valor_busca_int < 170000:
-                        modo_solicitacao = True
+                    # Contingência secundária para Pedidos antigos de numeração baixa
+                    if df_final.empty and not serie_pc_txt.empty:
+                        df_final = df_pc[serie_pc_txt == str(valor_busca_int)].copy()
+                        if not df_final.empty:
+                            modo_pedido = True
 
-            # Fallback de contingência para campos textuais comuns
+            # Fallback para buscas gerais por texto livre
             if df_final.empty and not termo_busca.isdigit():
                 col_busca_geral = df_pc.columns[0]
                 df_final = df_pc[df_pc[col_busca_geral].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, na=False)].copy()
 
-            # Aplicação dos filtros operacionais ativos da Gaveta
+            # Processamento de Filtros Ativos da Gaveta Avançada
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
@@ -492,7 +504,7 @@ if busca:
                         datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed').dt.date
                         df_final = df_final[(datas_convertidas >= st.session_state.filtro_data_val[0]) & (datas_convertidas <= st.session_state.filtro_data_val[1])]
 
-        # Renderização do painel se houver dados
+        # Renderização do Painel de Resultados Completo
         if not df_final.empty:
             df_painel = pd.DataFrame(index=df_final.index)
             
@@ -545,7 +557,7 @@ if busca:
             if not df_painel.empty:
                 if modo_centro_custo:
                     txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}"
-                elif modo_pedido:
+                elif modo_pedido or (int(termo_numerico) >= 170000):
                     txt_status = f"📦 Pedido de Compras Firme Localizado: {termo_busca}"
                 elif modo_solicitacao:
                     txt_status = f"⏳ Solicitação de Compras Localizada: {termo_busca}"
@@ -599,7 +611,7 @@ if busca:
                 else:
                     st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
         else:
-            # INTERCEPTAÇÃO E ATUALIZAÇÃO DOS ERROS: Impede o conflito de mensagens falsas de cotação
+            # BLINDAGEM DE MENSAGENS: Impede o conflito de mensagens falsas de cotação
             if modo_centro_custo:
                 st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes na base.</div>', unsafe_allow_html=True)
             elif modo_pedido or (termo_numerico and int(termo_numerico) >= 170000):
