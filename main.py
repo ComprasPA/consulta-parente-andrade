@@ -27,7 +27,7 @@ base64_logo = get_base64_logo()
 # 3. CSS MODERNIZADO (Alinhamento limpo, assinatura fixa, Ajuste Mobile e Ocultação da Toolbar)
 st.markdown(f"""
     <style>
-    /* Ocultar elements padrao do Streamlit e zerar espaco do topo */
+    /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     
     /* REMOVER CAIXA DE OPÇÕES FLUTUANTE DO DATAFRAME (Olho, download, lupa) */
@@ -62,7 +62,7 @@ st.markdown(f"""
         box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
     }}
     
-    /* Forca os elementos internos das colunas do Streamlit a centralizarem verticalmente */
+    /* Forca os elements internos das colunas do Streamlit a centralizarem verticalmente */
     div[data-testid="column"] {{
         display: flex;
         align-items: center;
@@ -358,8 +358,8 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
             btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True)
             
             if btn_pesquisar:
-                st.session_state.filtro_status_val = filter_status
-                st.session_state.filtro_data_val = filter_data
+                st.session_state.filtro_status_val = filtro_status
+                st.session_state.filtro_data_val = filtro_data
                 st.session_state.gaveta_aberta = True  
                 st.rerun()
 
@@ -430,7 +430,7 @@ def formatar_para_dd_mm_aa(valor):
         return txt
 
 # ==========================================
-# 6. MOTOR DE BUSCA CORRIGIDO CONTRA FALHAS DE SEPARAÇÃO (URGENTE)
+# 6. MOTOR DE BUSCA REPARADO COM HIGIENIZAÇÃO RÍGIDA E CHAVE DE CONTROLE CC
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -445,19 +445,20 @@ if busca:
         if not df_pc.empty and termo_numerico:
             valor_busca_int = int(termo_numerico)
             
-            # CORREÇÃO: Ativa o modo_centro_custo imediatamente ao validar o padrão de entrada de 4 dígitos
+            # A) TRAVA ABSOLUTA DE CENTRO DE CUSTO: Entrada de 4 dígitos numéricos ativos
             if len(termo_busca) == 4 and termo_busca.isdigit():
                 modo_centro_custo = True
                 col_busca_cc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
                 if col_busca_cc:
+                    # Varre a coluna procurando se os 4 dígitos estão contidos (Resolve o padrão "1235 - DESCRIÇÃO")
                     df_final = df_pc[df_pc[col_busca_cc].astype(str).str.strip().str.contains(termo_busca, na=False)].copy()
             
-            # Se não for Centro de Custo, processa Pedidos e Solicitações
+            # B) SE NÃO FOR CENTRO DE CUSTO, SEGUE O FLUXO DOS DOCUMENTOS (PC / SC)
             if not modo_centro_custo:
                 col_pc = "Nº Pedido (PC)"
                 col_sc = "Nº Solicitação (SC)"
                 
-                # --- BUSCA ULTRA-ESTRITA NA COLUNA DE PEDIDOS (PC) ---
+                # --- BUSCA DE INTEIROS NA COLUNA DE PEDIDOS (PC) ---
                 if col_pc in df_pc.columns:
                     valores_pc_limpos = df_pc[col_pc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True)
                     valores_pc_inteiros = pd.to_numeric(valores_pc_limpos, errors='coerce').fillna(-1).astype(int)
@@ -466,7 +467,7 @@ if busca:
                     if not df_final.empty or valor_busca_int >= 170000:
                         modo_pedido = True
                 
-                # --- BUSCA ULTRA-ESTRITA NA COLUNA DE SOLICITAÇÕES (SC) ---
+                # --- BUSCA DE INTEIROS NA COLUNA DE SOLICITAÇÕES (SC) ---
                 if df_final.empty and col_sc in df_pc.columns:
                     valores_sc_limpos = df_pc[col_sc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True)
                     valores_sc_inteiros = pd.to_numeric(valores_sc_limpos, errors='coerce').fillna(-1).astype(int)
@@ -475,12 +476,12 @@ if busca:
                     if not df_final.empty and valor_busca_int < 170000:
                         modo_solicitacao = True
 
-            # Fallback secundário para descrições de texto livre
+            # Fallback de contingência para campos textuais comuns
             if df_final.empty and not termo_busca.isdigit():
                 col_busca_geral = df_pc.columns[0]
                 df_final = df_pc[df_pc[col_busca_geral].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, na=False)].copy()
 
-            # Filtros da Gaveta Avançada
+            # Aplicação dos filtros operacionais ativos da Gaveta
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
@@ -592,15 +593,15 @@ if busca:
                 st.dataframe(df_painel, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
             else:
                 if modo_centro_custo:
-                    st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes para os filtros ativos.</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes com os filtros atuais.</div>', unsafe_allow_html=True)
                 elif modo_pedido:
                     st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado. Entre em contato com o comprador responsável.</div>', unsafe_allow_html=True)
                 else:
                     st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
         else:
-            # CORREÇÃO DE FALHA VISUAL NAS MENSAGENS DE ERRO:
+            # INTERCEPTAÇÃO E ATUALIZAÇÃO DOS ERROS: Impede o conflito de mensagens falsas de cotação
             if modo_centro_custo:
-                st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes na base.</div>', unsafe_allow_html=True)
             elif modo_pedido or (termo_numerico and int(termo_numerico) >= 170000):
                 st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado. Entre em contato com o comprador responsável.</div>', unsafe_allow_html=True)
             else:
