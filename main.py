@@ -27,7 +27,7 @@ base64_logo = get_base64_logo()
 # 3. CSS MODERNIZADO (Alinhamento limpo, assinatura fixa, Ajuste Mobile e Ocultação da Toolbar)
 st.markdown(f"""
     <style>
-    /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
+    /* Ocultar elements padrao do Streamlit e zerar espaco do topo */
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
     
     /* REMOVER CAIXA DE OPÇÕES FLUTUANTE DO DATAFRAME (Olho, download, lupa) */
@@ -297,23 +297,14 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# BACKEND: MOTOR DE EXTRAÇÃO DE ABAS MISTAS DO EXCEL VIA DRIVE
+# BACKEND: CARREGAMENTO DOS DADOS (ABA PROTHEUS PC)
 # ==========================================
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=60)
 def carregar_dados_seguros():
     URL = "https://docs.google.com/spreadsheets/d/1_wdQoseqhvB_upb5psRLPCN2SPaZKCHP/export?format=xlsx"
     try:
         excel = pd.ExcelFile(URL, engine='openpyxl')
-        
-        # Faz uma varredura para garantir que vai ler a aba operacional certa mesmo em arquivos importados mictos
-        nome_aba = "Protheus PC"
-        if nome_aba not in excel.sheet_names:
-            for target in excel.sheet_names:
-                if "PC" in target.upper() or "PEDIDO" in target.upper() or "BASE" in target.upper():
-                    nome_aba = target
-                    break
-        
-        df_pc = pd.read_excel(excel, sheet_name=nome_aba, dtype=str).fillna('')
+        df_pc = pd.read_excel(excel, sheet_name="Protheus PC", dtype=str).fillna('')
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
         return df_pc
     except Exception as e:
@@ -367,8 +358,8 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
             btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True)
             
             if btn_pesquisar:
-                st.session_state.filtro_status_val = filtro_status
-                st.session_state.filtro_data_val = filtro_data
+                st.session_state.filtro_status_val = filter_status
+                st.session_state.filtro_data_val = filter_data
                 st.session_state.gaveta_aberta = True  
                 st.rerun()
 
@@ -439,7 +430,7 @@ def formatar_para_dd_mm_aa(valor):
         return txt
 
 # ==========================================
-# 6. MOTOR DE BUSCA COM RASTREAMENTO CIRÚRGICO POR CONTEÚDO PARCIAL CONTIDO (.CONTAINS)
+# 6. MOTOR DE BUSCA CORRIGIDO CONTRA FALHAS DE SEPARAÇÃO (URGENTE)
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -452,46 +443,44 @@ if busca:
     
     try:
         if not df_pc.empty and termo_numerico:
-            # 1. TRAVA DO CENTRO DE CUSTO (Se o termo digitado tiver 4 dígitos exatos)
+            valor_busca_int = int(termo_numerico)
+            
+            # CORREÇÃO: Ativa o modo_centro_custo imediatamente ao validar o padrão de entrada de 4 dígitos
             if len(termo_busca) == 4 and termo_busca.isdigit():
+                modo_centro_custo = True
                 col_busca_cc = next((c for c in df_pc.columns if "CENTRO" in c.upper() or "CC" in c.upper() or "CUSTO" in c.upper()), None)
                 if col_busca_cc:
                     df_final = df_pc[df_pc[col_busca_cc].astype(str).str.strip().str.contains(termo_busca, na=False)].copy()
-                    if not df_final.empty:
-                        modo_centro_custo = True
             
-            # 2. SE NÃO FOR CC, VERIFICAÇÃO POR SUBSTRING PARCIAL (Ignora se o Excel adicionou .0 ou espaços extras)
-            if df_final.empty:
-                col_pc = next((c for c in df_pc.columns if "PEDIDO" in c.upper() or "PC" in c.upper()), "Nº Pedido (PC)")
-                col_sc = next((c for c in df_pc.columns if "SOLICITACAO" in c.upper() or "SC" in c.upper()), "Nº Solicitação (SC)")
+            # Se não for Centro de Custo, processa Pedidos e Solicitações
+            if not modo_centro_custo:
+                col_pc = "Nº Pedido (PC)"
+                col_sc = "Nº Solicitação (SC)"
                 
-                # Normalização visual: Converte a série em string limpa de floats fictícios
-                serie_pc_txt = df_pc[col_pc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip() if col_pc in df_pc.columns else pd.Series()
-                serie_sc_txt = df_pc[col_sc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip() if col_sc in df_pc.columns else pd.Series()
-                
-                # Regra hierárquica baseada no limite padrão (170000)
-                if int(termo_numerico) >= 170000:
-                    modo_pedido = True
-                    if not serie_pc_txt.empty:
-                        df_final = df_pc[serie_pc_txt.str.contains(termo_numerico, na=False)].copy()
-                else:
-                    if not serie_sc_txt.empty:
-                        df_final = df_pc[serie_sc_txt.str.contains(termo_numerico, na=False)].copy()
-                        if not df_final.empty:
-                            modo_solicitacao = True
+                # --- BUSCA ULTRA-ESTRITA NA COLUNA DE PEDIDOS (PC) ---
+                if col_pc in df_pc.columns:
+                    valores_pc_limpos = df_pc[col_pc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True)
+                    valores_pc_inteiros = pd.to_numeric(valores_pc_limpos, errors='coerce').fillna(-1).astype(int)
                     
-                    # Fallback de contingência para pedidos antigos menores de 170000
-                    if df_final.empty and not serie_pc_txt.empty:
-                        df_final = df_pc[serie_pc_txt.str.contains(termo_numerico, na=False)].copy()
-                        if not df_final.empty:
-                            modo_pedido = True
+                    df_final = df_pc[valores_pc_inteiros == valor_busca_int].copy()
+                    if not df_final.empty or valor_busca_int >= 170000:
+                        modo_pedido = True
+                
+                # --- BUSCA ULTRA-ESTRITA NA COLUNA DE SOLICITAÇÕES (SC) ---
+                if df_final.empty and col_sc in df_pc.columns:
+                    valores_sc_limpos = df_pc[col_sc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True)
+                    valores_sc_inteiros = pd.to_numeric(valores_sc_limpos, errors='coerce').fillna(-1).astype(int)
+                    
+                    df_final = df_pc[valores_sc_inteiros == valor_busca_int].copy()
+                    if not df_final.empty and valor_busca_int < 170000:
+                        modo_solicitacao = True
 
-            # 3. FALLBACK CASO SEJA BUSCA DE TEXTO LIVRE COMUM
+            # Fallback secundário para descrições de texto livre
             if df_final.empty and not termo_busca.isdigit():
                 col_busca_geral = df_pc.columns[0]
                 df_final = df_pc[df_pc[col_busca_geral].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, na=False)].copy()
 
-            # --- FILTROS DE SESSÃO DA GAVETA AVANÇADA ---
+            # Filtros da Gaveta Avançada
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
@@ -502,7 +491,7 @@ if busca:
                         datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed').dt.date
                         df_final = df_final[(datas_convertidas >= st.session_state.filtro_data_val[0]) & (datas_convertidas <= st.session_state.filtro_data_val[1])]
 
-        # Renderização do Painel de Resultados Completo
+        # Renderização do painel se houver dados
         if not df_final.empty:
             df_painel = pd.DataFrame(index=df_final.index)
             
@@ -511,7 +500,6 @@ if busca:
                 nome_exibicao_tela = col_config["tela"]
                 tipo_campo = col_config["tipo"]
                 
-                # Varredura inteligente de cabeçalhos por aproximação estrita
                 col_real = next((c for c in df_final.columns if nome_original_planilha.upper() in c.upper() or nome_exibicao_tela.upper() in c.upper()), None)
                 
                 if col_real:
@@ -556,7 +544,7 @@ if busca:
             if not df_painel.empty:
                 if modo_centro_custo:
                     txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}"
-                elif modo_pedido or (int(termo_numerico) >= 170000):
+                elif modo_pedido:
                     txt_status = f"📦 Pedido de Compras Firme Localizado: {termo_busca}"
                 elif modo_solicitacao:
                     txt_status = f"⏳ Solicitação de Compras Localizada: {termo_busca}"
@@ -603,18 +591,17 @@ if busca:
 
                 st.dataframe(df_painel, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
             else:
-                # Trata o erro se a tabela esvaziar após passar pelos filtros internos
                 if modo_centro_custo:
-                    st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
-                elif int(termo_numerico) >= 170000:
+                    st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes para os filtros ativos.</div>', unsafe_allow_html=True)
+                elif modo_pedido:
                     st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado. Entre em contato com o comprador responsável.</div>', unsafe_allow_html=True)
                 else:
                     st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
         else:
-            # Trava estrita de retorno de erro de concordância
+            # CORREÇÃO DE FALHA VISUAL NAS MENSAGENS DE ERRO:
             if modo_centro_custo:
                 st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes.</div>', unsafe_allow_html=True)
-            elif int(termo_numerico) >= 170000:
+            elif modo_pedido or (termo_numerico and int(termo_numerico) >= 170000):
                 st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado. Entre em contato com o comprador responsável.</div>', unsafe_allow_html=True)
             else:
                 st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
