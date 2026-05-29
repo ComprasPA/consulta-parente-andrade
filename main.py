@@ -4,7 +4,6 @@ import base64
 import re
 from datetime import datetime, timedelta
 from io import BytesIO
-import urllib.request
 
 # 1. CONFIGURAÇÃO DA PÁGINA (Interface limpa com barra recolhida)
 st.set_page_config(
@@ -270,18 +269,28 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# BACKEND: INGESTÃO CORRIGIDA COM EMULAÇÃO DE NAVEGADOR
+# BACKEND: INGESTÃO CORRIGIDA (ENGENHARIA ANTI-FÓRMULA)
 # ==========================================
 @st.cache_data(ttl=10)
 def carregar_dados_seguros():
-    URL = "https://docs.google.com/spreadsheets/d/1hvVgN-eMojH1Q5mAl9rVUFGIUf9Z-YpiH0_uBDKXvQ0/export?format=xlsx"
+    file_id = "1hvVgN-eMojH1Q5mAl9rVUFGIUf9Z-YpiH0_uBDKXvQ0"
+    
+    # ESTRATÉGIA PRINCIPAL: Exportar como CSV cego. 
+    # O CSV anula a existência de fórmulas, trazendo estritamente o valor visível na tela (evita o #ERROR!)
+    URL_CSV = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv&sheet=Pedidos"
+    
     try:
-        # Finge ser um navegador real para evitar bloqueios HTTP 403 do Google Drive
-        req = urllib.request.Request(URL, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response:
-            dados = response.read()
-            
-        excel = pd.ExcelFile(BytesIO(dados), engine='openpyxl')
+        df_pc = pd.read_csv(URL_CSV, dtype=str).fillna('')
+        if not df_pc.empty and len(df_pc.columns) > 1:
+            df_pc.columns = [str(c).strip() for c in df_pc.columns]
+            return df_pc
+    except:
+        pass
+    
+    # FALLBACK DE EMERGÊNCIA: Se o CSV falhar, tenta Excel padrão
+    URL_XLSX = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
+    try:
+        excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
         aba = "Pedidos" if "Pedidos" in excel.sheet_names else excel.sheet_names[0]
         df_pc = pd.read_excel(excel, sheet_name=aba, dtype=str).fillna('')
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
@@ -353,7 +362,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.cache_data.clear()
                 st.rerun()
 
-# Mapeamento estrito das novas colunas físicas reais da guia "Pedidos" (SILVIO)
+# Mapeamento estrito das novas colunas físicas reais da guia "Pedidos"
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "Centro de Custo", "tela": "Centro de Custo (CC)", "tipo": "texto"},
@@ -432,7 +441,6 @@ if busca:
             
             # A) MÓDULO CENTRO DE CUSTO
             if modo_centro_custo:
-                # Procura a coluna Centro de Custo com flexibilidade
                 col_real_cc = next((c for c in df_pc.columns if "CUSTO" in c.upper() or "CC" in c.upper()), "Centro de Custo")
                 if col_real_cc in df_pc.columns:
                     df_final = df_pc[df_pc[col_real_cc].astype(str).str.strip().str.contains(termo_busca, na=False)].copy()
@@ -476,8 +484,24 @@ if busca:
                 nome_exibicao_tela = col_config["tela"]
                 tipo_campo = col_config["tipo"]
                 
-                if nome_original_planilha in df_final.columns:
-                    valores_originais = df_final[nome_original_planilha]
+                # Tradução flexível para colunas vitais
+                col_real = None
+                nome_upper = nome_original_planilha.strip().upper()
+                
+                for c in df_final.columns:
+                    if c.strip().upper() == nome_upper:
+                        col_real = c
+                        break
+                        
+                if not col_real:
+                    for c in df_final.columns:
+                        c_up = c.strip().upper()
+                        if "SOLICITA" in nome_upper and "SOLICITA" in c_up: col_real = c; break
+                        if "PEDIDO" in nome_upper and "PEDIDO" in c_up: col_real = c; break
+                        if "CENTRO" in nome_upper and "CUSTO" in nome_upper and "CENTRO" in c_up and "CUSTO" in c_up: col_real = c; break
+                
+                if col_real:
+                    valores_originais = df_final[col_real]
                     
                     if tipo_campo == "data":
                         datas_limpas = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
@@ -574,9 +598,8 @@ if busca:
                 else:
                     st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
         else:
-            # INTERCEPTAÇÃO OPERACIONAL: Isola os fallbacks impedindo mensagens falsas de cotação para CC
             if df_pc.empty:
-                st.markdown('<div class="custom-error-red">⚠️ Erro crítico: O Google Drive bloqueou o acesso à planilha ou o link está incorreto.</div>', unsafe_allow_html=True)
+                st.markdown('<div class="custom-error-red">⚠️ Erro: Não foi possível carregar a base de dados. Verifique o link ou o nome da aba "Pedidos".</div>', unsafe_allow_html=True)
             elif modo_centro_custo:
                 st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes na base.</div>', unsafe_allow_html=True)
             elif modo_pedido or (termo_numerico and int(termo_numerico) >= 170000):
