@@ -275,25 +275,27 @@ st.markdown(f"""
 def carregar_dados_seguros():
     file_id = "1hvVgN-eMojH1Q5mAl9rVUFGIUf9Z-YpiH0_uBDKXvQ0"
     
-    # ESTRATÉGIA PRINCIPAL: Exportar como CSV cego. 
-    # O CSV anula a existência de fórmulas, trazendo estritamente o valor visível na tela (evita o #ERROR!)
-    URL_CSV = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv&sheet=Pedidos"
+    # Exporta usando a API GViz (extrai APENAS O TEXTO visível, ignorando fórmulas complexas do Sheets)
+    URL_CSV = f"https://docs.google.com/spreadsheets/d/{file_id}/gviz/tq?tqx=out:csv&sheet=Pedidos"
     
     try:
         df_pc = pd.read_csv(URL_CSV, dtype=str).fillna('')
-        if not df_pc.empty and len(df_pc.columns) > 1:
+        if not df_pc.empty:
             df_pc.columns = [str(c).strip() for c in df_pc.columns]
+            # Limpa qualquer resíduo de fórmula que possa ter escapado
+            df_pc = df_pc.replace(to_replace=[r'^#ERROR!', r'^#REF!', r'^#NAME\?', r'^#N/A', r'^#VALUE!'], value='Verificar no ERP', regex=True)
             return df_pc
     except:
         pass
-    
-    # FALLBACK DE EMERGÊNCIA: Se o CSV falhar, tenta Excel padrão
-    URL_XLSX = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
+        
+    # FALLBACK SECUNDÁRIO SE O CSV FALHAR
     try:
+        URL_XLSX = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
         excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
         aba = "Pedidos" if "Pedidos" in excel.sheet_names else excel.sheet_names[0]
         df_pc = pd.read_excel(excel, sheet_name=aba, dtype=str).fillna('')
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
+        df_pc = df_pc.replace(to_replace=[r'^#ERROR!', r'^#REF!', r'^#NAME\?', r'^#N/A', r'^#VALUE!'], value='Verificar no ERP', regex=True)
         return df_pc
     except Exception as e:
         return pd.DataFrame()
@@ -362,7 +364,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.cache_data.clear()
                 st.rerun()
 
-# Mapeamento estrito das novas colunas físicas reais da guia "Pedidos"
+# Mapeamento estrito das novas colunas físicas reais da guia "Pedidos" (SILVIO)
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "Centro de Custo", "tela": "Centro de Custo (CC)", "tipo": "texto"},
@@ -414,7 +416,7 @@ def formatar_para_dd_mm_aa(valor):
         return txt
 
 # ==========================================
-# 6. MOTOR DE BUSCA EM TEXTO PURO REPARAMETRIZADO (LÓGICA CORRIGIDA)
+# 6. MOTOR DE BUSCA EM TEXTO PURO REPARAMETRIZADO
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -425,9 +427,8 @@ if busca:
     modo_solicitacao = False
     modo_centro_custo = False
     
-    # 1. DEFINIÇÃO DA REGRA DE NEGÓCIO (Feito antes da busca para garantir as mensagens corretas)
     if termo_numerico:
-        if len(termo_busca) == 4 and termo_busca.isdigit():
+        if len(termo_numerico) == 4:
             modo_centro_custo = True
         elif int(termo_numerico) >= 170000:
             modo_pedido = True
@@ -435,7 +436,6 @@ if busca:
             modo_solicitacao = True
 
     try:
-        # Só executa a busca se a planilha tiver carregado corretamente
         if not df_pc.empty and termo_numerico:
             valor_busca_int = int(termo_numerico)
             
@@ -443,7 +443,7 @@ if busca:
             if modo_centro_custo:
                 col_real_cc = next((c for c in df_pc.columns if "CUSTO" in c.upper() or "CC" in c.upper()), "Centro de Custo")
                 if col_real_cc in df_pc.columns:
-                    df_final = df_pc[df_pc[col_real_cc].astype(str).str.strip().str.contains(termo_busca, na=False)].copy()
+                    df_final = df_pc[df_pc[col_real_cc].astype(str).str.strip().str.contains(termo_numerico, na=False)].copy()
             
             # B) MÓDULO DOCUMENTOS (Pedido / Solicitação)
             else:
@@ -459,12 +459,10 @@ if busca:
                         serie_sc_txt = df_pc[col_sc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
                         df_final = df_pc[serie_sc_txt == str(valor_busca_int)].copy()
 
-            # Fallback para buscas por texto livre (se não for número exato)
             if df_final.empty and not termo_busca.isdigit():
                 col_busca_geral = df_pc.columns[0]
                 df_final = df_pc[df_pc[col_busca_geral].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, na=False)].copy()
 
-            # Processamento de Filtros Ativos da Gaveta Avançada
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
@@ -475,7 +473,6 @@ if busca:
                         datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed').dt.date
                         df_final = df_final[(datas_convertidas >= st.session_state.filtro_data_val[0]) & (datas_convertidas <= st.session_state.filtro_data_val[1])]
 
-        # Renderização do Painel de Resultados Completo
         if not df_final.empty:
             df_painel = pd.DataFrame(index=df_final.index)
             
@@ -484,7 +481,6 @@ if busca:
                 nome_exibicao_tela = col_config["tela"]
                 tipo_campo = col_config["tipo"]
                 
-                # Tradução flexível para colunas vitais
                 col_real = None
                 nome_upper = nome_original_planilha.strip().upper()
                 
