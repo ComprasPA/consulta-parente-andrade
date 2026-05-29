@@ -269,20 +269,30 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# BACKEND: INGESTÃO CORRIGIDA PARA NOVA GUIA "Pedidos" E NOVO LINK DE BASE
+# BACKEND: INGESTÃO CORRIGIDA COM DUPLA CONEXÃO (ANTI-BLOQUEIO DO DRIVE)
 # ==========================================
 @st.cache_data(ttl=10)
 def carregar_dados_seguros():
-    # URL primária atualizada para exportação direta do Sheets
-    URL = "https://docs.google.com/spreadsheets/d/1hvVgN-eMojH1Q5mAl9rVUFGIUf9Z-YpiH0_uBDKXvQ0/export?format=xlsx"
+    file_id = "1hvVgN-eMojH1Q5mAl9rVUFGIUf9Z-YpiH0_uBDKXvQ0"
+    URL_PRIMARIA = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
+    URL_SECUNDARIA = f"https://drive.google.com/uc?export=download&id={file_id}"
+    
+    excel = None
     try:
-        excel = pd.ExcelFile(URL, engine='openpyxl')
-        # Aponta explicitamente para a nova guia "Pedidos", ou usa a primeira caso haja erro no nome
+        excel = pd.ExcelFile(URL_PRIMARIA, engine='openpyxl')
+    except:
+        try:
+            excel = pd.ExcelFile(URL_SECUNDARIA, engine='openpyxl')
+        except:
+            return pd.DataFrame() # Falha total de leitura do Drive
+
+    try:
         aba = "Pedidos" if "Pedidos" in excel.sheet_names else excel.sheet_names[0]
         df_pc = pd.read_excel(excel, sheet_name=aba, dtype=str).fillna('')
+        # Limpa espaços nas pontas de todas as colunas
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
         return df_pc
-    except Exception as e:
+    except:
         return pd.DataFrame()
 
 df_pc = carregar_dados_seguros()
@@ -401,7 +411,7 @@ def formatar_para_dd_mm_aa(valor):
         return txt
 
 # ==========================================
-# 6. MOTOR DE BUSCA EM TEXTO PURO REPARAMETRIZADO (LÓGICA CORRIGIDA)
+# 6. MOTOR DE BUSCA: LÓGICA FLEXÍVEL REATIVADA (Evita erros e brancos)
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -412,9 +422,8 @@ if busca:
     modo_solicitacao = False
     modo_centro_custo = False
     
-    # 1. DEFINIÇÃO DA REGRA DE NEGÓCIO (Feito antes da busca para garantir as mensagens corretas)
     if termo_numerico:
-        if len(termo_busca) == 4 and termo_busca.isdigit():
+        if len(termo_numerico) == 4:
             modo_centro_custo = True
         elif int(termo_numerico) >= 170000:
             modo_pedido = True
@@ -422,37 +431,35 @@ if busca:
             modo_solicitacao = True
 
     try:
-        # Só executa a busca se a planilha tiver carregado corretamente
         if not df_pc.empty and termo_numerico:
             valor_busca_int = int(termo_numerico)
             
-            # A) MÓDULO CENTRO DE CUSTO
+            # A) MÓDULO CENTRO DE CUSTO (Busca por aproximação)
             if modo_centro_custo:
-                # Procura a coluna Centro de Custo com flexibilidade
-                col_real_cc = next((c for c in df_pc.columns if "CUSTO" in c.upper() or "CC" in c.upper()), "Centro de Custo")
-                if col_real_cc in df_pc.columns:
-                    df_final = df_pc[df_pc[col_real_cc].astype(str).str.strip().str.contains(termo_busca, na=False)].copy()
+                col_real_cc = next((c for c in df_pc.columns if "CUSTO" in c.upper() or "CC" in c.upper()), None)
+                if col_real_cc:
+                    df_final = df_pc[df_pc[col_real_cc].astype(str).str.strip().str.contains(termo_numerico, na=False)].copy()
             
             # B) MÓDULO DOCUMENTOS (Pedido / Solicitação)
             else:
                 if modo_pedido:
-                    col_pc = next((c for c in df_pc.columns if "PEDIDO" in c.upper()), "Pedido")
-                    if col_pc in df_pc.columns:
+                    col_pc = next((c for c in df_pc.columns if "PEDIDO" in c.upper()), None)
+                    if col_pc:
                         serie_pc_txt = df_pc[col_pc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
                         df_final = df_pc[serie_pc_txt == str(valor_busca_int)].copy()
                 
                 if modo_solicitacao:
-                    col_sc = next((c for c in df_pc.columns if "SOLICITA" in c.upper()), "Solicitação")
-                    if col_sc in df_pc.columns:
+                    col_sc = next((c for c in df_pc.columns if "SOLICITA" in c.upper() or "SC" in c.upper()), None)
+                    if col_sc:
                         serie_sc_txt = df_pc[col_sc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
                         df_final = df_pc[serie_sc_txt == str(valor_busca_int)].copy()
 
-            # Fallback para buscas por texto livre (se não for número exato)
+            # Fallback para buscas por texto livre (Fornecedores, etc)
             if df_final.empty and not termo_busca.isdigit():
                 col_busca_geral = df_pc.columns[0]
                 df_final = df_pc[df_pc[col_busca_geral].astype(str).str.strip().str.contains(re.escape(termo_busca), flags=re.IGNORECASE, na=False)].copy()
 
-            # Processamento de Filtros Ativos da Gaveta Avançada
+            # Gaveta Avançada (Status e Data)
             if not df_final.empty and st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
                 df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
@@ -472,8 +479,25 @@ if busca:
                 nome_exibicao_tela = col_config["tela"]
                 tipo_campo = col_config["tipo"]
                 
-                if nome_original_planilha in df_final.columns:
-                    valores_originais = df_final[nome_original_planilha]
+                # --- CAMADA DE TRADUÇÃO FLEXÍVEL (Evita colunas em branco) ---
+                col_real = None
+                nome_upper = nome_original_planilha.strip().upper()
+                
+                for c in df_final.columns:
+                    if c.strip().upper() == nome_upper:
+                        col_real = c
+                        break
+                        
+                if not col_real:
+                    for c in df_final.columns:
+                        c_up = c.strip().upper()
+                        if "SOLICITA" in nome_upper and "SOLICITA" in c_up: col_real = c; break
+                        if "PEDIDO" in nome_upper and "PEDIDO" in c_up: col_real = c; break
+                        if "CENTRO" in nome_upper and "CUSTO" in nome_upper and "CENTRO" in c_up and "CUSTO" in c_up: col_real = c; break
+                # -------------------------------------------------------------
+                
+                if col_real:
+                    valores_originais = df_final[col_real]
                     
                     if tipo_campo == "data":
                         datas_limpas = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
@@ -570,11 +594,10 @@ if busca:
                 else:
                     st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
         else:
-            # INTERCEPTAÇÃO OPERACIONAL: Isola os fallbacks impedindo mensagens falsas de cotação para CC
             if df_pc.empty:
-                st.markdown('<div class="custom-error-red">⚠️ Erro: Não foi possível carregar a base de dados. Verifique o link ou o nome da aba "Pedidos".</div>', unsafe_allow_html=True)
+                st.markdown('<div class="custom-error-red">⚠️ Erro crítico: O Google Drive bloqueou o acesso à planilha ou o link está incorreto.</div>', unsafe_allow_html=True)
             elif modo_centro_custo:
-                st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes na base.</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' não possui registros ou não foi localizado.</div>', unsafe_allow_html=True)
             elif modo_pedido or (termo_numerico and int(termo_numerico) >= 170000):
                 st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado. Entre em contato com o comprador responsável.</div>', unsafe_allow_html=True)
             else:
