@@ -269,33 +269,16 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# BACKEND: INGESTÃO CORRIGIDA (ENGENHARIA ANTI-FÓRMULA)
+# BACKEND: INGESTÃO CORRIGIDA PARA NOVA GUIA "Pedidos" (LINK PRIMÁRIO)
 # ==========================================
 @st.cache_data(ttl=10)
 def carregar_dados_seguros():
-    file_id = "1hvVgN-eMojH1Q5mAl9rVUFGIUf9Z-YpiH0_uBDKXvQ0"
-    
-    # Exporta usando a API GViz (extrai APENAS O TEXTO visível, ignorando fórmulas complexas do Sheets)
-    URL_CSV = f"https://docs.google.com/spreadsheets/d/{file_id}/gviz/tq?tqx=out:csv&sheet=Pedidos"
-    
+    URL = "https://docs.google.com/spreadsheets/d/1hvVgN-eMojH1Q5mAl9rVUFGIUf9Z-YpiH0_uBDKXvQ0/export?format=xlsx"
     try:
-        df_pc = pd.read_csv(URL_CSV, dtype=str).fillna('')
-        if not df_pc.empty:
-            df_pc.columns = [str(c).strip() for c in df_pc.columns]
-            # Limpa qualquer resíduo de fórmula que possa ter escapado
-            df_pc = df_pc.replace(to_replace=[r'^#ERROR!', r'^#REF!', r'^#NAME\?', r'^#N/A', r'^#VALUE!'], value='Verificar no ERP', regex=True)
-            return df_pc
-    except:
-        pass
-        
-    # FALLBACK SECUNDÁRIO SE O CSV FALHAR
-    try:
-        URL_XLSX = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
-        excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
+        excel = pd.ExcelFile(URL, engine='openpyxl')
         aba = "Pedidos" if "Pedidos" in excel.sheet_names else excel.sheet_names[0]
         df_pc = pd.read_excel(excel, sheet_name=aba, dtype=str).fillna('')
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
-        df_pc = df_pc.replace(to_replace=[r'^#ERROR!', r'^#REF!', r'^#NAME\?', r'^#N/A', r'^#VALUE!'], value='Verificar no ERP', regex=True)
         return df_pc
     except Exception as e:
         return pd.DataFrame()
@@ -364,7 +347,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.cache_data.clear()
                 st.rerun()
 
-# Mapeamento estrito das novas colunas físicas reais da guia "Pedidos" (SILVIO)
+# Mapeamento estrito das novas colunas físicas reais da guia "Pedidos"
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "Centro de Custo", "tela": "Centro de Custo (CC)", "tipo": "texto"},
@@ -428,7 +411,7 @@ if busca:
     modo_centro_custo = False
     
     if termo_numerico:
-        if len(termo_numerico) == 4:
+        if len(termo_busca) == 4 and termo_busca.isdigit():
             modo_centro_custo = True
         elif int(termo_numerico) >= 170000:
             modo_pedido = True
@@ -443,7 +426,7 @@ if busca:
             if modo_centro_custo:
                 col_real_cc = next((c for c in df_pc.columns if "CUSTO" in c.upper() or "CC" in c.upper()), "Centro de Custo")
                 if col_real_cc in df_pc.columns:
-                    df_final = df_pc[df_pc[col_real_cc].astype(str).str.strip().str.contains(termo_numerico, na=False)].copy()
+                    df_final = df_pc[df_pc[col_real_cc].astype(str).str.strip().str.contains(termo_busca, na=False)].copy()
             
             # B) MÓDULO DOCUMENTOS (Pedido / Solicitação)
             else:
