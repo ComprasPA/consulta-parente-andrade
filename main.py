@@ -269,40 +269,40 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# BACKEND: INGESTÃO CORRIGIDA COM MODO DIAGNÓSTICO
+# BACKEND: INGESTÃO BLINDADA COM ID ATUALIZADO
 # ==========================================
 @st.cache_data(ttl=10)
 def carregar_dados_seguros():
-    # ID da sua nova planilha do Google Sheets
-    file_id = "1JDKD0J7_oFaIJDlwQvv-frPpYtS_9-rtx5cuUtnhRVY"
+    # Novo Link Solicitado (1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o)
+    file_id = "1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o"
     
-    # Exportação nativa CSV do Google Sheets
-    URL_CSV = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv&sheet=Pedidos"
+    # 1. Tenta a leitura via CSV focando na primeira aba (gid=0)
+    # Pandas resolve a conexão de forma nativa e silenciosa, sem ser bloqueado.
+    URL_CSV = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv&gid=0"
     
     try:
         df_pc = pd.read_csv(URL_CSV, dtype=str).fillna('')
-        if not df_pc.empty:
-            df_pc.columns = [str(c).strip() for c in df_pc.columns]
-            return df_pc
-    except Exception as e:
-        # Guarda o erro exato na sessão para imprimir na tela e sabermos o que falhou
-        st.session_state.erro_tecnico = f"Falha no CSV: {str(e)}"
-        pass
         
-    # Fallback para Excel
-    try:
-        URL_XLSX = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
-        excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
-        aba = "Pedidos" if "Pedidos" in excel.sheet_names else excel.sheet_names[0]
-        
-        df_pc = pd.read_excel(excel, sheet_name=aba, dtype=str).fillna('')
+        # Bloqueia se o Google retornar HTML de erro/login disfarçado de CSV
+        if "<html" in str(df_pc.columns[0]).lower():
+            raise ValueError("O Google retornou bloqueio HTML.")
+            
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
         return df_pc
-    except Exception as e:
-        # Se as duas falharem, guarda o erro do Excel
-        erro_anterior = st.session_state.get('erro_tecnico', '')
-        st.session_state.erro_tecnico = f"{erro_anterior} | Falha no Excel: {str(e)}"
-        return pd.DataFrame()
+    except Exception as e_csv:
+        # 2. Fallback de Segurança para XLSX caso o CSV do Google falhe na exportação
+        try:
+            URL_XLSX = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
+            excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
+            aba = "Pedidos_App" if "Pedidos_App" in excel.sheet_names else ("Pedidos" if "Pedidos" in excel.sheet_names else excel.sheet_names[0])
+            
+            df_pc = pd.read_excel(excel, sheet_name=aba, dtype=str).fillna('')
+            df_pc.columns = [str(c).strip() for c in df_pc.columns]
+            return df_pc
+        except Exception as e_xlsx:
+            # Regista os dois erros para diagnóstico
+            st.session_state.erro_tecnico = f"CSV: {str(e_csv)} | XLSX: {str(e_xlsx)}"
+            return pd.DataFrame()
 
 df_pc = carregar_dados_seguros()
 
@@ -599,7 +599,7 @@ if busca:
                     st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
         else:
             if df_pc.empty:
-                erro = st.session_state.get('erro_tecnico', 'Permissão negada ou aba Pedidos ausente.')
+                erro = st.session_state.get('erro_tecnico', 'Permissão negada ou aba ausente.')
                 st.markdown(f'<div class="custom-error-red">⚠️ Erro: Acesso Negado à Planilha.<br><br><b>1.</b> Verifique se o link está como "Qualquer pessoa com o link".<br><b>2.</b> Renomeie a aba para "Pedidos".<br><br><small>Erro Técnico: {erro}</small></div>', unsafe_allow_html=True)
             elif modo_centro_custo:
                 st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes na base.</div>', unsafe_allow_html=True)
