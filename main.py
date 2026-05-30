@@ -4,6 +4,7 @@ import base64
 import re
 from datetime import datetime, timedelta
 from io import BytesIO
+import urllib.request
 
 # 1. CONFIGURAÇÃO DA PÁGINA (Interface limpa com barra recolhida)
 st.set_page_config(
@@ -269,28 +270,49 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# BACKEND: INGESTÃO ATUALIZADA PARA NOVA BASE DE DADOS
+# BACKEND: INGESTÃO CORRIGIDA PARA NOVA PLANILHA (BLINDADA)
 # ==========================================
 @st.cache_data(ttl=10)
 def carregar_dados_seguros():
-    # Novo ID da Planilha Nativa do Google Sheets
-    file_id = "1JDKD0J7_oFaIJDlwQvv-frPpYtS_9-rtx5cuUtnhRVY"
+    # Novo ID da Planilha Atualizada
+    file_id = "1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o"
     
-    # 1. Tenta a leitura via CSV para anular qualquer fórmula problemática
-    URL_CSV = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv&sheet=Pedidos"
+    # 1. URL CSV genérica (Puxa sempre a primeira aba da planilha, ignorando o nome)
+    URL_CSV = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv"
+    
     try:
-        df_pc = pd.read_csv(URL_CSV, dtype=str, sep=None, engine='python').fillna('')
-        if not df_pc.empty and len(df_pc.columns) > 1:
+        # Finge ser um navegador para não ser bloqueado pelo Google
+        req = urllib.request.Request(URL_CSV, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            dados = response.read()
+            
+        # Tenta ler com separador vírgula
+        df_pc = pd.read_csv(BytesIO(dados), dtype=str, sep=',').fillna('')
+        
+        # Se vier com apenas 1 coluna, pode ser erro de separador (ponto e vírgula) ou página de erro HTML
+        if len(df_pc.columns) <= 1:
+            df_pc = pd.read_csv(BytesIO(dados), dtype=str, sep=';').fillna('')
+            
+        # Verifica se puxou lixo (página de login HTML do Google)
+        colunas_upper = [str(c).upper() for c in df_pc.columns]
+        if "STATUS" not in colunas_upper and "PEDIDO" not in colunas_upper and "SOLICITAÇÃO" not in colunas_upper:
+            raise Exception("Acesso Negado ou Planilha sem Cabeçalho.")
+
+        if not df_pc.empty:
             df_pc.columns = [str(c).strip() for c in df_pc.columns]
             return df_pc
     except:
         pass
         
-    # 2. Fallback de Segurança para leitura direta das abas
+    # 2. Fallback de Segurança para XLSX (caso CSV falhe)
     try:
         URL_XLSX = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
-        excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
-        aba = "Pedidos_App" if "Pedidos_App" in excel.sheet_names else ("Pedidos" if "Pedidos" in excel.sheet_names else excel.sheet_names[0])
+        req = urllib.request.Request(URL_XLSX, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            dados_excel = response.read()
+            
+        excel = pd.ExcelFile(BytesIO(dados_excel), engine='openpyxl')
+        aba = "Pedidos" if "Pedidos" in excel.sheet_names else excel.sheet_names[0]
         
         df_pc = pd.read_excel(excel, sheet_name=aba, dtype=str).fillna('')
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
@@ -583,20 +605,20 @@ if busca:
                 st.dataframe(df_painel, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
             else:
                 if df_pc.empty:
-                    st.markdown('<div class="custom-error-red">⚠️ Erro: Não foi possível carregar a base de dados. Verifique o link do arquivo.</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="custom-error-red">⚠️ Erro: Não foi possível carregar a base de dados. Verifique a permissão do link.</div>', unsafe_allow_html=True)
                 elif modo_centro_custo:
                     st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes com os filtros atuais.</div>', unsafe_allow_html=True)
                 elif modo_pedido:
-                    st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado. Entre em contato com o comprador responsável.</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado. Entre em contato com a equipe.</div>', unsafe_allow_html=True)
                 else:
                     st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
         else:
             if df_pc.empty:
-                st.markdown('<div class="custom-error-red">⚠️ Erro: Não foi possível carregar a base de dados. Verifique o link ou o nome da aba "Pedidos".</div>', unsafe_allow_html=True)
+                st.markdown('<div class="custom-error-red">⚠️ Erro: Acesso Negado à Planilha do Google ou não existe Aba com o nome "Pedidos". Verifique se o link está como "Qualquer pessoa com o link".</div>', unsafe_allow_html=True)
             elif modo_centro_custo:
                 st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes na base.</div>', unsafe_allow_html=True)
             elif modo_pedido or (termo_numerico and int(termo_numerico) >= 170000):
-                st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado. Entre em contato com o comprador responsável.</div>', unsafe_allow_html=True)
+                st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado. Entre em contato com a equipe.</div>', unsafe_allow_html=True)
             else:
                 st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
     except Exception as e:
