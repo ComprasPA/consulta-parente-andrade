@@ -6,24 +6,6 @@ from datetime import datetime, timedelta
 from io import BytesIO
 import urllib.request
 
-# --- BLOCO ADICIONAL DO MENU OPERADOR ---
-with st.sidebar:
-    st.markdown("### 🔒 Acesso Restrito")
-    senha_input = st.text_input("Senha Consultor", type="password")
-    if st.button("Logar"):
-        if senha_input == "parente2026":
-            st.session_state.autenticado = True
-            st.rerun()
-        else:
-            st.error("Senha incorreta!")
-    
-    if st.session_state.get("autenticado", False):
-        st.success("Logado com sucesso!")
-        st.link_button("📥 Acessar Planilha (Importar Excel)", "https://docs.google.com/spreadsheets/d/1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o/edit")
-        if st.button("Sair"):
-            st.session_state.autenticado = False
-            st.rerun()
-
 # 1. CONFIGURAÇÃO DA PÁGINA (Interface limpa com barra recolhida)
 st.set_page_config(
     page_title="Portal Gestão de Compras | Parente Andrade",
