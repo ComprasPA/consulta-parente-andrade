@@ -1,4 +1,3 @@
-retornamos ao código;
 
 import streamlit as st
 import pandas as pd
@@ -621,4 +620,3 @@ st.markdown("<div class=\"custom-footer-block\"><p style='color:#64748b; font-si
 # 8. MARCA D'ÁGUA FIXA EXCLUSIVA DA AUTORIA
 st.markdown('<div class="signature-fixed">Created by SS.</div>', unsafe_allow_html=True)
 
-Preciso do botão do operador em cima do código acima, não altere nada do código, apenas inclua o botão do operador
