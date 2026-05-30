@@ -244,7 +244,7 @@ st.markdown(f"""
 
     .custom-footer-block {{
         text-align: center !important; 
-        margin-top: 60px !important; 
+        margin-top: 40px !important; 
         border-top: 1px solid #e2e8f0 !important; 
         padding-top: 24px !important;
         padding-bottom: 24px !important;
@@ -266,6 +266,26 @@ st.markdown(f"""
         z-index: 999999;
         pointer-events: none;
     }}
+    
+    /* Botao do Operador Secreto */
+    .operator-btn {{
+        width: 100%; 
+        background-color: #478c3b; 
+        color: white; 
+        font-weight: 600; 
+        font-size: 16px;
+        padding: 12px; 
+        border-radius: 8px; 
+        border: none; 
+        cursor: pointer; 
+        margin-top: 10px;
+        text-align: center;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        transition: 0.2s;
+    }}
+    .operator-btn:hover {{
+        background-color: #3b7331;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -276,32 +296,23 @@ st.markdown(f"""
 def carregar_dados_seguros():
     # Novo Link Solicitado (1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o)
     file_id = "1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o"
-    
-    # 1. Tenta a leitura via CSV focando na primeira aba (gid=0)
-    # Pandas resolve a conexão de forma nativa e silenciosa, sem ser bloqueado.
     URL_CSV = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv&gid=0"
     
     try:
         df_pc = pd.read_csv(URL_CSV, dtype=str).fillna('')
-        
-        # Bloqueia se o Google retornar HTML de erro/login disfarçado de CSV
         if "<html" in str(df_pc.columns[0]).lower():
             raise ValueError("O Google retornou bloqueio HTML.")
-            
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
         return df_pc
     except Exception as e_csv:
-        # 2. Fallback de Segurança para XLSX caso o CSV do Google falhe na exportação
         try:
             URL_XLSX = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
             excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
             aba = "Pedidos_App" if "Pedidos_App" in excel.sheet_names else ("Pedidos" if "Pedidos" in excel.sheet_names else excel.sheet_names[0])
-            
             df_pc = pd.read_excel(excel, sheet_name=aba, dtype=str).fillna('')
             df_pc.columns = [str(c).strip() for c in df_pc.columns]
             return df_pc
         except Exception as e_xlsx:
-            # Regista os dois erros para diagnóstico
             st.session_state.erro_tecnico = f"CSV: {str(e_csv)} | XLSX: {str(e_xlsx)}"
             return pd.DataFrame()
 
@@ -341,8 +352,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
             else:
                 lista_status = ["Todos"]
-                
-            idx_padrao = lista_status.index(st.session_state.filtro_status_val) if st.session_state.filtro_status_val in lista_status else 0
+                idx_padrao = lista_status.index(st.session_state.filtro_status_val) if st.session_state.filtro_status_val in lista_status else 0
             filtro_status = st.selectbox("Filtrar por Status Operacional:", options=lista_status, index=idx_padrao)
             
         with f_col2:
@@ -421,7 +431,7 @@ def formatar_para_dd_mm_aa(valor):
         return txt
 
 # ==========================================
-# 6. MOTOR DE BUSCA EM TEXTO PURO REPARAMETRIZADO
+# 6. MOTOR DE BUSCA
 # ==========================================
 if busca:
     termo_busca = busca.strip()
@@ -448,7 +458,6 @@ if busca:
                 col_real_cc = next((c for c in df_pc.columns if "CUSTO" in c.upper() or "CC" in c.upper()), "Centro de Custo")
                 if col_real_cc in df_pc.columns:
                     df_final = df_pc[df_pc[col_real_cc].astype(str).str.strip().str.contains(termo_busca, na=False)].copy()
-            
             else:
                 if modo_pedido:
                     col_pc = next((c for c in df_pc.columns if "PEDIDO" in c.upper()), "Pedido")
@@ -613,8 +622,33 @@ if busca:
 else:
     st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
 
-# 7. RODAPÉ INSTITUCIONAL
+# ==========================================
+# 7. MENU ESCONDIDO (COFRE DO OPERADOR)
+# ==========================================
+st.markdown("---")
+with st.expander("🔒 Modo Operador", expanded=False):
+    senha = st.text_input("Insira a Senha de Acesso:", type="password", key="senha_operador")
+    
+    # A SENHA ESTÁ AQUI (pode mudar se quiser)
+    if senha == "parente2026": 
+        st.success("Acesso Liberado! Bem-vindo(a).")
+        link_planilha_direto = "https://docs.google.com/spreadsheets/d/1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o/edit"
+        
+        st.markdown(
+            f"""
+            <a href="{link_planilha_direto}" target="_blank" style="text-decoration: none;">
+                <button class="operator-btn">
+                    📥 Abrir Planilha Google (Para Importar Excel)
+                </button>
+            </a>
+            """, 
+            unsafe_allow_html=True
+        )
+    elif senha != "":
+        st.error("Senha incorreta. Acesso negado.")
+
+# 8. RODAPÉ INSTITUCIONAL
 st.markdown("<div class=\"custom-footer-block\"><p style='color:#64748b; font-size:13px; font-weight:600; margin:0;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
 
-# 8. MARCA D'ÁGUA FIXA EXCLUSIVA DA AUTORIA
+# 9. MARCA D'ÁGUA FIXA
 st.markdown('<div class="signature-fixed">Created by SS.</div>', unsafe_allow_html=True)
