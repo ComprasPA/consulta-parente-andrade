@@ -24,274 +24,50 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Alinhamento limpo, assinatura fixa, Ajuste Mobile e Ocultação da Toolbar)
+# 3. CSS MODERNIZADO
 st.markdown(f"""
     <style>
-    /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
-    
-    /* REMOVER CAIXA DE OPÇÕES FLUTUANTE DO DATAFRAME (Olho, download, lupa) */
-    div[data-testid="stElementToolbar"] {{
-        display: none !important;
-    }}
-    
-    /* Remove o espacamento forcado no topo e nas laterais da pagina */
-    .block-container {{
-        padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
-        padding-left: 2rem !important;
-        padding-right: 2rem !important;
-    }}
-    
-    /* Fundo geral suave e tipografia limpa */
-    .stApp {{ 
-        background-color: #f8fafc; 
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    }}
-    
-    /* Topo moderno forcando todos os elementos na mesma linha verticalmente alinhados */
-    .header-modern {{
-        background: #ffffff;
-        padding: 16px 24px;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-top: 0px !important;
-        margin-bottom: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
-    }}
-    
-    /* Forca os elementos internos das colunas do Streamlit a centralizarem verticalmente */
-    div[data-testid="column"] {{
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }}
-    
-    /* Alinhamento do título ao meio da página */
-    .center-title-container {{
-        width: 100%;
-        text-align: center;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }}
-    
-    .portal-title {{ 
-        color: #1e293b !important; 
-        font-size: 38px !important; 
-        font-weight: 800 !important; 
-        margin: 0 auto !important;
-        letter-spacing: -1px;
-        line-height: 1;
-        white-space: nowrap;
-    }}
-    
-    /* Customizacao fina para campos de input, seletores, botoes */
-    div[data-testid="stVerticalBlock"] > div:has(input), 
-    div[data-testid="stVerticalBlock"] > div:has(select),
-    div[data-testid="stVerticalBlock"] > div:has(button) {{
-        background-color: #ffffff; 
-        padding: 2px 6px !important; 
-        border-radius: 8px; 
-        border: 1px solid #e2e8f0 !important;
-        box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
-        transition: border-color 0.2s;
-        width: 100%;
-    }}
-    div[data-testid="stVerticalBlock"] > div:has(input):focus-within,
-    div[data-testid="stVerticalBlock"] > div:has(select):focus-within {{
-        border-color: #478c3b !important;
-    }}
-    
-    /* REMOÇÃO TOTAL DA LINHA DE CONTORNO (FECHADA OU ABERTA) */
-    div[data-testid="stExpander"], 
-    div[data-testid="stExpander"] > div,
-    div[data-testid="stExpander"][data-open="true"],
-    div[data-testid="stExpander"][data-open="false"],
-    .stElementContainer:has(div[data-testid="stExpander"]) {{
-        background-color: transparent !important;
-        border: none !important;
-        border-width: 0px !important;
-        box-shadow: none !important;
-        outline: none !important;
-    }}
-    
-    /* Remove contornos residuais e força fundo limpo na barra do expander */
-    div[data-testid="stExpander"] summary,
-    div[data-testid="stExpander"] [role="button"],
-    .streamlit-expanderHeader {{
-        background-color: transparent !important;
-        border: none !important;
-        border-width: 0px !important;
-        box-shadow: none !important;
-        display: inline-flex !important;
-        justify-content: flex-end !important;
-        flex-direction: row !important;  
-        float: right !important;
-        text-align: right !important;
-        gap: 8px !important;
-        width: auto !important;
-    }}
-    
-    /* INTERAÇÃO DA SETA: Permite o giro nativo e suave do componente original */
-    div[data-testid="stExpander"] summary svg {{
-        transition: transform 0.2s ease-in-out !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }}
-    
-    /* Garante cor estável de alta visibilidade (Grafite) independente do estado */
-    div[data-testid="stExpander"] summary p,
-    div[data-testid="stExpander"] [data-open="true"] summary p,
-    .streamlit-expanderHeader p,
-    .streamlit-expanderHeader:focus p {{
-        color: #1e293b !important;
-        font-weight: 700 !important;
-        font-size: 16px !important;
-        margin: 0 !important;
-    }}
-    
-    /* Mudança suave para verde apenas no hover */
-    div[data-testid="stExpander"] summary:hover p {{
-        color: #478c3b !important;
-    }}
-    
-    /* Ajuste de largura do input de data nativo */
-    div[data-testid="stDateInput"] {{
-        width: 100%;
-    }}
-    
-    /* Remove a borda e contorno do sub-formulario interno dos filtros */
-    div[data-testid="stForm"] {{
-        border: none !important;
-        padding: 0px !important;
-        box-shadow: none !important;
-        background-color: transparent !important;
-    }}
-    
-    /* Caixa padrao de sucesso (Registro Localizado) */
-    .status-card {{ 
-        background: #ffffff; 
-        color: #1e293b; 
-        padding: 16px 24px; 
-        border-radius: 8px; 
-        font-weight: 600; 
-        font-size: 16px; 
-        border-left: 5px solid #478c3b;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        margin-bottom: 16px;
-        width: 100%;
-    }}
-
-    /* CAIXA AZUL: Para informacoes positivas */
-    .custom-info-blue {{
-        background-color: #e0f2fe !important;
-        color: #0369a1 !important;
-        padding: 16px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-        margin-bottom: 16px;
-        width: 100%;
-        border-left: 5px solid #0284c7;
-    }}
-
-    /* CAIXA VERMELHA: Para alertas/erros */
-    .custom-error-red {{
-        background-color: #fee2e2 !important;
-        color: #991b1b !important;
-        padding: 16px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-        margin-bottom: 16px;
-        width: 100%;
-        border-left: 5px solid #ef4444;
-    }}
-
-    /* SAUDACAO INICIAL */
-    .custom-welcome-salutation {{
-        background-color: #ffffff;
-        color: #1e293b;
-        padding: 32px 24px;
-        border-radius: 12px;
-        font-weight: 600;
-        font-size: 20px;
-        text-align: center;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
-        margin-top: 20px;
-    }}
-    
-    /* Ajustes na visualizacao das tabelas */
-    div[data-testid="stDataFrame"] {{
-        background: #ffffff;
-        padding: 16px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-    }}
-    
-    /* Impedir quebras de palavras e truncamento nos titulos das colunas */
-    div[data-testid="stDataFrame"] table th {{
-        white-space: nowrap !important;
-        min-width: max-content !important;
-    }}
-
-    .custom-footer-block {{
-        text-align: center !important; 
-        margin-top: 60px !important; 
-        border-top: 1px solid #e2e8f0 !important; 
-        padding-top: 24px !important;
-        padding-bottom: 24px !important;
-        position: static !important; 
-        clear: both !important;
-        width: 100% !important;
-        display: block !important;
-    }}
-
-    /* Assinatura fixa no canto inferior esquerdo da tela */
-    .signature-fixed {{
-        position: fixed;
-        bottom: 12px;
-        left: 20px;
-        color: #94a3b8;
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.5px;
-        z-index: 999999;
-        pointer-events: none;
-    }}
+    div[data-testid="stElementToolbar"] {{ display: none !important; }}
+    .block-container {{ padding-top: 1rem !important; padding-bottom: 1rem !important; padding-left: 2rem !important; padding-right: 2rem !important; }}
+    .stApp {{ background-color: #f8fafc; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }}
+    .header-modern {{ background: #ffffff; padding: 16px 24px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; margin-top: 0px !important; margin-bottom: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); }}
+    div[data-testid="column"] {{ display: flex; align-items: center; justify-content: center; }}
+    .center-title-container {{ width: 100%; text-align: center; display: flex; justify-content: center; align-items: center; }}
+    .portal-title {{ color: #1e293b !important; font-size: 38px !important; font-weight: 800 !important; margin: 0 auto !important; letter-spacing: -1px; line-height: 1; white-space: nowrap; }}
+    div[data-testid="stVerticalBlock"] > div:has(input), div[data-testid="stVerticalBlock"] > div:has(select), div[data-testid="stVerticalBlock"] > div:has(button) {{ background-color: #ffffff; padding: 2px 6px !important; border-radius: 8px; border: 1px solid #e2e8f0 !important; box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02); transition: border-color 0.2s; width: 100%; }}
+    div[data-testid="stVerticalBlock"] > div:has(input):focus-within, div[data-testid="stVerticalBlock"] > div:has(select):focus-within {{ border-color: #478c3b !important; }}
+    div[data-testid="stExpander"], div[data-testid="stExpander"] > div, div[data-testid="stExpander"][data-open="true"], div[data-testid="stExpander"][data-open="false"], .stElementContainer:has(div[data-testid="stExpander"]) {{ background-color: transparent !important; border: none !important; border-width: 0px !important; box-shadow: none !important; outline: none !important; }}
+    div[data-testid="stExpander"] summary, div[data-testid="stExpander"] [role="button"], .streamlit-expanderHeader {{ background-color: transparent !important; border: none !important; border-width: 0px !important; box-shadow: none !important; display: inline-flex !important; justify-content: flex-end !important; flex-direction: row !important; float: right !important; text-align: right !important; gap: 8px !important; width: auto !important; }}
+    div[data-testid="stExpander"] summary svg {{ transition: transform 0.2s ease-in-out !important; margin: 0 !important; padding: 0 !important; }}
+    div[data-testid="stExpander"] summary p, div[data-testid="stExpander"] [data-open="true"] summary p, .streamlit-expanderHeader p, .streamlit-expanderHeader:focus p {{ color: #1e293b !important; font-weight: 700 !important; font-size: 16px !important; margin: 0 !important; }}
+    div[data-testid="stExpander"] summary:hover p {{ color: #478c3b !important; }}
+    div[data-testid="stDateInput"] {{ width: 100%; }}
+    div[data-testid="stForm"] {{ border: none !important; padding: 0px !important; box-shadow: none !important; background-color: transparent !important; }}
+    .status-card {{ background: #ffffff; color: #1e293b; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; border-left: 5px solid #478c3b; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; }}
+    .custom-info-blue {{ background-color: #e0f2fe !important; color: #0369a1 !important; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #0284c7; }}
+    .custom-error-red {{ background-color: #fee2e2 !important; color: #991b1b !important; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #ef4444; }}
+    .custom-welcome-salutation {{ background-color: #ffffff; color: #1e293b; padding: 32px 24px; border-radius: 12px; font-weight: 600; font-size: 20px; text-align: center; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); margin-top: 20px; }}
+    div[data-testid="stDataFrame"] {{ background: #ffffff; padding: 16px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }}
+    div[data-testid="stDataFrame"] table th {{ white-space: nowrap !important; min-width: max-content !important; }}
+    .custom-footer-block {{ text-align: center !important; margin-top: 60px !important; border-top: 1px solid #e2e8f0 !important; padding-top: 24px !important; padding-bottom: 24px !important; position: static !important; clear: both !important; width: 100% !important; display: block !important; }}
+    .signature-fixed {{ position: fixed; bottom: 12px; left: 20px; color: #94a3b8; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; z-index: 999999; pointer-events: none; }}
     </style>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# BACKEND: INGESTÃO CORRIGIDA (ENGENHARIA ANTI-FÓRMULA)
+# BACKEND: INGESTÃO QUE PROCURA O "ESPELHO" SEM FÓRMULAS
 # ==========================================
 @st.cache_data(ttl=10)
 def carregar_dados_seguros():
     file_id = "1hvVgN-eMojH1Q5mAl9rVUFGIUf9Z-YpiH0_uBDKXvQ0"
-    
-    # 1. Estratégia de CSV Puro (Força o Google a calcular as fórmulas e entregar o texto visível real)
-    URL_CSV = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv&sheet=Pedidos"
+    URL_XLSX = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
     
     try:
-        # sep=None e engine='python' garantem a leitura em qualquer fuso horário (vírgula ou ponto-e-vírgula)
-        df_pc = pd.read_csv(URL_CSV, dtype=str, sep=None, engine='python').fillna('')
-        if not df_pc.empty and len(df_pc.columns) > 1:
-            df_pc.columns = [str(c).strip() for c in df_pc.columns]
-            return df_pc
-    except:
-        pass
-        
-    # 2. Fallback de Segurança Secundário para XLSX
-    try:
-        URL_XLSX = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
         excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
-        aba = "Pedidos" if "Pedidos" in excel.sheet_names else excel.sheet_names[0]
+        # 1. Procura primeiro pela folha espelho gerada pelo Google Apps Script
+        aba = "Pedidos_App" if "Pedidos_App" in excel.sheet_names else ("Pedidos" if "Pedidos" in excel.sheet_names else excel.sheet_names[0])
+        
         df_pc = pd.read_excel(excel, sheet_name=aba, dtype=str).fillna('')
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
         return df_pc
@@ -362,7 +138,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.cache_data.clear()
                 st.rerun()
 
-# Mapeamento estrito das novas colunas físicas reais da guia "Pedidos"
+# Mapeamento estrito das colunas
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "Centro de Custo", "tela": "Centro de Custo (CC)", "tipo": "texto"},
@@ -437,13 +213,11 @@ if busca:
         if not df_pc.empty and termo_numerico:
             valor_busca_int = int(termo_numerico)
             
-            # A) MÓDULO CENTRO DE CUSTO
             if modo_centro_custo:
                 col_real_cc = next((c for c in df_pc.columns if "CUSTO" in c.upper() or "CC" in c.upper()), "Centro de Custo")
                 if col_real_cc in df_pc.columns:
                     df_final = df_pc[df_pc[col_real_cc].astype(str).str.strip().str.contains(termo_busca, na=False)].copy()
             
-            # B) MÓDULO DOCUMENTOS (Pedido / Solicitação)
             else:
                 if modo_pedido:
                     col_pc = next((c for c in df_pc.columns if "PEDIDO" in c.upper()), "Pedido")
