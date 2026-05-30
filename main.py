@@ -6,7 +6,15 @@ from datetime import datetime, timedelta
 from io import BytesIO
 import urllib.request
 
-# --- BLOCO ADICIONAL DO MENU OPERADOR ---
+# 1. CONFIGURAÇÃO DA PÁGINA
+st.set_page_config(
+    page_title="Portal Gestão de Compras | Parente Andrade",
+    page_icon="🏗️",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+# --- MENU OPERADOR (Senha: parente2026) ---
 with st.sidebar:
     st.markdown("### 🔒 Acesso Restrito")
     senha_input = st.text_input("Senha Consultor", type="password")
@@ -19,27 +27,19 @@ with st.sidebar:
     
     if st.session_state.get("autenticado", False):
         st.success("Logado com sucesso!")
-        st.link_button("📥 Acessar Planilha (Importar Excel)", "https://docs.google.com/spreadsheets/d/1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o/edit")
+        st.link_button("📥 Acessar Planilha", "https://docs.google.com/spreadsheets/d/1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o/edit")
         if st.button("Sair"):
             st.session_state.autenticado = False
             st.rerun()
 
-# 1. CONFIGURAÇÃO DA PÁGINA (Interface limpa com barra recolhida)
-st.set_page_config(
-    page_title="Portal Gestão de Compras | Parente Andrade",
-    page_icon="🏗️",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
-
 # 2. FUNÇÃO LOGO
 @st.cache_data(ttl=86400)
 def get_base64_logo(image_path="logo"):
-    try:
-        with open(image_path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
-    except: 
-        return None
+    try:
+        with open(image_path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except: 
+        return None
 
 base64_logo = get_base64_logo()
 
