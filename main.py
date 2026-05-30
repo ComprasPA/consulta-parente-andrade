@@ -6,13 +6,29 @@ from datetime import datetime, timedelta
 from io import BytesIO
 import urllib.request
 
-# 1. CONFIGURAÇÃO DA PÁGINA (Interface limpa com barra recolhida)
+# 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
     page_title="Portal Gestão de Compras | Parente Andrade",
     page_icon="🏗️",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed" # A barra lateral começa fechada por segurança
 )
+
+# --- NOVO: BOTÃO DO OPERADOR NA BARRA LATERAL ---
+st.sidebar.markdown("### ⚙️ Área do Operador")
+st.sidebar.markdown("Área restrita para atualização da base de dados.")
+link_planilha = "https://docs.google.com/spreadsheets/d/1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o/edit"
+st.sidebar.markdown(
+    f"""
+    <a href="{link_planilha}" target="_blank" style="text-decoration: none;">
+        <button style="width: 100%; background-color: #1e293b; color: white; font-weight: 600; padding: 10px; border-radius: 8px; border: none; cursor: pointer; margin-top: 10px;">
+            📥 Abrir Planilha (Importar Excel)
+        </button>
+    </a>
+    """, 
+    unsafe_allow_html=True
+)
+st.sidebar.markdown("---")
 
 # 2. FUNÇÃO LOGO
 @st.cache_data(ttl=86400)
@@ -25,267 +41,34 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Alinhamento limpo, assinatura fixa, Ajuste Mobile e Ocultação da Toolbar)
+# 3. CSS MODERNIZADO
 st.markdown(f"""
     <style>
-    /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
     #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
-    
-    /* REMOVER CAIXA DE OPÇÕES FLUTUANTE DO DATAFRAME (Olho, download, lupa) */
-    div[data-testid="stElementToolbar"] {{
-        display: none !important;
-    }}
-    
-    /* Remove o espacamento forcado no topo e nas laterais da pagina */
-    .block-container {{
-        padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
-        padding-left: 2rem !important;
-        padding-right: 2rem !important;
-    }}
-    
-    /* Fundo geral suave e tipografia limpa */
-    .stApp {{ 
-        background-color: #f8fafc; 
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    }}
-    
-    /* Topo moderno forcando todos os elementos na mesma linha verticalmente alinhados */
-    .header-modern {{
-        background: #ffffff;
-        padding: 16px 24px;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-top: 0px !important;
-        margin-bottom: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
-    }}
-    
-    /* Forca os elementos internos das colunas do Streamlit a centralizarem verticalmente */
-    div[data-testid="column"] {{
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }}
-    
-    /* Alinhamento do título ao meio da página */
-    .center-title-container {{
-        width: 100%;
-        text-align: center;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }}
-    
-    .portal-title {{ 
-        color: #1e293b !important; 
-        font-size: 38px !important; 
-        font-weight: 800 !important; 
-        margin: 0 auto !important;
-        letter-spacing: -1px;
-        line-height: 1;
-        white-space: nowrap;
-    }}
-    
-    /* Customizacao fina para campos de input, seletores, botoes */
-    div[data-testid="stVerticalBlock"] > div:has(input), 
-    div[data-testid="stVerticalBlock"] > div:has(select),
-    div[data-testid="stVerticalBlock"] > div:has(button) {{
-        background-color: #ffffff; 
-        padding: 2px 6px !important; 
-        border-radius: 8px; 
-        border: 1px solid #e2e8f0 !important;
-        box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
-        transition: border-color 0.2s;
-        width: 100%;
-    }}
-    div[data-testid="stVerticalBlock"] > div:has(input):focus-within,
-    div[data-testid="stVerticalBlock"] > div:has(select):focus-within {{
-        border-color: #478c3b !important;
-    }}
-    
-    /* REMOÇÃO TOTAL DA LINHA DE CONTORNO (FECHADA OU ABERTA) */
-    div[data-testid="stExpander"], 
-    div[data-testid="stExpander"] > div,
-    div[data-testid="stExpander"][data-open="true"],
-    div[data-testid="stExpander"][data-open="false"],
-    .stElementContainer:has(div[data-testid="stExpander"]) {{
-        background-color: transparent !important;
-        border: none !important;
-        border-width: 0px !important;
-        box-shadow: none !important;
-        outline: none !important;
-    }}
-    
-    /* Remove contornos residuais e força fundo limpo na barra do expander */
-    div[data-testid="stExpander"] summary,
-    div[data-testid="stExpander"] [role="button"],
-    .streamlit-expanderHeader {{
-        background-color: transparent !important;
-        border: none !important;
-        border-width: 0px !important;
-        box-shadow: none !important;
-        display: inline-flex !important;
-        justify-content: flex-end !important;
-        flex-direction: row !important;  
-        float: right !important;
-        text-align: right !important;
-        gap: 8px !important;
-        width: auto !important;
-    }}
-    
-    /* INTERAÇÃO DA SETA: Permite o giro nativo e suave do componente original */
-    div[data-testid="stExpander"] summary svg {{
-        transition: transform 0.2s ease-in-out !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }}
-    
-    /* Garante cor estável de alta visibilidade (Grafite) independente do estado */
-    div[data-testid="stExpander"] summary p,
-    div[data-testid="stExpander"] [data-open="true"] summary p,
-    .streamlit-expanderHeader p,
-    .streamlit-expanderHeader:focus p {{
-        color: #1e293b !important;
-        font-weight: 700 !important;
-        font-size: 16px !important;
-        margin: 0 !important;
-    }}
-    
-    /* Mudança suave para verde apenas no hover */
-    div[data-testid="stExpander"] summary:hover p {{
-        color: #478c3b !important;
-    }}
-    
-    /* Ajuste de largura do input de data nativo */
-    div[data-testid="stDateInput"] {{
-        width: 100%;
-    }}
-    
-    /* Remove a borda e contorno do sub-formulario interno dos filtros */
-    div[data-testid="stForm"] {{
-        border: none !important;
-        padding: 0px !important;
-        box-shadow: none !important;
-        background-color: transparent !important;
-    }}
-    
-    /* Caixa padrao de sucesso (Registro Localizado) */
-    .status-card {{ 
-        background: #ffffff; 
-        color: #1e293b; 
-        padding: 16px 24px; 
-        border-radius: 8px; 
-        font-weight: 600; 
-        font-size: 16px; 
-        border-left: 5px solid #478c3b;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        margin-bottom: 16px;
-        width: 100%;
-    }}
-
-    /* CAIXA AZUL: Para informacoes positivas */
-    .custom-info-blue {{
-        background-color: #e0f2fe !important;
-        color: #0369a1 !important;
-        padding: 16px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-        margin-bottom: 16px;
-        width: 100%;
-        border-left: 5px solid #0284c7;
-    }}
-
-    /* CAIXA VERMELHA: Para alertas/erros */
-    .custom-error-red {{
-        background-color: #fee2e2 !important;
-        color: #991b1b !important;
-        padding: 16px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-        margin-bottom: 16px;
-        width: 100%;
-        border-left: 5px solid #ef4444;
-    }}
-
-    /* SAUDACAO INICIAL */
-    .custom-welcome-salutation {{
-        background-color: #ffffff;
-        color: #1e293b;
-        padding: 32px 24px;
-        border-radius: 12px;
-        font-weight: 600;
-        font-size: 20px;
-        text-align: center;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
-        margin-top: 20px;
-    }}
-    
-    /* Ajustes na visualizacao das tabelas */
-    div[data-testid="stDataFrame"] {{
-        background: #ffffff;
-        padding: 16px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-    }}
-    
-    /* Impedir quebras de palavras e truncamento nos titulos das colunas */
-    div[data-testid="stDataFrame"] table th {{
-        white-space: nowrap !important;
-        min-width: max-content !important;
-    }}
-
-    .custom-footer-block {{
-        text-align: center !important; 
-        margin-top: 40px !important; 
-        border-top: 1px solid #e2e8f0 !important; 
-        padding-top: 24px !important;
-        padding-bottom: 24px !important;
-        position: static !important; 
-        clear: both !important;
-        width: 100% !important;
-        display: block !important;
-    }}
-
-    /* Assinatura fixa no canto inferior esquerdo da tela */
-    .signature-fixed {{
-        position: fixed;
-        bottom: 12px;
-        left: 20px;
-        color: #94a3b8;
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.5px;
-        z-index: 999999;
-        pointer-events: none;
-    }}
-    
-    /* Botao do Operador Secreto */
-    .operator-btn {{
-        width: 100%; 
-        background-color: #478c3b; 
-        color: white; 
-        font-weight: 600; 
-        font-size: 16px;
-        padding: 12px; 
-        border-radius: 8px; 
-        border: none; 
-        cursor: pointer; 
-        margin-top: 10px;
-        text-align: center;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-        transition: 0.2s;
-    }}
-    .operator-btn:hover {{
-        background-color: #3b7331;
-    }}
+    div[data-testid="stElementToolbar"] {{ display: none !important; }}
+    .block-container {{ padding-top: 1rem !important; padding-bottom: 1rem !important; padding-left: 2rem !important; padding-right: 2rem !important; }}
+    .stApp {{ background-color: #f8fafc; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }}
+    .header-modern {{ background: #ffffff; padding: 16px 24px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; margin-top: 0px !important; margin-bottom: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); }}
+    div[data-testid="column"] {{ display: flex; align-items: center; justify-content: center; }}
+    .center-title-container {{ width: 100%; text-align: center; display: flex; justify-content: center; align-items: center; }}
+    .portal-title {{ color: #1e293b !important; font-size: 38px !important; font-weight: 800 !important; margin: 0 auto !important; letter-spacing: -1px; line-height: 1; white-space: nowrap; }}
+    div[data-testid="stVerticalBlock"] > div:has(input), div[data-testid="stVerticalBlock"] > div:has(select), div[data-testid="stVerticalBlock"] > div:has(button) {{ background-color: #ffffff; padding: 2px 6px !important; border-radius: 8px; border: 1px solid #e2e8f0 !important; box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02); transition: border-color 0.2s; width: 100%; }}
+    div[data-testid="stVerticalBlock"] > div:has(input):focus-within, div[data-testid="stVerticalBlock"] > div:has(select):focus-within {{ border-color: #478c3b !important; }}
+    div[data-testid="stExpander"], div[data-testid="stExpander"] > div, div[data-testid="stExpander"][data-open="true"], div[data-testid="stExpander"][data-open="false"], .stElementContainer:has(div[data-testid="stExpander"]) {{ background-color: transparent !important; border: none !important; border-width: 0px !important; box-shadow: none !important; outline: none !important; }}
+    div[data-testid="stExpander"] summary, div[data-testid="stExpander"] [role="button"], .streamlit-expanderHeader {{ background-color: transparent !important; border: none !important; border-width: 0px !important; box-shadow: none !important; display: inline-flex !important; justify-content: flex-end !important; flex-direction: row !important; float: right !important; text-align: right !important; gap: 8px !important; width: auto !important; }}
+    div[data-testid="stExpander"] summary svg {{ transition: transform 0.2s ease-in-out !important; margin: 0 !important; padding: 0 !important; }}
+    div[data-testid="stExpander"] summary p, div[data-testid="stExpander"] [data-open="true"] summary p, .streamlit-expanderHeader p, .streamlit-expanderHeader:focus p {{ color: #1e293b !important; font-weight: 700 !important; font-size: 16px !important; margin: 0 !important; }}
+    div[data-testid="stExpander"] summary:hover p {{ color: #478c3b !important; }}
+    div[data-testid="stDateInput"] {{ width: 100%; }}
+    div[data-testid="stForm"] {{ border: none !important; padding: 0px !important; box-shadow: none !important; background-color: transparent !important; }}
+    .status-card {{ background: #ffffff; color: #1e293b; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; border-left: 5px solid #478c3b; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; }}
+    .custom-info-blue {{ background-color: #e0f2fe !important; color: #0369a1 !important; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #0284c7; }}
+    .custom-error-red {{ background-color: #fee2e2 !important; color: #991b1b !important; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #ef4444; }}
+    .custom-welcome-salutation {{ background-color: #ffffff; color: #1e293b; padding: 32px 24px; border-radius: 12px; font-weight: 600; font-size: 20px; text-align: center; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); margin-top: 20px; }}
+    div[data-testid="stDataFrame"] {{ background: #ffffff; padding: 16px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }}
+    div[data-testid="stDataFrame"] table th {{ white-space: nowrap !important; min-width: max-content !important; }}
+    .custom-footer-block {{ text-align: center !important; margin-top: 60px !important; border-top: 1px solid #e2e8f0 !important; padding-top: 24px !important; padding-bottom: 24px !important; position: static !important; clear: both !important; width: 100% !important; display: block !important; }}
+    .signature-fixed {{ position: fixed; bottom: 12px; left: 20px; color: #94a3b8; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; z-index: 999999; pointer-events: none; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -622,33 +405,8 @@ if busca:
 else:
     st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
 
-# ==========================================
-# 7. MENU ESCONDIDO (COFRE DO OPERADOR)
-# ==========================================
-st.markdown("---")
-with st.expander("🔒 Modo Operador", expanded=False):
-    senha = st.text_input("Insira a Senha de Acesso:", type="password", key="senha_operador")
-    
-    # A SENHA ESTÁ AQUI (pode mudar se quiser)
-    if senha == "parente2026": 
-        st.success("Acesso Liberado! Bem-vindo(a).")
-        link_planilha_direto = "https://docs.google.com/spreadsheets/d/1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o/edit"
-        
-        st.markdown(
-            f"""
-            <a href="{link_planilha_direto}" target="_blank" style="text-decoration: none;">
-                <button class="operator-btn">
-                    📥 Abrir Planilha Google (Para Importar Excel)
-                </button>
-            </a>
-            """, 
-            unsafe_allow_html=True
-        )
-    elif senha != "":
-        st.error("Senha incorreta. Acesso negado.")
-
-# 8. RODAPÉ INSTITUCIONAL
+# 7. RODAPÉ INSTITUCIONAL
 st.markdown("<div class=\"custom-footer-block\"><p style='color:#64748b; font-size:13px; font-weight:600; margin:0;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
 
-# 9. MARCA D'ÁGUA FIXA
+# 8. MARCA D'ÁGUA FIXA
 st.markdown('<div class="signature-fixed">Created by SS.</div>', unsafe_allow_html=True)
