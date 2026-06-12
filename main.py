@@ -270,38 +270,29 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# BACKEND: INGESTÃO CORRIGIDA PARA NOVA PLANILHA (BLINDADA)
+# BACKEND: INGESTÃO ATUALIZADA PARA NOVA PLANILHA
 # ==========================================
 @st.cache_data(ttl=10)
 def carregar_dados_seguros():
-    # Novo Link Solicitado (1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o)
-    file_id = "1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o"
-    
-    # 1. Tenta a leitura via CSV focando na primeira aba (gid=0)
-    # Pandas resolve a conexão de forma nativa e silenciosa, sem ser bloqueado.
+    # Novo Link Solicitado: 1h2h04MQBox7lnlUdz7XrQTBmTurgJs27Eo820jk5UMk
+    file_id = "1h2h04MQBox7lnlUdz7XrQTBmTurgJs27Eo820jk5UMk"
     URL_CSV = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv&gid=0"
     
     try:
         df_pc = pd.read_csv(URL_CSV, dtype=str).fillna('')
-        
-        # Bloqueia se o Google retornar HTML de erro/login disfarçado de CSV
         if "<html" in str(df_pc.columns[0]).lower():
             raise ValueError("O Google retornou bloqueio HTML.")
-            
         df_pc.columns = [str(c).strip() for c in df_pc.columns]
         return df_pc
     except Exception as e_csv:
-        # 2. Fallback de Segurança para XLSX caso o CSV do Google falhe na exportação
         try:
             URL_XLSX = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
             excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
             aba = "Pedidos_App" if "Pedidos_App" in excel.sheet_names else ("Pedidos" if "Pedidos" in excel.sheet_names else excel.sheet_names[0])
-            
             df_pc = pd.read_excel(excel, sheet_name=aba, dtype=str).fillna('')
             df_pc.columns = [str(c).strip() for c in df_pc.columns]
             return df_pc
         except Exception as e_xlsx:
-            # Regista os dois erros para diagnóstico
             st.session_state.erro_tecnico = f"CSV: {str(e_csv)} | XLSX: {str(e_xlsx)}"
             return pd.DataFrame()
 
@@ -512,7 +503,7 @@ if busca:
                     elif tipo_campo == "produto":
                         df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: ajustar_zeros_protheus(val, 10))
                     elif tipo_campo in ["moeda", "numero"]:
-                        df_painel[nome_exibicao_tela] = valores_originais.apply(converter_para_numerico)
+                        df_painel[nome_exibicao_tela] = valores_originais.apply(converter_comecando_numerico)
                     else:
                         df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
                 else:
