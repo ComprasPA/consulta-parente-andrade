@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 import urllib.request
 
-# 1. CONFIGURAÇÃO DA PÁGINA (Interface limpa com barra recolhida)
+# 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
     page_title="Portal Gestão de Compras | Parente Andrade",
     page_icon="🏗️",
@@ -25,293 +25,69 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Alinhamento limpo, assinatura fixa, Ajuste Mobile e Ocultação da Toolbar)
-st.markdown(f"""
+# 3. CSS MODERNIZADO
+st.markdown("""
     <style>
-    /* Ocultar elementos padrão do Streamlit e zerar espaço do topo */
-    #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}} header {{visibility: hidden;}}
-    
-    /* REMOVER CAIXA DE OPÇÕES FLUTUANTE DO DATAFRAME (Olho, download, lupa) */
-    div[data-testid="stElementToolbar"] {{
-        display: none !important;
-    }}
-    
-    /* Remove o espacamento forcado no topo e nas laterais da pagina */
-    .block-container {{
-        padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
-        padding-left: 2rem !important;
-        padding-right: 2rem !important;
-    }}
-    
-    /* Fundo geral suave e tipografia limpa */
-    .stApp {{ 
-        background-color: #f8fafc; 
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    }}
-    
-    /* Topo moderno forcando todos os elementos na mesma linha verticalmente alinhados */
-    .header-modern {{
-        background: #ffffff;
-        padding: 16px 24px;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-top: 0px !important;
-        margin-bottom: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
-    }}
-    
-    /* Forca os elementos internos das colunas do Streamlit a centralizarem verticalmente */
-    div[data-testid="column"] {{
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }}
-    
-    /* Alinhamento do título ao meio da página */
-    .center-title-container {{
-        width: 100%;
-        text-align: center;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }}
-    
-    .portal-title {{ 
-        color: #1e293b !important; 
-        font-size: 38px !important; 
-        font-weight: 800 !important; 
-        margin: 0 auto !important;
-        letter-spacing: -1px;
-        line-height: 1;
-        white-space: nowrap;
-    }}
-    
-    /* Customizacao fina para campos de input, seletores, botoes */
-    div[data-testid="stVerticalBlock"] > div:has(input), 
-    div[data-testid="stVerticalBlock"] > div:has(select),
-    div[data-testid="stVerticalBlock"] > div:has(button) {{
-        background-color: #ffffff; 
-        padding: 2px 6px !important; 
-        border-radius: 8px; 
-        border: 1px solid #e2e8f0 !important;
-        box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
-        transition: border-color 0.2s;
-        width: 100%;
-    }}
-    div[data-testid="stVerticalBlock"] > div:has(input):focus-within,
-    div[data-testid="stVerticalBlock"] > div:has(select):focus-within {{
-        border-color: #478c3b !important;
-    }}
-    
-    /* REMOÇÃO TOTAL DA LINHA DE CONTORNO (FECHADA OU ABERTA) */
-    div[data-testid="stExpander"], 
-    div[data-testid="stExpander"] > div,
-    div[data-testid="stExpander"][data-open="true"],
-    div[data-testid="stExpander"][data-open="false"],
-    .stElementContainer:has(div[data-testid="stExpander"]) {{
-        background-color: transparent !important;
-        border: none !important;
-        border-width: 0px !important;
-        box-shadow: none !important;
-        outline: none !important;
-    }}
-    
-    /* Remove contornos residuais e força fundo limpo na barra do expander */
-    div[data-testid="stExpander"] summary,
-    div[data-testid="stExpander"] [role="button"],
-    .streamlit-expanderHeader {{
-        background-color: transparent !important;
-        border: none !important;
-        border-width: 0px !important;
-        box-shadow: none !important;
-        display: inline-flex !important;
-        justify-content: flex-end !important;
-        flex-direction: row !important;  
-        float: right !important;
-        text-align: right !important;
-        gap: 8px !important;
-        width: auto !important;
-    }}
-    
-    /* INTERAÇÃO DA SETA: Permite o giro nativo e suave do componente original */
-    div[data-testid="stExpander"] summary svg {{
-        transition: transform 0.2s ease-in-out !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }}
-    
-    /* Garante cor estável de alta visibilidade (Grafite) independente do estado */
-    div[data-testid="stExpander"] summary p,
-    div[data-testid="stExpander"] [data-open="true"] summary p,
-    .streamlit-expanderHeader p,
-    .streamlit-expanderHeader:focus p {{
-        color: #1e293b !important;
-        font-weight: 700 !important;
-        font-size: 16px !important;
-        margin: 0 !important;
-    }}
-    
-    /* Mudança suave para verde apenas no hover */
-    div[data-testid="stExpander"] summary:hover p {{
-        color: #478c3b !important;
-    }}
-    
-    /* Ajuste de largura do input de data nativo */
-    div[data-testid="stDateInput"] {{
-        width: 100%;
-    }}
-    
-    /* Remove a borda e contorno do sub-formulario interno dos filtros */
-    div[data-testid="stForm"] {{
-        border: none !important;
-        padding: 0px !important;
-        box-shadow: none !important;
-        background-color: transparent !important;
-    }}
-    
-    /* Caixa padrao de sucesso (Registro Localizado) */
-    .status-card {{ 
-        background: #ffffff; 
-        color: #1e293b; 
-        padding: 16px 24px; 
-        border-radius: 8px; 
-        font-weight: 600; 
-        font-size: 16px; 
-        border-left: 5px solid #478c3b;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        margin-bottom: 16px;
-        width: 100%;
-    }}
-
-    /* CAIXA AZUL: Para informacoes positivas */
-    .custom-info-blue {{
-        background-color: #e0f2fe !important;
-        color: #0369a1 !important;
-        padding: 16px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-        margin-bottom: 16px;
-        width: 100%;
-        border-left: 5px solid #0284c7;
-    }}
-
-    /* CAIXA VERMELHA: Para alertas/erros */
-    .custom-error-red {{
-        background-color: #fee2e2 !important;
-        color: #991b1b !important;
-        padding: 16px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-        margin-bottom: 16px;
-        width: 100%;
-        border-left: 5px solid #ef4444;
-    }}
-
-    /* SAUDACAO INICIAL */
-    .custom-welcome-salutation {{
-        background-color: #ffffff;
-        color: #1e293b;
-        padding: 32px 24px;
-        border-radius: 12px;
-        font-weight: 600;
-        font-size: 20px;
-        text-align: center;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
-        margin-top: 20px;
-    }}
-    
-    /* Ajustes na visualizacao das tabelas */
-    div[data-testid="stDataFrame"] {{
-        background: #ffffff;
-        padding: 16px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-    }}
-    
-    /* Impedir quebras de palavras e truncamento nos titulos das colunas */
-    div[data-testid="stDataFrame"] table th {{
-        white-space: nowrap !important;
-        min-width: max-content !important;
-    }}
-
-    .custom-footer-block {{
-        text-align: center !important; 
-        margin-top: 60px !important; 
-        border-top: 1px solid #e2e8f0 !important; 
-        padding-top: 24px !important;
-        padding-bottom: 24px !important;
-        position: static !important; 
-        clear: both !important;
-        width: 100% !important;
-        display: block !important;
-    }}
-
-    /* Assinatura fixa no canto inferior esquerdo da tela */
-    .signature-fixed {{
-        position: fixed;
-        bottom: 12px;
-        left: 20px;
-        color: #94a3b8;
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.5px;
-        z-index: 999999;
-        pointer-events: none;
-    }}
+    #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
+    div[data-testid="stElementToolbar"] { display: none !important; }
+    .block-container { padding-top: 1rem !important; padding-bottom: 1rem !important; padding-left: 2rem !important; padding-right: 2rem !important; }
+    .stApp { background-color: #f8fafc; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    .header-modern { background: #ffffff; padding: 16px 24px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; margin-top: 0px !important; margin-bottom: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); }
+    div[data-testid="column"] { display: flex; align-items: center; justify-content: center; }
+    .center-title-container { width: 100%; text-align: center; display: flex; justify-content: center; align-items: center; }
+    .portal-title { color: #1e293b !important; font-size: 38px !important; font-weight: 800 !important; margin: 0 auto !important; letter-spacing: -1px; line-height: 1; white-space: nowrap; }
+    div[data-testid="stVerticalBlock"] > div:has(input), div[data-testid="stVerticalBlock"] > div:has(select), div[data-testid="stVerticalBlock"] > div:has(button) { background-color: #ffffff; padding: 2px 6px !important; border-radius: 8px; border: 1px solid #e2e8f0 !important; box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02); transition: border-color 0.2s; width: 100%; }
+    div[data-testid="stVerticalBlock"] > div:has(input):focus-within, div[data-testid="stVerticalBlock"] > div:has(select):focus-within { border-color: #478c3b !important; }
+    div[data-testid="stExpander"], div[data-testid="stExpander"] > div, div[data-testid="stExpander"][data-open="true"], div[data-testid="stExpander"][data-open="false"], .stElementContainer:has(div[data-testid="stExpander"]) { background-color: transparent !important; border: none !important; border-width: 0px !important; box-shadow: none !important; outline: none !important; }
+    div[data-testid="stExpander"] summary, div[data-testid="stExpander"] [role="button"], .streamlit-expanderHeader { background-color: transparent !important; border: none !important; border-width: 0px !important; box-shadow: none !important; display: inline-flex !important; justify-content: flex-end !important; flex-direction: row !important; float: right !important; text-align: right !important; gap: 8px !important; width: auto !important; }
+    div[data-testid="stExpander"] summary svg { transition: transform 0.2s ease-in-out !important; margin: 0 !important; padding: 0 !important; }
+    div[data-testid="stExpander"] summary p, div[data-testid="stExpander"] [data-open="true"] summary p, .streamlit-expanderHeader p, .streamlit-expanderHeader:focus p { color: #1e293b !important; font-weight: 700 !important; font-size: 16px !important; margin: 0 !important; }
+    div[data-testid="stExpander"] summary:hover p { color: #478c3b !important; }
+    div[data-testid="stDateInput"] { width: 100%; }
+    div[data-testid="stForm"] { border: none !important; padding: 0px !important; box-shadow: none !important; background-color: transparent !important; }
+    .status-card { background: #ffffff; color: #1e293b; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; border-left: 5px solid #478c3b; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; }
+    .custom-info-blue { background-color: #e0f2fe !important; color: #0369a1 !important; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #0284c7; }
+    .custom-error-red { background-color: #fee2e2 !important; color: #991b1b !important; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #ef4444; }
+    .custom-welcome-salutation { background-color: #ffffff; color: #1e293b; padding: 32px 24px; border-radius: 12px; font-weight: 600; font-size: 20px; text-align: center; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); margin-top: 20px; }
+    div[data-testid="stDataFrame"] { background: #ffffff; padding: 16px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    div[data-testid="stDataFrame"] table th { white-space: nowrap !important; min-width: max-content !important; }
+    .custom-footer-block { text-align: center !important; margin-top: 60px !important; border-top: 1px solid #e2e8f0 !important; padding-top: 24px !important; padding-bottom: 24px !important; position: static !important; clear: both !important; width: 100% !important; display: block !important; }
+    .signature-fixed { position: fixed; bottom: 12px; left: 20px; color: #94a3b8; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; z-index: 999999; pointer-events: none; }
     </style>
     """, unsafe_allow_html=True)
 
-# ==========================================
-# BACKEND: INGESTÃO CORRIGIDA PARA NOVA PLANILHA (BLINDADA)
-# ==========================================
-@st.cache_data(ttl=10)
+# 4. CARREGAMENTO COM ESTADO (Evita latência)
 def carregar_dados_seguros():
-    # Novo Link Solicitado (1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o)
-    file_id = "1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o"
-    
-    # 1. Tenta a leitura via CSV focando na primeira aba (gid=0)
-    # Pandas resolve a conexão de forma nativa e silenciosa, sem ser bloqueado.
+    file_id = "1h2h04MQBox7lnlUdz7XrQTBmTurgJs27Eo820jk5UMk"
     URL_CSV = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv&gid=0"
     
     try:
-        df_pc = pd.read_csv(URL_CSV, dtype=str).fillna('')
-        
-        # Bloqueia se o Google retornar HTML de erro/login disfarçado de CSV
-        if "<html" in str(df_pc.columns[0]).lower():
+        df = pd.read_csv(URL_CSV, dtype=str).fillna('')
+        if "<html" in str(df.columns[0]).lower():
             raise ValueError("O Google retornou bloqueio HTML.")
-            
-        df_pc.columns = [str(c).strip() for c in df_pc.columns]
-        return df_pc
+        df.columns = [str(c).strip() for c in df.columns]
+        return df
     except Exception as e_csv:
-        # 2. Fallback de Segurança para XLSX caso o CSV do Google falhe na exportação
         try:
             URL_XLSX = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
             excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
             aba = "Pedidos_App" if "Pedidos_App" in excel.sheet_names else ("Pedidos" if "Pedidos" in excel.sheet_names else excel.sheet_names[0])
-            
-            df_pc = pd.read_excel(excel, sheet_name=aba, dtype=str).fillna('')
-            df_pc.columns = [str(c).strip() for c in df_pc.columns]
-            return df_pc
+            df = pd.read_excel(excel, sheet_name=aba, dtype=str).fillna('')
+            df.columns = [str(c).strip() for c in df.columns]
+            return df
         except Exception as e_xlsx:
-            # Regista os dois erros para diagnóstico
             st.session_state.erro_tecnico = f"CSV: {str(e_csv)} | XLSX: {str(e_xlsx)}"
             return pd.DataFrame()
 
-df_pc = carregar_dados_seguros()
+# Inicializa ou atualiza os dados globais
+if 'dados_globais' not in st.session_state:
+    st.session_state.dados_globais = carregar_dados_seguros()
 
-# ==========================================
-# 4. CABEÇALHO INTEGRADO
-# ==========================================
+df_pc = st.session_state.dados_globais
+
+# 5. CABEÇALHO INTEGRADO E BOTÃO
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
-c1, c2, c3 = st.columns([1.5, 6.5, 2.0])
+c1, c2, c3, c4 = st.columns([1, 5.5, 2.0, 1.5])
 
 with c1:
     if base64_logo: 
@@ -320,8 +96,13 @@ with c2:
     st.markdown('<div class="center-title-container"><p class="portal-title">Portal Gestão de Compras</p></div>', unsafe_allow_html=True)
 with c3:
     busca = st.text_input("", placeholder="🔍 Rastrear SC, PC ou CC...", label_visibility="collapsed")
+with c4:
+    if st.button("🔄 Atualizar Banco", use_container_width=True):
+        st.session_state.dados_globais = carregar_dados_seguros()
+        st.rerun()
 st.markdown('</div>', unsafe_allow_html=True)
 
+# 6. FILTROS E LÓGICA DE GAVETA
 if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
@@ -366,10 +147,9 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.filtro_status_val = "Todos"
                 st.session_state.filtro_data_val = ()
                 st.session_state.gaveta_aberta = False  
-                st.cache_data.clear()
                 st.rerun()
 
-# Mapeamento estrito das colunas
+# 7. MAPEAMENTO DAS COLUNAS (FLEXÍVEL)
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "Centro de Custo", "tela": "Centro de Custo", "tipo": "texto"},
@@ -420,9 +200,7 @@ def formatar_para_dd_mm_aa(valor):
     except:
         return txt
 
-# ==========================================
-# 6. MOTOR DE BUSCA EM TEXTO PURO REPARAMETRIZADO
-# ==========================================
+# 8. MOTOR DE BUSCA
 if busca:
     termo_busca = busca.strip()
     termo_numerico = re.sub(r'[^0-9]', '', termo_busca)
@@ -613,8 +391,8 @@ if busca:
 else:
     st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
 
-# 7. RODAPÉ INSTITUCIONAL
+# 9. RODAPÉ INSTITUCIONAL
 st.markdown("<div class=\"custom-footer-block\"><p style='color:#64748b; font-size:13px; font-weight:600; margin:0;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
 
-# 8. MARCA D'ÁGUA FIXA EXCLUSIVA DA AUTORIA
+# 10. MARCA D'ÁGUA
 st.markdown('<div class="signature-fixed">Created by SS.</div>', unsafe_allow_html=True)
