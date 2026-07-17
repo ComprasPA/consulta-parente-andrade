@@ -88,10 +88,10 @@ if 'dados_globais' not in st.session_state:
 df_pc = st.session_state.dados_globais
 
 # ==========================================
-# 5. CABEÇALHO INTEGRADO E BOTÃO DE ATUALIZAÇÃO
+# 5. CABEÇALHO INTEGRADO 
 # ==========================================
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
-c1, c2, c3, c4 = st.columns([1, 5.5, 2.0, 1.5])
+c1, c2, c3 = st.columns([1.5, 6.5, 2.0])
 
 with c1:
     if base64_logo: 
@@ -100,14 +100,10 @@ with c2:
     st.markdown('<div class="center-title-container"><p class="portal-title">Portal Gestão de Compras</p></div>', unsafe_allow_html=True)
 with c3:
     busca = st.text_input("", placeholder="🔍 Rastrear SC, PC ou CC...", label_visibility="collapsed")
-with c4:
-    if st.button("🔄 Atualizar Banco", use_container_width=True):
-        st.session_state.dados_globais = carregar_dados_seguros()
-        st.rerun()
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 6. FILTROS E LÓGICA DE GAVETA
+# 6. FILTROS E LÓGICA DE GAVETA COM BOTÃO DE ATUALIZAÇÃO
 # ==========================================
 if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
@@ -120,7 +116,8 @@ rotulo_seta = "Filtros Avançados ▲" if st.session_state.gaveta_aberta else "F
 
 with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
     with st.form("form_filtros", clear_on_submit=False):
-        f_col1, f_col2, f_col3, f_col4 = st.columns([4.5, 4.5, 1.5, 1.5])
+        # Alterado para 5 colunas para acomodar o botão de Atualizar
+        f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([3.5, 3.5, 1.5, 1.5, 2.0])
         
         with f_col1:
             col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
@@ -153,6 +150,15 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.filtro_status_val = "Todos"
                 st.session_state.filtro_data_val = ()
                 st.session_state.gaveta_aberta = False  
+                st.rerun()
+                
+        with f_col5:
+            st.write("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
+            btn_atualizar = st.form_submit_button("🔄 Atualizar Banco", use_container_width=True)
+            
+            if btn_atualizar:
+                st.session_state.dados_globais = carregar_dados_seguros()
+                st.session_state.gaveta_aberta = True  
                 st.rerun()
 
 # ==========================================
