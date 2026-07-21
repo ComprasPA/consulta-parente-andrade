@@ -79,7 +79,6 @@ def carregar_dados_seguros():
             st.session_state.erro_tecnico = f"CSV: {str(e_csv)} | XLSX: {str(e_xlsx)}"
             return pd.DataFrame()
 
-# Inicializa ou atualiza os dados globais de forma segura
 if 'dados_globais' not in st.session_state or st.session_state.dados_globais.empty:
     st.session_state.dados_globais = carregar_dados_seguros()
 
@@ -205,16 +204,25 @@ def formatar_para_dd_mm_aaaa(valor):
     except:
         return txt
 
-# 8. MOTOR DE BUSCA ROBUSTO (Inclui Código do Produto e trata base vazia)
+# 8. MOTOR DE BUSCA FLEXÍVEL E OTIMIZADO (Trata strings, números e zeros à esquerda)
 if busca:
     termo_busca = busca.strip()
-    termo_lower = termo_busca.lower()
+    termo_limpo = re.sub(r'[^0-9a-zA-Z]', '', termo_busca).lower()
     
     if df_pc.empty:
-        st.markdown('<div class="custom-error-red">⚠️ Base de dados vazia. Clique em "🔄 Atualizar Banco" nos Filtros Avançados para carregar os dados.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="custom-error-red">⚠️ Base de dados vazia. Clique em "🔄 Atualizar Banco" nos Filtros Avançados.</div>', unsafe_allow_html=True)
     else:
-        # Busca generalizada e inteligente por texto e números em todas as colunas (incluindo Código do Produto)
-        df_final = df_pc[df_pc.apply(lambda row: row.astype(str).str.lower().str.contains(termo_lower).any(), axis=1)].copy()
+        # Função para limpar e comparar qualquer célula de forma flexível (remove zeros à esquerda, espaços e formatações)
+        def linha_contem_termo(row):
+            for val in row.values:
+                val_str = str(val).split('.')[0].strip().lower()
+                val_limpo = re.sub(r'[^0-9a-zA-Z]', '', val_str)
+                # Verifica correspondência exata ou parcial considerando código de produto, SC, CC ou texto
+                if termo_limpo in val_limpo or termo_busca.lower() in val_str:
+                    return True
+            return False
+
+        df_final = df_pc[df_pc.apply(linha_contem_termo, axis=1)].copy()
 
         try:
             if not df_final.empty:
