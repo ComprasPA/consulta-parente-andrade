@@ -56,7 +56,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. CARREGAMENTO COM ESTADO
+# 4. CARREGAMENTO COM ESTADO (Evita latência e fura o cache)
 def carregar_dados_seguros():
     file_id = "1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o"
     URL_CSV = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv&gid=0"
@@ -110,6 +110,7 @@ rotulo_seta = "Filtros Avançados ▲" if st.session_state.gaveta_aberta else "F
 
 with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
     with st.form("form_filtros", clear_on_submit=False):
+        # Alterado para 5 colunas para acomodar o botão de Atualizar
         f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([3.0, 3.0, 1.5, 1.5, 2.0])
         
         with f_col1:
@@ -196,18 +197,16 @@ def converter_para_numerico(valor):
     except:
         return 0.0
 
-# AJUSTE DA DATA PARA DD/MM/AAAA (4 DÍGITOS NO ANO)
 def formatar_para_dd_mm_aaaa(valor):
     txt = str(valor).strip()
     if txt == "" or txt.lower() in ["nan", "none", "0", "n/a"]:
         return txt
     try:
-        # AQUI FOI ALTERADO DE %y PARA %Y
         return pd.to_datetime(txt, errors='coerce', format='mixed').strftime('%d/%m/%Y')
     except:
         return txt
 
-# 8. MOTOR DE BUSCA EM TEXTO PURO
+# 8. MOTOR DE BUSCA EM TEXTO PURO (Ajustado para incluir Código do Produto)
 if busca:
     termo_busca = busca.strip()
     termo_numerico = re.sub(r'[^0-9]', '', termo_busca)
@@ -216,6 +215,7 @@ if busca:
     modo_pedido = False
     modo_solicitacao = False
     modo_centro_custo = False
+    modo_produto = False
     
     if termo_numerico:
         if len(termo_busca) == 4 and termo_busca.isdigit():
@@ -224,28 +224,38 @@ if busca:
             modo_pedido = True
         else:
             modo_solicitacao = True
+    else:
+        modo_produto = True
 
     try:
-        if not df_pc.empty and termo_numerico:
-            valor_busca_int = int(termo_numerico)
-            
-            if modo_centro_custo:
-                col_real_cc = next((c for c in df_pc.columns if "CUSTO" in c.upper() or "CC" in c.upper()), "Centro de Custo")
-                if col_real_cc in df_pc.columns:
-                    df_final = df_pc[df_pc[col_real_cc].astype(str).str.strip().str.contains(termo_busca, na=False)].copy()
-            
-            else:
-                if modo_pedido:
-                    col_pc = next((c for c in df_pc.columns if "PEDIDO" in c.upper()), "Pedido")
-                    if col_pc in df_pc.columns:
-                        serie_pc_txt = df_pc[col_pc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
-                        df_final = df_pc[serie_pc_txt == str(valor_busca_int)].copy()
+        if not df_pc.empty:
+            if termo_numerico:
+                valor_busca_int = int(termo_numerico)
                 
-                if modo_solicitacao:
-                    col_sc = next((c for c in df_pc.columns if "SOLICITA" in c.upper()), "Solicitação")
-                    if col_sc in df_pc.columns:
-                        serie_sc_txt = df_pc[col_sc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
-                        df_final = df_pc[serie_sc_txt == str(valor_busca_int)].copy()
+                if modo_centro_custo:
+                    col_real_cc = next((c for c in df_pc.columns if "CUSTO" in c.upper() or "CC" in c.upper()), "Centro de Custo")
+                    if col_real_cc in df_pc.columns:
+                        df_final = df_pc[df_pc[col_real_cc].astype(str).str.strip().str.contains(termo_busca, na=False)].copy()
+                
+                else:
+                    if modo_pedido:
+                        col_pc = next((c for c in df_pc.columns if "PEDIDO" in c.upper()), "Pedido")
+                        if col_pc in df_pc.columns:
+                            serie_pc_txt = df_pc[col_pc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
+                            df_final = df_pc[serie_pc_txt == str(valor_busca_int)].copy()
+                    
+                    if modo_solicitacao:
+                        col_sc = next((c for c in df_pc.columns if "SOLICITA" in c.upper()), "Solicitação")
+                        if col_sc in df_pc.columns:
+                            serie_sc_txt = df_pc[col_sc].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
+                            df_final = df_pc[serie_sc_txt == str(valor_busca_int)].copy()
+
+            # Inclusão da busca por Código do Produto ou texto geral caso não encontre pelos números exatos
+            if df_final.empty:
+                col_prod = next((c for c in df_pc.columns if "PRODUTO" in c.upper() or "ITEM" in c.upper()), None)
+                if col_prod and col_prod in df_pc.columns:
+                    serie_prod_txt = df_pc[col_prod].astype(str).str.split('.').str[0].str.replace(r'[^0-9]', '', regex=True).str.strip()
+                    df_final = df_pc[serie_prod_txt.str.contains(termo_numerico if termo_numerico else termo_busca, na=False)].copy()
 
             if df_final.empty and not termo_busca.isdigit():
                 col_busca_geral = df_pc.columns[0]
@@ -317,7 +327,6 @@ if busca:
                 )
                 df_painel.loc[mascara_na, "Pagamento"] = "N/A"
 
-            # CHAMADA DA NOVA FUNÇÃO DE DATA AQUI
             colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]
             for col_data in colunas_para_formatar:
                 if col_data in df_painel.columns:
@@ -326,15 +335,7 @@ if busca:
             df_painel = df_painel.dropna(how='all')
 
             if not df_painel.empty:
-                if modo_centro_custo:
-                    txt_status = f"🔍 Registros Ativos para o Centro de Custo: {termo_busca}"
-                elif modo_pedido:
-                    txt_status = f"📦 Pedido de Compras Firme Localizado: {termo_busca}"
-                elif modo_solicitacao:
-                    txt_status = f"⏳ Solicitação de Compras Localizada: {termo_busca}"
-                else:
-                    txt_status = f"🔍 Registros Localizados para o termo: {termo_busca}"
-                
+                txt_status = f"🔍 Registros Localizados para o termo: {termo_busca}"
                 st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
                 
                 c_down, _ = st.columns([2.5, 7.5])
@@ -375,27 +376,11 @@ if busca:
 
                 st.dataframe(df_painel, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
             else:
-                if df_pc.empty:
-                    erro = st.session_state.get('erro_tecnico', 'Erro desconhecido.')
-                    st.markdown(f'<div class="custom-error-red">⚠️ Erro: Não foi possível carregar a base de dados. Detalhe: {erro}</div>', unsafe_allow_html=True)
-                elif modo_centro_custo:
-                    st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes com os filtros atuais.</div>', unsafe_allow_html=True)
-                elif modo_pedido:
-                    st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado. Entre em contato com a equipe.</div>', unsafe_allow_html=True)
-                else:
-                    st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
+                st.markdown('<div class="custom-error-red">⚠️ Nenhum registro correspondente encontrado.</div>', unsafe_allow_html=True)
         else:
-            if df_pc.empty:
-                erro = st.session_state.get('erro_tecnico', 'Permissão negada ou aba ausente.')
-                st.markdown(f'<div class="custom-error-red">⚠️ Erro: Acesso Negado à Planilha.<br><br><b>1.</b> Verifique se o link está como "Qualquer pessoa com o link".<br><b>2.</b> Renomeie a aba para "Pedidos".<br><br><small>Erro Técnico: {erro}</small></div>', unsafe_allow_html=True)
-            elif modo_centro_custo:
-                st.markdown(f'<div class="custom-error-red">⚠️ O Centro de Custo \'{termo_busca}\' informado não possui registros correspondentes na base.</div>', unsafe_allow_html=True)
-            elif modo_pedido or (termo_numerico and int(termo_numerico) >= 170000):
-                st.markdown('<div class="custom-error-red">⚠️ Seu pedido de compras não foi localizado. Entre em contato com a equipe.</div>', unsafe_allow_html=True)
-            else:
-                st.markdown('<div class="custom-info-blue">⏳ Sua Solicitação ainda está em cotação. Logo estaremos finalizando o seu pedido de compras!</div>', unsafe_allow_html=True)
+            st.markdown('<div class="custom-error-red">⚠️ Base de dados vazia.</div>', unsafe_allow_html=True)
     except Exception as e:
-        st.markdown('<div class="custom-error-red">⚠️ Erro ao processar os dados da busca. Verifique as colunas do seu arquivo.</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="custom-error-red">⚠️ Erro ao processar a busca: {e}</div>', unsafe_allow_html=True)
 else:
     st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras.</div>', unsafe_allow_html=True)
 
