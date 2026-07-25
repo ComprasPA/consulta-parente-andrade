@@ -153,7 +153,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True  
                 st.rerun()
 
-# 7. MAPEAMENTO DAS COLUNAS
+# 7. MAPEAMENTO DAS COLUNAS (INCLUINDO "Grupo" COMO ÚLTIMA COLUNA)
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "Centro de Custo", "tela": "Centro de Custo", "tipo": "texto"},
@@ -172,7 +172,8 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "UM", "tela": "UM", "tipo": "texto"},
     {"planilha": "Qtd", "tela": "Qtd", "tipo": "numero"},
     {"planilha": "Preço Unitário", "tela": "Preço Unitário", "tipo": "moeda"},
-    {"planilha": "Valor Total", "tela": "Valor Total", "tipo": "moeda"}
+    {"planilha": "Valor Total", "tela": "Valor Total", "tipo": "moeda"},
+    {"planilha": "Grupo", "tela": "Grupo", "tipo": "texto"}
 ]
 
 def ajustar_zeros_protheus(valor, tamanho_alvo):
@@ -204,7 +205,7 @@ def formatar_para_dd_mm_aaaa(valor):
     except:
         return txt
 
-# 8. MOTOR DE BUSCA FLEXÍVEL E OTIMIZADO (Trata strings, números e zeros à esquerda)
+# 8. MOTOR DE BUSCA FLEXÍVEL E OTIMIZADO
 if busca:
     termo_busca = busca.strip()
     termo_limpo = re.sub(r'[^0-9a-zA-Z]', '', termo_busca).lower()
@@ -212,12 +213,10 @@ if busca:
     if df_pc.empty:
         st.markdown('<div class="custom-error-red">⚠️ Base de dados vazia. Clique em "🔄 Atualizar Banco" nos Filtros Avançados.</div>', unsafe_allow_html=True)
     else:
-        # Função para limpar e comparar qualquer célula de forma flexível (remove zeros à esquerda, espaços e formatações)
         def linha_contem_termo(row):
             for val in row.values:
                 val_str = str(val).split('.')[0].strip().lower()
                 val_limpo = re.sub(r'[^0-9a-zA-Z]', '', val_str)
-                # Verifica correspondência exata ou parcial considerando código de produto, SC, CC ou texto
                 if termo_limpo in val_limpo or termo_busca.lower() in val_str:
                     return True
             return False
@@ -249,6 +248,7 @@ if busca:
                             if "PEDIDO" in nome_upper and "PEDIDO" in c_up: col_real = c; break
                             if "CENTRO" in nome_upper and "CUSTO" in nome_upper and "CENTRO" in c_up and "CUSTO" in c_up: col_real = c; break
                             if "PRODUTO" in nome_upper and "PRODUTO" in c_up: col_real = c; break
+                            if "GRUPO" in nome_upper and "GRUPO" in c_up: col_real = c; break
                     
                     if col_real:
                         valores_originais = df_final[col_real]
