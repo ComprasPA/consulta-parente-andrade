@@ -25,7 +25,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Botões compactos e centralizados)
+# 3. CSS MODERNIZADO (Botões alinhados à direita e compactos)
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
@@ -46,8 +46,8 @@ st.markdown("""
     div[data-testid="stDateInput"] { width: 100%; }
     div[data-testid="stForm"] { border: none !important; padding: 0px !important; box-shadow: none !important; background-color: transparent !important; }
     
-    /* Botões menores, compactos e com largura proporcional */
-    div.stFormSubmitButton > button { width: 160px !important; min-height: 36px !important; max-height: 36px !important; font-size: 13px !important; font-weight: 600 !important; padding: 0px 8px !important; display: block !important; margin: 0 auto !important; }
+    /* Botões compactos */
+    div.stFormSubmitButton > button { width: 100% !important; min-height: 36px !important; max-height: 36px !important; font-size: 13px !important; font-weight: 600 !important; padding: 0px 8px !important; }
 
     .status-card { background: #ffffff; color: #1e293b; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; border-left: 5px solid #478c3b; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; }
     .custom-info-blue { background-color: #e0f2fe !important; color: #0369a1 !important; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #0284c7; }
@@ -101,7 +101,7 @@ with c3:
     busca_cc = st.text_input("", placeholder="🔍 Rastrear Centro de Custo...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 6. FILTROS E LÓGICA DE GAVETA
+# 6. FILTROS E LÓGICA DE GAVETA (Com botões alinhados à direita)
 if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
@@ -139,10 +139,10 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
 
         st.write("") 
         
-        # Centralizando os botões compactos
-        b_esq, b1, b2, b3, b_dir = st.columns([1, 1.2, 1.2, 1.2, 1])
+        # Alinhando os botões à direita (espaço vazio à esquerda e os botões nas últimas colunas)
+        _, b1, b2, b3 = st.columns([4, 1.2, 1.2, 1.2])
         with b1:
-            btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=False)
+            btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True)
             if btn_pesquisar:
                 st.session_state.filtro_status_val = filtro_status
                 st.session_state.filtro_data_val = filtro_data
@@ -152,7 +152,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.rerun()
 
         with b2:
-            btn_limpar = st.form_submit_button("❌ Limpar", use_container_width=False)
+            btn_limpar = st.form_submit_button("❌ Limpar", use_container_width=True)
             if btn_limpar:
                 st.session_state.filtro_status_val = "Todos"
                 st.session_state.filtro_data_val = ()
@@ -162,7 +162,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.rerun()
                 
         with b3:
-            btn_atualizar = st.form_submit_button("🔄 Atualizar Banco", use_container_width=False)
+            btn_atualizar = st.form_submit_button("🔄 Atualizar Banco", use_container_width=True)
             if btn_atualizar:
                 st.session_state.dados_globais = carregar_dados_seguros()
                 st.session_state.gaveta_aberta = True  
