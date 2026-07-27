@@ -25,7 +25,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO
+# 3. CSS MODERNIZADO (Com ajuste para harmonizar os botões)
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
@@ -45,6 +45,10 @@ st.markdown("""
     div[data-testid="stExpander"] summary:hover p { color: #478c3b !important; }
     div[data-testid="stDateInput"] { width: 100%; }
     div[data-testid="stForm"] { border: none !important; padding: 0px !important; box-shadow: none !important; background-color: transparent !important; }
+    
+    /* Padronização dos botões para ficarem menores e com o mesmo tamanho */
+    div.stFormSubmitButton > button { width: 100% !important; min-height: 38px !important; max-height: 38px !important; font-size: 14px !important; font-weight: 600 !important; padding: 0px 12px !important; }
+
     .status-card { background: #ffffff; color: #1e293b; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; border-left: 5px solid #478c3b; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; }
     .custom-info-blue { background-color: #e0f2fe !important; color: #0369a1 !important; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #0284c7; }
     .custom-error-red { background-color: #fee2e2 !important; color: #991b1b !important; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #ef4444; }
@@ -97,7 +101,7 @@ with c3:
     busca_cc = st.text_input("", placeholder="🔍 Rastrear Centro de Custo...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 6. FILTROS E LÓGICA DE GAVETA COM NOVOS CAMPOS
+# 6. FILTROS E LÓGICA DE GAVETA COM BOTÕES HARMONIZADOS
 if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
@@ -113,7 +117,7 @@ rotulo_seta = "Filtros Avançados ▲" if st.session_state.gaveta_aberta else "F
 
 with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
     with st.form("form_filtros", clear_on_submit=False):
-        f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([2.2, 2.2, 2.0, 2.0, 1.6])
+        f_col1, f_col2, f_col3, f_col4 = st.columns([2.5, 2.5, 2.5, 2.5])
         
         with f_col1:
             col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
@@ -133,8 +137,10 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
         with f_col4:
             filtro_pc = st.text_input("Pedido (PC):", value=st.session_state.filtro_pc_val, placeholder="Nº do PC...")
 
-        # Linha de botões logo abaixo
-        b1, b2, b3 = st.columns([1.5, 1.5, 2.0])
+        st.write("") # Pequeno espaçamento
+        
+        # Linha de botões com tamanhos iguais lado a lado
+        b1, b2, b3 = st.columns([1, 1, 1])
         with b1:
             btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True)
             if btn_pesquisar:
@@ -214,7 +220,7 @@ def formatar_para_dd_mm_aaaa(valor):
     except:
         return txt
 
-# 8. MOTOR DE BUSCA SEPARADO (Centro de Custo no topo + SC e PC na gaveta)
+# 8. MOTOR DE BUSCA SEPARADO
 tem_busca_ativa = busca_cc or st.session_state.filtro_sc_val or st.session_state.filtro_pc_val or st.session_state.filtro_status_val != "Todos"
 
 if tem_busca_ativa:
@@ -223,28 +229,24 @@ if tem_busca_ativa:
     else:
         df_final = df_pc.copy()
         
-        # Filtro 1: Centro de Custo (Cabeçalho principal)
         if busca_cc:
             cc_termo = busca_cc.strip().lower()
             col_cc = next((c for c in df_final.columns if "CUSTO" in c.upper() or "CC" in c.upper()), "Centro de Custo")
             if col_cc in df_final.columns:
                 df_final = df_final[df_final[col_cc].astype(str).str.lower().str.contains(cc_termo, na=False)]
 
-        # Filtro 2: Solicitação SC (Gaveta)
         if st.session_state.filtro_sc_val:
             sc_termo = st.session_state.filtro_sc_val.strip()
             col_sc = next((c for c in df_final.columns if "SOLICITA" in c.upper()), "Solicitação")
             if col_sc in df_final.columns:
                 df_final = df_final[df_final[col_sc].astype(str).str.strip().str.contains(sc_termo, na=False)]
 
-        # Filtro 3: Pedido PC (Gaveta)
         if st.session_state.filtro_pc_val:
             pc_termo = st.session_state.filtro_pc_val.strip()
             col_pc = next((c for c in df_final.columns if "PEDIDO" in c.upper()), "Pedido")
             if col_pc in df_final.columns:
                 df_final = df_final[df_final[col_pc].astype(str).str.strip().str.contains(pc_termo, na=False)]
 
-        # Filtro 4: Status
         col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None)
         if st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
