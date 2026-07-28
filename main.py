@@ -101,7 +101,7 @@ with c3:
     busca_cc = st.text_input("", placeholder="🔍 Rastrear Centro de Custo...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 6. FILTROS E LÓGICA DE GAVETA (Com botões alinhados à direita)
+# 6. FILTROS E LÓGICA DE GAVETA
 if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
@@ -139,7 +139,6 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
 
         st.write("") 
         
-        # Alinhando os botões à direita (espaço vazio à esquerda e os botões nas últimas colunas)
         _, b1, b2, b3 = st.columns([4, 1.2, 1.2, 1.2])
         with b1:
             btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True)
@@ -168,7 +167,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True  
                 st.rerun()
 
-# 7. MAPEAMENTO DAS COLUNAS (INCLUINDO "Grupo")
+# 7. MAPEAMENTO DAS COLUNAS (GRUPO POSICIONADO ENTRE FORNECEDOR E PRODUTO)
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "Centro de Custo", "tela": "Centro de Custo", "tipo": "texto"},
@@ -182,13 +181,13 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "Previsão de entrega", "tela": "Previsão de entrega", "tipo": "data"},
     {"planilha": "Entrega", "tela": "Entrega", "tipo": "data"},
     {"planilha": "Fornecedor", "tela": "Fornecedor", "tipo": "texto"},
+    {"planilha": "Grupo", "tela": "Grupo", "tipo": "texto"},
     {"planilha": "Produto", "tela": "Produto", "tipo": "produto"},                 
     {"planilha": "Descricao", "tela": "Descrição", "tipo": "texto"},
     {"planilha": "UM", "tela": "UM", "tipo": "texto"},
     {"planilha": "Qtd", "tela": "Qtd", "tipo": "numero"},
     {"planilha": "Preço Unitário", "tela": "Preço Unitário", "tipo": "moeda"},
-    {"planilha": "Valor Total", "tela": "Valor Total", "tipo": "moeda"},
-    {"planilha": "Grupo", "tela": "Grupo", "tipo": "texto"}
+    {"planilha": "Valor Total", "tela": "Valor Total", "tipo": "moeda"}
 ]
 
 def ajustar_zeros_protheus(valor, tamanho_alvo):
