@@ -167,7 +167,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True  
                 st.rerun()
 
-# 7. MAPEAMENTO DAS COLUNAS (GRUPO POSICIONADO ENTRE FORNECEDOR E PRODUTO)
+# 7. MAPEAMENTO DAS COLUNAS (NF REMESSA ADICIONADA COMO A ÚLTIMA COLUNA)
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "Centro de Custo", "tela": "Centro de Custo", "tipo": "texto"},
@@ -187,7 +187,8 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "UM", "tela": "UM", "tipo": "texto"},
     {"planilha": "Qtd", "tela": "Qtd", "tipo": "numero"},
     {"planilha": "Preço Unitário", "tela": "Preço Unitário", "tipo": "moeda"},
-    {"planilha": "Valor Total", "tela": "Valor Total", "tipo": "moeda"}
+    {"planilha": "Valor Total", "tela": "Valor Total", "tipo": "moeda"},
+    {"planilha": "NF Remessa", "tela": "NF Remessa", "tipo": "texto"}
 ]
 
 def ajustar_zeros_protheus(valor, tamanho_alvo):
@@ -276,6 +277,7 @@ if tem_busca_ativa:
                             if "CENTRO" in nome_upper and "CUSTO" in nome_upper and "CENTRO" in c_up and "CUSTO" in c_up: col_real = c; break
                             if "PRODUTO" in nome_upper and "PRODUTO" in c_up: col_real = c; break
                             if "GRUPO" in nome_upper and "GRUPO" in c_up: col_real = c; break
+                            if "REMESSA" in nome_upper and "REMESSA" in c_up: col_real = c; break
                     
                     if col_real:
                         valores_originais = df_final[col_real]
