@@ -167,7 +167,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True  
                 st.rerun()
 
-# 7. MAPEAMENTO DAS COLUNAS (NF REMESSA ADICIONADA COMO A ÚLTIMA COLUNA)
+# 7. MAPEAMENTO DAS COLUNAS
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "Centro de Custo", "tela": "Centro de Custo", "tipo": "texto"},
@@ -297,6 +297,17 @@ if tem_busca_ativa:
                     else:
                         df_painel[nome_exibicao_tela] = ""
 
+                # REGRA: Baseado no STATUS da linha, define N/A para Previsão de entrega e Entrega
+                col_status_tela = next((c for c in df_painel.columns if "STATUS" in c.upper()), None)
+                if col_status_tela:
+                    termos_excecao = ["SERVIÇO", "CANCELADO PELO SOLICITANTE", "REJEITADO PELO APROVADOR", "COMPRA DIRETA"]
+                    mask_status = df_painel[col_status_tela].astype(str).str.upper().apply(
+                        lambda s: any(t in s for t in termos_excecao)
+                    )
+                    for col_nome in ["Previsão de entrega", "Entrega"]:
+                        if col_nome in df_painel.columns:
+                            df_painel.loc[mask_status, col_nome] = "N/A"
+
                 if "Previsão de entrega" in df_painel.columns and "Entrega" in df_painel.columns:
                     mascara_vazia = (df_painel["Previsão de entrega"] == "") | (df_painel["Previsão de entrega"].isna())
                     df_painel.loc[mascara_vazia, "Previsão de entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
@@ -314,7 +325,9 @@ if tem_busca_ativa:
                 colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]
                 for col_data in colunas_para_formatar:
                     if col_data in df_painel.columns:
-                        df_painel[col_data] = df_painel[col_data].apply(formatar_para_dd_mm_aaaa)
+                        df_painel[col_data] = df_painel[col_data].apply(
+                            lambda x: x if str(x).upper() == "N/A" else formatar_para_dd_mm_aaaa(x)
+                        )
 
                 df_painel = df_painel.dropna(how='all')
 
