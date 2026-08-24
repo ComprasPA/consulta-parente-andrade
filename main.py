@@ -25,7 +25,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Botões alinhados à direita e compactos)
+# 3. CSS MODERNIZADO
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
@@ -46,7 +46,6 @@ st.markdown("""
     div[data-testid="stDateInput"] { width: 100%; }
     div[data-testid="stForm"] { border: none !important; padding: 0px !important; box-shadow: none !important; background-color: transparent !important; }
     
-    /* Botões compactos */
     div.stFormSubmitButton > button { width: 100% !important; min-height: 36px !important; max-height: 36px !important; font-size: 13px !important; font-weight: 600 !important; padding: 0px 8px !important; }
 
     .status-card { background: #ffffff; color: #1e293b; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; border-left: 5px solid #478c3b; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; }
@@ -98,10 +97,14 @@ with c1:
 with c2:
     st.markdown('<div class="center-title-container"><p class="portal-title">Portal Gestão de Compras</p></div>', unsafe_allow_html=True)
 with c3:
-    busca_cc = st.text_input("", placeholder="🔍 Rastrear Centro de Custo...", label_visibility="collapsed")
+    busca_cc = st.text_input("Busca Centro de Custo", placeholder="🔍 Rastrear Centro de Custo...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
 # 6. FILTROS E LÓGICA DE GAVETA
+with st.sidebar:
+    st.header("⚙️ Configurações de Acesso")
+    perfil_usuario = st.selectbox("Selecione o seu perfil:", ["Usuário (Visualização)", "Operador (Edição)"])
+
 if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
@@ -211,12 +214,13 @@ def converter_para_numerico(valor):
     except:
         return 0.0
 
+# FUNÇÃO DE CORREÇÃO DE DATA CORRIGIDA COM dayfirst=True
 def formatar_para_dd_mm_aaaa(valor):
     txt = str(valor).strip()
     if txt == "" or txt.lower() in ["nan", "none", "0", "n/a"]:
         return txt
     try:
-        return pd.to_datetime(txt, errors='coerce', format='mixed').strftime('%d/%m/%Y')
+        return pd.to_datetime(txt, errors='coerce', format='mixed', dayfirst=True).strftime('%d/%m/%Y')
     except:
         return txt
 
@@ -231,25 +235,33 @@ if tem_busca_ativa:
         
         if busca_cc:
             cc_termo = busca_cc.strip().lower()
-            col_cc = next((c for c in df_final.columns if "CUSTO" in c.upper() or "CC" in c.upper()), "Centro de Custo")
-            if col_cc in df_final.columns:
+            col_cc = next((c for c in df_final.columns if "CUSTO" in c.upper() or "CC" in c.upper()), None)
+            if col_cc and col_cc in df_final.columns:
                 df_final = df_final[df_final[col_cc].astype(str).str.lower().str.contains(cc_termo, na=False)]
 
         if st.session_state.filtro_sc_val:
             sc_termo = st.session_state.filtro_sc_val.strip()
-            col_sc = next((c for c in df_final.columns if "SOLICITA" in c.upper()), "Solicitação")
-            if col_sc in df_final.columns:
+            col_sc = next((c for c in df_final.columns if "SOLICITA" in c.upper()), None)
+            if col_sc and col_sc in df_final.columns:
                 df_final = df_final[df_final[col_sc].astype(str).str.strip().str.contains(sc_termo, na=False)]
 
         if st.session_state.filtro_pc_val:
             pc_termo = st.session_state.filtro_pc_val.strip()
-            col_pc = next((c for c in df_final.columns if "PEDIDO" in c.upper()), "Pedido")
-            if col_pc in df_final.columns:
+            col_pc = next((c for c in df_final.columns if "PEDIDO" in c.upper()), None)
+            if col_pc and col_pc in df_final.columns:
                 df_final = df_final[df_final[col_pc].astype(str).str.strip().str.contains(pc_termo, na=False)]
 
         col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None)
         if st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
+
+        # Filtro de Período de Emissão corrigido com dayfirst=True
+        if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
+            if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
+                col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
+                if col_emissao_original:
+                    datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed', dayfirst=True).dt.date
+                    df_final = df_final[(datas_convertidas >= st.session_state.filtro_data_val[0]) & (datas_convertidas <= st.session_state.filtro_data_val[1])]
 
         try:
             if not df_final.empty:
@@ -371,7 +383,26 @@ if tem_busca_ativa:
                             else:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right")
 
-                    st.dataframe(df_painel, use_container_width=True, hide_index=True, column_config=configuracao_colunas_tela)
+                    # CONTROLE DE PERFIL DE ACESSO
+                    if "Operador" in perfil_usuario:
+                        st.info("✏️ Modo Operador Ativo: Você pode editar os campos diretamente na tabela abaixo.")
+                        edited_df = st.data_editor(
+                            df_painel, 
+                            use_container_width=True, 
+                            hide_index=True, 
+                            column_config=configuracao_colunas_tela,
+                            key="editor_painel_compras"
+                        )
+                        if st.button("💾 Salvar Alterações"):
+                            st.info("Funcionalidade de salvamento preparada. Configure as credenciais do Google Sheets para persistir as alterações editadas.")
+                    else:
+                        st.success("👁️ Modo Usuário Ativo: Visualização somente leitura.")
+                        st.dataframe(
+                            df_painel, 
+                            use_container_width=True, 
+                            hide_index=True, 
+                            column_config=configuracao_colunas_tela
+                        )
                 else:
                     st.markdown('<div class="custom-error-red">⚠️ Nenhum registro correspondente encontrado com os filtros informados.</div>', unsafe_allow_html=True)
             else:
