@@ -170,7 +170,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True  
                 st.rerun()
 
-# 7. MAPEAMENTO DAS COLUNAS
+# 7. MAPEAMENTO EXATO DAS COLUNAS (Baseado exatamente nos cabeçalhos da sua planilha)
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "Centro de Custo", "tela": "Centro de Custo", "tipo": "texto"},
@@ -214,13 +214,15 @@ def converter_para_numerico(valor):
     except:
         return 0.0
 
-# FUNÇÃO DE CORREÇÃO DE DATA CORRIGIDA COM dayfirst=True
 def formatar_para_dd_mm_aaaa(valor):
     txt = str(valor).strip()
     if txt == "" or txt.lower() in ["nan", "none", "0", "n/a"]:
         return txt
     try:
-        return pd.to_datetime(txt, errors='coerce', format='mixed', dayfirst=True).strftime('%d/%m/%Y')
+        dt = pd.to_datetime(txt, errors='coerce', format='mixed', dayfirst=True)
+        if pd.isna(dt):
+            return txt
+        return dt.strftime('%d/%m/%Y')
     except:
         return txt
 
@@ -247,7 +249,7 @@ if tem_busca_ativa:
 
         if st.session_state.filtro_pc_val:
             pc_termo = st.session_state.filtro_pc_val.strip()
-            col_pc = next((c for c in df_final.columns if "PEDIDO" in c.upper()), None)
+            col_pc = next((c for c in df_final.columns if "PEDIDO" in c.upper() or "PEDIDOS" in c.upper()), None)
             if col_pc and col_pc in df_final.columns:
                 df_final = df_final[df_final[col_pc].astype(str).str.strip().str.contains(pc_termo, na=False)]
 
@@ -255,7 +257,6 @@ if tem_busca_ativa:
         if st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
-        # Filtro de Período de Emissão corrigido com dayfirst=True
         if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
             if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
                 col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
@@ -267,37 +268,48 @@ if tem_busca_ativa:
             if not df_final.empty:
                 df_painel = pd.DataFrame(index=df_final.index)
                 
+                # MAPEAMENTO ROBUSTO POR NOME EXATO E CORRESPONDÊNCIA PARCIAL DE CABEÇALHO
                 for col_config in DICIONARIO_COLUNAS_EXATAS:
-                    nome_original_planilha = col_config["planilha"]
+                    nome_original_planilha = col_config["planilha"].strip().upper()
                     nome_exibicao_tela = col_config["tela"]
                     tipo_campo = col_config["tipo"]
                     
                     col_real = None
-                    nome_upper = nome_original_planilha.strip().upper()
-                    
                     for c in df_final.columns:
-                        if c.strip().upper() == nome_upper:
+                        c_up = c.strip().upper()
+                        if c_up == nome_original_planilha:
                             col_real = c
                             break
-                            
+                    
+                    # Se não achar o nome exato, faz varredura por aproximação inteligente baseada na sua planilha do Excel
                     if not col_real:
                         for c in df_final.columns:
                             c_up = c.strip().upper()
-                            if "STATUS" in nome_upper and "STATUS" in c_up: col_real = c; break
-                            if "SOLICITA" in nome_upper and "SOLICITA" in c_up: col_real = c; break
-                            if "PEDIDO" in nome_upper and "PEDIDO" in c_up: col_real = c; break
-                            if "CENTRO" in nome_upper and "CUSTO" in nome_upper and "CENTRO" in c_up and "CUSTO" in c_up: col_real = c; break
-                            if "PRODUTO" in nome_upper and "PRODUTO" in c_up: col_real = c; break
-                            if "GRUPO" in nome_upper and "GRUPO" in c_up: col_real = c; break
-                            if "REMESSA" in nome_upper and "REMESSA" in c_up: col_real = c; break
-                    
+                            if "STATUS" in nome_original_planilha and "STATUS" in c_up: col_real = c; break
+                            if "CENTRO" in nome_original_planilha and "CUSTO" in nome_original_planilha and ("CUSTO" in c_up or "CC" in c_up): col_real = c; break
+                            if "SOLICITA" in nome_original_planilha and "SOLICITA" in c_up: col_real = c; break
+                            if "PEDIDO" in nome_original_planilha and ("PEDIDO" in c_up or "PEDIDOS" in c_up): col_real = c; break
+                            if "CONDICÃO" in nome_original_planilha and "PAGAMENTO" in nome_original_planilha and "COND" in c_up: col_real = c; break
+                            if "EMISSAO" in nome_original_planilha and "EMISS" in c_up: col_real = c; break
+                            if ("LIBERACÃO" in nome_original_planilha or "APROVACAO" in nome_original_planilha) and ("LIBERA" in c_up or "APROV" in c_up): col_real = c; break
+                            if "ENVIO" in nome_original_planilha and "ENVIO" in c_up: col_real = c; break
+                            if "PAGAMENTO" in nome_original_planilha and "PAGAMENTO" in c_up and "COND" not in c_up: col_real = c; break
+                            if "PREVISAO" in nome_original_planilha and "PREVISAO" in c_up: col_real = c; break
+                            if "ENTREGA" in nome_original_planilha and "ENTREGA" in c_up and "PREVISAO" not in c_up: col_real = c; break
+                            if "FORNECEDOR" in nome_original_planilha and "FORN" in c_up: col_real = c; break
+                            if "GRUPO" in nome_original_planilha and "GRUPO" in c_up: col_real = c; break
+                            if "PRODUTO" in nome_original_planilha and "PRODUTO" in c_up: col_real = c; break
+                            if "DESCRICAO" in nome_original_planilha and "DESCR" in c_up: col_real = c; break
+                            if "UM" in nome_original_planilha and c_up == "UM": col_real = c; break
+                            if "QTD" in nome_original_planilha and "QTD" in c_up: col_real = c; break
+                            if "PREÇO" in nome_original_planilha and "PREÇO" in c_up: col_real = c; break
+                            if "VALOR" in nome_original_planilha and "VALOR" in c_up: col_real = c; break
+                            if "REMESSA" in nome_original_planilha and "REMESSA" in c_up: col_real = c; break
+
                     if col_real:
                         valores_originais = df_final[col_real]
-                        
                         if tipo_campo == "data":
-                            datas_limpas = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-                            datas_limpas = datas_limpas.replace(['nan', 'NONE', '', '0'], '')
-                            df_painel[nome_exibicao_tela] = datas_limpas
+                            df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace(['nan', 'NONE', '', '0'], '')
                         elif tipo_campo == "pedido":
                             df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: ajustar_zeros_protheus(val, 6))
                         elif tipo_campo == "produto":
