@@ -13,8 +13,7 @@ st.set_page_config(
     page_title="Portal Gestão de Compras | Parente Andrade",
     page_icon="🏗️",
     layout="wide",
-    initial_sidebar_state="collapsed"
-)
+initial_sidebar_state="expanded")
 
 # 2. FUNÇÃO LOGO
 @st.cache_data(ttl=86400)
