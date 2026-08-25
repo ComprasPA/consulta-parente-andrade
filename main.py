@@ -102,22 +102,31 @@ with c3:
     busca_cc = st.text_input("Busca Centro de Custo", placeholder="🔍 Rastrear Centro de Custo...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 6. FILTROS E LÓGICA DE GAVETA (Com Autenticação de Operador via Senha)
+# 6. PONTO DE ENTRADA: SELEÇÃO DE PERFIL E LOGINS DOS OPERADORES NA BARRA LATERAL
 with st.sidebar:
     st.header("⚙️ Configurações de Acesso")
     perfil_usuario = st.selectbox("Selecione o seu perfil:", ["Usuário (Visualização)", "Operador (Edição)"])
     
     operador_autenticado = False
+    
     if "Operador" in perfil_usuario:
         st.divider()
-        st.subheader("🔐 Autenticação de Operador")
-        senha_digitada = st.text_input("Senha do Operador:", type="password", placeholder="Digite a senha...")
+        st.subheader("🔐 Painel de Autenticação")
         
-        # Senha padrão configurada para a equipe de suprimentos
-        SENHA_MESTRE = "suprimentos2026"
+        # Seleção do login do operador
+        login_operador = st.selectbox("Selecione o Operador:", ["compras", "almoxarifado", "logistica"])
+        senha_digitada = st.text_input("Digite a senha:", type="password", placeholder="Sua senha...")
         
-        if senha_digitada == SENHA_MESTRE:
-            st.success("✅ Acesso Liberado!")
+        # Definição das senhas exclusivas para cada login
+        SENHAS_OPERADORES = {
+            "compras": "compras@2026",
+            "almoxarifado": "almox@2026",
+            "logistica": "log@2026"
+        }
+        
+        # Validação da senha correspondente ao login selecionado
+        if senha_digitada == SENHAS_OPERADORES.get(login_operador):
+            st.success(f"✅ Operador **{login_operador.upper()}** autenticado!")
             operador_autenticado = True
         elif senha_digitada != "":
             st.error("❌ Senha incorreta!")
@@ -395,7 +404,7 @@ if tem_busca_ativa:
 
                     # CONTROLE DE PERFIL DE ACESSO E SALVAMENTO CIRÚRGICO NO GOOGLE SHEETS
                     if "Operador" in perfil_usuario and operador_autenticado:
-                        st.info("✏️ Modo Operador Ativo: Edite os campos diretamente na tabela e clique em 'Salvar Alterações'.")
+                        st.info(f"✏️ Modo Operador Ativo ({login_operador.upper()}): Edite os campos e clique em 'Salvar Alterações'.")
                         
                         if "df_original_cache" not in st.session_state or st.session_state.get("atualizar_cache_editor", True):
                             st.session_state.df_original_cache = df_painel.copy()
@@ -452,7 +461,7 @@ if tem_busca_ativa:
                                 st.error(f"❌ Erro ao salvar no Google Sheets: {e}")
                     else:
                         if "Operador" in perfil_usuario and not operador_autenticado:
-                            st.warning("🔒 Digite a senha correta na barra lateral para liberar o modo de edição.")
+                            st.warning("🔒 Selecione o seu login e digite a senha correta na barra lateral para liberar o modo de edição.")
                         else:
                             st.success("👁️ Modo Usuário Ativo: Visualização somente leitura.")
                             
