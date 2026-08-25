@@ -96,9 +96,9 @@ if "departamento_ativo" not in st.session_state:
 if "mostrar_popup_login" not in st.session_state:
     st.session_state.mostrar_popup_login = False
 
-# 5. CABEÇALHO INTEGRADO COM BOTÃO DE ACESSO DISCRETO
+# 5. CABEÇALHO INTEGRADO (Apenas Logo e Título centralizado, sem busca no topo)
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
-c1, c2, c3, c4 = st.columns([1.5, 4.5, 2.5, 1.5])
+c1, c2, c3 = st.columns([1.5, 7.0, 1.5])
 
 with c1:
     if base64_logo: 
@@ -106,8 +106,6 @@ with c1:
 with c2:
     st.markdown('<div class="center-title-container"><p class="portal-title">Portal Gestão de Compras</p></div>', unsafe_allow_html=True)
 with c3:
-    busca_cc = st.text_input("Busca Centro de Custo", placeholder="🔍 Rastrear Centro de Custo...", label_visibility="collapsed")
-with c4:
     if not st.session_state.autenticado:
         if st.button("🔐 Operador", use_container_width=True):
             st.session_state.mostrar_popup_login = not st.session_state.mostrar_popup_login
@@ -120,7 +118,7 @@ with c4:
             st.rerun()
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 6. JANELA POPUP DISCRETA DE LOGIN (Exibida apenas se o botão for acionado e não estiver logado)
+# 6. JANELA POPUP DISCRETA DE LOGIN
 if st.session_state.mostrar_popup_login and not st.session_state.autenticado:
     with st.container():
         st.markdown("""
@@ -160,19 +158,20 @@ if st.session_state.mostrar_popup_login and not st.session_state.autenticado:
                 st.rerun()
         st.divider()
 
-# Aviso discreto de sessão ativa para o operador
 if st.session_state.autenticado:
     st.info(f"🟢 Sessão Ativa: Operador **{st.session_state.departamento_ativo.upper()}** (Modo Edição Liberado)")
 
-# 7. FILTROS E LÓGICA DE GAVETA
+# 7. FILTROS E LÓGICA DE GAVETA (Ordem: Pedido, Solicitação, Centro de Custo, Status e Data)
+if "filtro_pc_val" not in st.session_state:
+    st.session_state.filtro_pc_val = ""
+if "filtro_sc_val" not in st.session_state:
+    st.session_state.filtro_sc_val = ""
+if "filtro_cc_val" not in st.session_state:
+    st.session_state.filtro_cc_val = ""
 if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
     st.session_state.filtro_data_val = ()
-if "filtro_sc_val" not in st.session_state:
-    st.session_state.filtro_sc_val = ""
-if "filtro_pc_val" not in st.session_state:
-    st.session_state.filtro_pc_val = ""
 if "gaveta_aberta" not in st.session_state:
     st.session_state.gaveta_aberta = False
 
@@ -180,25 +179,24 @@ rotulo_seta = "Filtros Avançados ▲" if st.session_state.gaveta_aberta else "F
 
 with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
     with st.form("form_filtros", clear_on_submit=False):
-        f_col1, f_col2, f_col3, f_col4 = st.columns([2.5, 2.5, 2.5, 2.5])
+        f1, f2, f3, f4, f5 = st.columns(5)
         
-        with f_col1:
+        with f1:
+            filtro_pc = st.text_input("Pedido (PC):", value=st.session_state.filtro_pc_val, placeholder="Nº do PC...")
+        with f2:
+            filtro_sc = st.text_input("Solicitação (SC):", value=st.session_state.filtro_sc_val, placeholder="Nº da SC...")
+        with f3:
+            filtro_cc = st.text_input("Centro de Custo:", value=st.session_state.filtro_cc_val, placeholder="Centro de custo...")
+        with f4:
             col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
             if col_status_verificacao:
                 lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
             else:
                 lista_status = ["Todos"]
             idx_padrao = lista_status.index(st.session_state.filtro_status_val) if st.session_state.filtro_status_val in lista_status else 0
-            filtro_status = st.selectbox("Status Operacional:", options=lista_status, index=idx_padrao)
-            
-        with f_col2:
-            filtro_data = st.date_input("Período de Emissão:", value=st.session_state.filtro_data_val, format="DD/MM/YYYY")
-            
-        with f_col3:
-            filtro_sc = st.text_input("Solicitação (SC):", value=st.session_state.filtro_sc_val, placeholder="Nº da SC...")
-            
-        with f_col4:
-            filtro_pc = st.text_input("Pedido (PC):", value=st.session_state.filtro_pc_val, placeholder="Nº do PC...")
+            filtro_status = st.selectbox("Status:", options=lista_status, index=idx_padrao)
+        with f5:
+            filtro_data = st.date_input("Data de Emissão:", value=st.session_state.filtro_data_val, format="DD/MM/YYYY")
 
         st.write("") 
         
@@ -206,20 +204,22 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
         with b1:
             btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True)
             if btn_pesquisar:
+                st.session_state.filtro_pc_val = filtro_pc
+                st.session_state.filtro_sc_val = filtro_sc
+                st.session_state.filtro_cc_val = filtro_cc
                 st.session_state.filtro_status_val = filtro_status
                 st.session_state.filtro_data_val = filtro_data
-                st.session_state.filtro_sc_val = filtro_sc
-                st.session_state.filtro_pc_val = filtro_pc
                 st.session_state.gaveta_aberta = True  
                 st.rerun()
 
         with b2:
             btn_limpar = st.form_submit_button("❌ Limpar", use_container_width=True)
             if btn_limpar:
+                st.session_state.filtro_pc_val = ""
+                st.session_state.filtro_sc_val = ""
+                st.session_state.filtro_cc_val = ""
                 st.session_state.filtro_status_val = "Todos"
                 st.session_state.filtro_data_val = ()
-                st.session_state.filtro_sc_val = ""
-                st.session_state.filtro_pc_val = ""
                 st.session_state.gaveta_aberta = False  
                 st.rerun()
                 
@@ -286,8 +286,8 @@ def formatar_para_dd_mm_aaaa(valor):
     except:
         return txt
 
-# 9. MOTOR DE BUSCA SEPARADO
-tem_busca_ativa = busca_cc or st.session_state.filtro_sc_val or st.session_state.filtro_pc_val or st.session_state.filtro_status_val != "Todos"
+# 9. MOTOR DE BUSCA COM OS NOVOS FILTROS DA GAVETA
+tem_busca_ativa = st.session_state.filtro_pc_val or st.session_state.filtro_sc_val or st.session_state.filtro_cc_val or st.session_state.filtro_status_val != "Todos" or bool(st.session_state.filtro_data_val)
 
 if tem_busca_ativa:
     if df_pc.empty:
@@ -295,28 +295,33 @@ if tem_busca_ativa:
     else:
         df_final = df_pc.copy()
         
-        if busca_cc:
-            cc_termo = busca_cc.strip().lower()
-            col_cc = next((c for c in df_final.columns if "CUSTO" in c.upper() or "CC" in c.upper()), None)
-            if col_cc and col_cc in df_final.columns:
-                df_final = df_final[df_final[col_cc].astype(str).str.lower().str.contains(cc_termo, na=False)]
-
-        if st.session_state.filtro_sc_val:
-            sc_termo = st.session_state.filtro_sc_val.strip()
-            col_sc = next((c for c in df_final.columns if "SOLICITA" in c.upper()), None)
-            if col_sc and col_sc in df_final.columns:
-                df_final = df_final[df_final[col_sc].astype(str).str.strip().str.contains(sc_termo, na=False)]
-
+        # Filtro de Pedido (PC)
         if st.session_state.filtro_pc_val:
             pc_termo = st.session_state.filtro_pc_val.strip()
             col_pc = next((c for c in df_final.columns if "PEDIDO" in c.upper() or "PEDIDOS" in c.upper()), None)
             if col_pc and col_pc in df_final.columns:
                 df_final = df_final[df_final[col_pc].astype(str).str.strip().str.contains(pc_termo, na=False)]
 
+        # Filtro de Solicitação (SC)
+        if st.session_state.filtro_sc_val:
+            sc_termo = st.session_state.filtro_sc_val.strip()
+            col_sc = next((c for c in df_final.columns if "SOLICITA" in c.upper()), None)
+            if col_sc and col_sc in df_final.columns:
+                df_final = df_final[df_final[col_sc].astype(str).str.strip().str.contains(sc_termo, na=False)]
+
+        # Filtro de Centro de Custo
+        if st.session_state.filtro_cc_val:
+            cc_termo = st.session_state.filtro_cc_val.strip().lower()
+            col_cc = next((c for c in df_final.columns if "CUSTO" in c.upper() or "CC" in c.upper()), None)
+            if col_cc and col_cc in df_final.columns:
+                df_final = df_final[df_final[col_cc].astype(str).str.lower().str.contains(cc_termo, na=False)]
+
+        # Filtro de Status
         col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None)
         if st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
+        # Filtro de Data de Emissão
         if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
             if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
                 col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper() or "EMISSÃO" in c.upper()), None)
@@ -507,7 +512,7 @@ if tem_busca_ativa:
         except Exception as e:
             st.markdown(f'<div class="custom-error-red">⚠️ Erro ao processar os dados da busca: {e}</div>', unsafe_allow_html=True)
 else:
-    st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras. Digite um Centro de Custo no topo ou utilize os Filtros Avançados.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras. Utilize os Filtros Avançados acima para pesquisar.</div>', unsafe_allow_html=True)
 
 # 10. RODAPÉ INSTITUCIONAL
 st.markdown("<div class=\"custom-footer-block\"><p style='color:#64748b; font-size:13px; font-weight:600; margin:0;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
