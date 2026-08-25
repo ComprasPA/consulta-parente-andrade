@@ -7,7 +7,6 @@ from io import BytesIO
 import urllib.request
 import gspread
 from google.oauth2.service_account import Credentials
-from streamlit_autorefresh import st_autorefresh
 
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
@@ -98,7 +97,7 @@ def abrir_worksheet(client):
     return spreadsheet, worksheet
 
 # 4. CARREGAMENTO SEGURO
-@st.cache_data(ttl=20)
+@st.cache_data(ttl=60)
 def carregar_dados_seguros():
     try:
         client, _ = autenticar_gspread()
@@ -170,10 +169,6 @@ if "gaveta_aberta" not in st.session_state:
     st.session_state.gaveta_aberta = True
 if "mostrar_diagnostico" not in st.session_state:
     st.session_state.mostrar_diagnostico = False
-
-# Auto-refresh ativo para visualizadores (15s)
-if not st.session_state.autenticado and not st.session_state.mostrar_popup_login:
-    st_autorefresh(interval=15000, key="auto_refresh_visualizador")
 
 # 5. CABEÇALHO INTEGRADO
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
@@ -464,7 +459,7 @@ if tem_busca_ativa:
                     txt_status = f"🔍 Registros Localizados ({len(df_painel)} itens)"
                     st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
                     
-                    # BOTÕES LADO A LADO NA POSIÇÃO CORRETA (ACIMA DA TABELA)
+                    # BOTÕES LADO A LADO NA MESMA POSIÇÃO ACIMA DA TABELA
                     c_down1, c_down2 = st.columns([2.2, 2.2])
 
                     with c_down1:
@@ -551,7 +546,7 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
 
-                        # SALVAMENTO ESTILO PROCV (Localiza linha e coluna exata e grava)
+                        # LOGICA ESTILO PROCV: GRAVAÇÃO EXATA NA LINHA E COLUNA DA PLANILHA
                         if btn_salvar_dados:
                             if "df_original_cache" in st.session_state:
                                 df_orig = st.session_state.df_original_cache
