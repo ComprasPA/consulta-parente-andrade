@@ -80,7 +80,7 @@ st.markdown("""
 
 FILE_ID = "1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o"
 
-# 4. CARREGAMENTO SEGURO
+# 4. CARREGAMENTO SEGURO DIRETO DA ABA "Pedidos"
 @st.cache_data(ttl=60)
 def carregar_dados_seguros():
     try:
@@ -119,7 +119,7 @@ if 'dados_globais' not in st.session_state or st.session_state.dados_globais.emp
 
 df_pc = st.session_state.dados_globais
 
-# Estados de sessão
+# Estados de sessão (Segurança: Exige login a cada recarregamento da página)
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 if "departamento_ativo" not in st.session_state:
@@ -218,11 +218,11 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
         with f4:
             col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
             if col_status_verificacao:
-                lista_status = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
+                lista_status_Filtro = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
             else:
-                lista_status = ["Todos"]
-            idx_padrao = lista_status.index(st.session_state.filtro_status_val) if st.session_state.filtro_status_val in lista_status else 0
-            filtro_status = st.selectbox("Status:", options=lista_status, index=idx_padrao)
+                lista_status_Filtro = ["Todos"]
+            idx_padrao = lista_status_Filtro.index(st.session_state.filtro_status_val) if st.session_state.filtro_status_val in lista_status_Filtro else 0
+            filtro_status = st.selectbox("Status:", options=lista_status_Filtro, index=idx_padrao)
         with f5:
             filtro_data = st.date_input("Data de Emissão:", value=st.session_state.filtro_data_val, format="DD/MM/YYYY")
 
@@ -258,7 +258,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True
                 st.rerun()
 
-# 8. MAPEAMENTO EXATO DAS COLUNAS
+# 8. MAPEAMENTO EXATO DAS COLUNAS (Com suporte flexível a acentos ex: DESCRICAO / DESCRIÇÃO)
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "CENTRO DE CUSTO", "tela": "Centro de Custo", "tipo": "texto"},
@@ -317,7 +317,7 @@ if tem_busca_ativa:
         st.markdown('<div class="custom-error-red">⚠️ Base de dados vazia. Clique em "🔄 Atualizar Banco" nos Filtros Avançados.</div>', unsafe_allow_html=True)
     else:
         df_final = df_pc.copy()
-        colunas_normalizadas = {c.upper().strip().replace('Í', 'I'): c for c in df_final.columns}
+        colunas_normalizadas = {c.upper().strip().replace('Í', 'I').replace('Ã', 'A'): c for c in df_final.columns}
 
         if st.session_state.filtro_pc_val:
             pc_termo = str(st.session_state.filtro_pc_val).strip()
@@ -353,13 +353,14 @@ if tem_busca_ativa:
                 df_painel = pd.DataFrame(index=df_final.index)
                 
                 for col_config in DICIONARIO_COLUNAS_EXATAS:
-                    nome_alvo = col_config["planilha"].strip().upper().replace('Í', 'I')
+                    nome_alvo = col_config["planilha"].strip().upper().replace('Í', 'I').replace('Ã', 'A')
                     nome_exibicao_tela = col_config["tela"]
                     tipo_campo = col_config["tipo"]
                     
                     col_real = None
                     for c_up in colunas_normalizadas:
-                        if c_up.replace('Í', 'I') == nome_alvo or nome_alvo in c_up or c_up in nome_alvo:
+                        c_up_clean = c_up.replace('Í', 'I').replace('Ã', 'A')
+                        if c_up_clean == nome_alvo or nome_alvo in c_up_clean or c_up_clean in nome_alvo:
                             col_real = colunas_normalizadas[c_up]
                             break
 
@@ -377,9 +378,6 @@ if tem_busca_ativa:
                             df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
                     else:
                         df_painel[nome_exibicao_tela] = ""
-
-                # Associa a linha física exata da planilha
-                df_painel["_row_idx"] = [idx + 2 for idx in df_final.index]
 
                 col_status_tela = next((c for c in df_painel.columns if "STATUS" in c.upper()), None)
                 if col_status_tela:
@@ -418,14 +416,11 @@ if tem_busca_ativa:
                     txt_status = f"🔍 Registros Localizados ({len(df_painel)} itens)"
                     st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
                     
-                    # BOTÕES LADO A LADO ACIMA DA TABELA
-                    c_down1, c_down2, _ = st.columns([2.2, 2.2, 5.6])
-                    
-                    with c_down1:
+                    c_down, _ = st.columns([2.5, 7.5])
+                    with c_down:
                         out = BytesIO()
-                        df_excel_export = df_painel.drop(columns=["_row_idx"], errors="ignore")
                         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
-                            df_excel_export.to_excel(wr, index=False, sheet_name="Relatório")
+                            df_painel.to_excel(wr, index=False, sheet_name="Relatório")
                             workbook  = wr.book
                             worksheet = wr.sheets["Relatório"]
                             formato_moeda = workbook.add_format({'num_format': 'R$ #,##0.00'})
@@ -434,24 +429,31 @@ if tem_busca_ativa:
                                     worksheet.set_column(idx, idx, 22, formato_moeda)
 
                         st.download_button(
-                            label="📥 Baixar Relatório",
+                            label="📥 Extrair Relatório Operacional",
                             data=out.getvalue(),
                             file_name=f"Relatorio_Compras_Filtro.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True
                         )
-
-                    with c_down2:
-                        if st.session_state.autenticado:
-                            btn_salvar_dados = st.button("💾 Salvar Alterações", use_container_width=True)
-                        else:
-                            btn_salvar_dados = False
-
+                    
                     configuracao_colunas_tela = {}
                     
-                    lista_historico_status = sorted([str(x).strip() for x in df_painel[col_status_tela].unique() if str(x).strip() != ""])
-                    if not lista_historico_status:
-                        lista_historico_status = ["EM APROVAÇÃO", "LIBERADO", "PENDENTE"]
+                    # Combina os status já existentes na planilha com as alternativas oficiais exigidas
+                    status_existentes = [str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""] if col_status_verificacao else []
+                    status_oficiais = [
+                        "ENVIADO AO FORNECEDOR",
+                        "ENVIADO AO FINANCEIRO",
+                        "PAGO",
+                        "CANCELADO PELO SOLICITANTE",
+                        "FORNECEDOR DECLINOU",
+                        "RECEBIDO NA SEDE",
+                        "RECEBIDO PARCIAL",
+                        "RECEBIDO DIRETO NA OBRA",
+                        "SERVIÇO",
+                        "COMPRA DIRETA",
+                        "CORREÇÃO DE PROCESSO"
+                    ]
+                    lista_historico_status = sorted(list(set(status_existentes + status_oficiais)))
 
                     opcoes_logistica = [
                         "Retirado do Almoxarifado Sede",
@@ -494,8 +496,6 @@ if tem_busca_ativa:
                             else:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
 
-                    configuracao_colunas_tela["_row_idx"] = None
-
                     if st.session_state.autenticado:
                         if "df_original_cache" not in st.session_state or st.session_state.get("atualizar_cache_editor", True):
                             st.session_state.df_original_cache = df_painel.copy()
@@ -509,66 +509,51 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
                         
-                        # EXECUÇÃO DO PROCV: GRAVAÇÃO NA LINHA EXATA DA PLANILHA
-                        if btn_salvar_dados:
-                            if "df_original_cache" in st.session_state:
-                                df_orig = st.session_state.df_original_cache
-                                alteracoes_detectadas = 0
+                        # SALVAMENTO AUTOMÁTICO EM TEMPO REAL POR CÉLULA
+                        if "df_original_cache" in st.session_state:
+                            df_orig = st.session_state.df_original_cache
+                            alteracoes_detectadas = False
+                            
+                            try:
+                                scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+                                creds_dict = dict(st.secrets["gcp_service_account"])
+                                creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+                                client = gspread.authorize(creds)
                                 
+                                spreadsheet = client.open_by_key(FILE_ID)
                                 try:
-                                    scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-                                    creds_dict = dict(st.secrets["gcp_service_account"])
-                                    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-                                    client = gspread.authorize(creds)
-                                    
-                                    spreadsheet = client.open_by_key(FILE_ID)
-                                    try:
-                                        worksheet = spreadsheet.worksheet("Pedidos")
-                                    except:
-                                        worksheet = spreadsheet.get_worksheet(0)
-                                    
-                                    dados_planilha = worksheet.get_all_values()
-                                    cabecalho_bruto = dados_planilha[0]
-                                    cabecalho_map = {c.upper().strip().replace('Í', 'I'): i + 1 for i, c in enumerate(cabecalho_bruto)}
-                                    
-                                    for idx in edited_df.index:
-                                        linha_planilha = int(edited_df.loc[idx, "_row_idx"])
-                                        for col in edited_df.columns:
-                                            if col == "_row_idx":
-                                                continue
-                                            
-                                            valor_antigo = str(df_orig.loc[idx, col])
-                                            valor_novo = str(edited_df.loc[idx, col])
-                                            
-                                            if valor_antigo != valor_novo:
-                                                col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
-                                                if col_config_item:
-                                                    nome_col_planilha = col_config_item["planilha"].upper().replace('Í', 'I')
-                                                    
-                                                    col_index = cabecalho_map.get(nome_col_planilha)
-                                                    if not col_index:
-                                                        for c_map, idx_val in cabecalho_map.items():
-                                                            if nome_col_planilha in c_map or c_map in nome_col_planilha:
-                                                                col_index = idx_val
-                                                                break
-                                                    
-                                                    if col_index:
-                                                        worksheet.update_cell(linha_planilha, col_index, valor_novo)
-                                                        alteracoes_detectadas += 1
-                                                        
-                                    if alteracoes_detectadas > 0:
-                                        st.success(f"✅ {alteracoes_detectadas} alteração(ões) gravada(s) com sucesso na planilha!")
-                                        st.session_state.df_original_cache = edited_df.copy()
-                                        st.cache_data.clear()
-                                        st.rerun()
-                                    else:
-                                        st.info("ℹ️ Nenhuma alteração foi realizada para salvar.")
+                                    worksheet = spreadsheet.worksheet("Pedidos")
+                                except:
+                                    worksheet = spreadsheet.get_worksheet(0)
+                                
+                                dados_planilha = worksheet.get_all_values()
+                                cabecalho = [c.upper().strip() for c in dados_planilha[0]]
+                                
+                                for idx in edited_df.index:
+                                    for col in edited_df.columns:
+                                        valor_antigo = str(df_orig.loc[idx, col])
+                                        valor_novo = str(edited_df.loc[idx, col])
                                         
-                                except Exception as e:
-                                    st.error(f"❌ Erro ao gravar: {e}")
+                                        if valor_antigo != valor_novo:
+                                            linha_planilha = int(df_final.index[idx]) + 2
+                                            col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
+                                            if col_config_item:
+                                                nome_col_planilha = col_config_item["planilha"].upper()
+                                                if nome_col_planilha in cabecalho:
+                                                    col_index = cabecalho.index(nome_col_planilha) + 1
+                                                    worksheet.update_cell(linha_planilha, col_index, valor_novo)
+                                                    alteracoes_detectadas = True
+                                                    
+                                if alteracoes_detectadas:
+                                    st.toast("💾 Alteração salva automaticamente no Google Sheets!", icon="✅")
+                                    st.session_state.df_original_cache = edited_df.copy()
+                                    st.cache_data.clear()
+                                    
+                            except Exception as e:
+                                pass
                     else:
                         st.dataframe(
-                            df_painel.drop(columns=["_row_idx"], errors="ignore"), 
+                            df_painel, 
                             use_container_width=True, 
                             hide_index=True, 
                             column_config=configuracao_colunas_tela
