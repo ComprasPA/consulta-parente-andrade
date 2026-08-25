@@ -7,7 +7,7 @@ from io import BytesIO
 import urllib.request
 import gspread
 from google.oauth2.service_account import Credentials
-from streamlit_autorefresh import st_autorefresh  # NOVO: pip install streamlit-autorefresh
+from streamlit_autorefresh import st_autorefresh
 
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
@@ -23,7 +23,7 @@ def get_base64_logo(image_path="logo"):
     try:
         with open(image_path, "rb") as f:
             return base64.b64encode(f.read()).decode()
-    except:
+    except: 
         return None
 
 base64_logo = get_base64_logo()
@@ -48,14 +48,16 @@ st.markdown("""
     div[data-testid="stExpander"] summary:hover p { color: #478c3b !important; }
     div[data-testid="stDateInput"] { width: 100%; }
     div[data-testid="stForm"] { border: none !important; padding: 0px !important; box-shadow: none !important; background-color: transparent !important; }
-
+    
     div.stFormSubmitButton > button { width: 100% !important; min-height: 36px !important; max-height: 36px !important; font-size: 13px !important; font-weight: 600 !important; padding: 0px 8px !important; }
+
     .status-card { background: #ffffff; color: #1e293b; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; border-left: 5px solid #478c3b; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; }
     .custom-error-red { background-color: #fee2e2 !important; color: #991b1b !important; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #ef4444; }
     .custom-welcome-salutation { background-color: #ffffff; color: #1e293b; padding: 32px 24px; border-radius: 12px; font-weight: 600; font-size: 20px; text-align: center; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); margin-top: 20px; }
-
+    
     div[data-testid="stDataFrame"] { background: #ffffff; padding: 16px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
     div[data-testid="stDataFrame"] table th { white-space: nowrap !important; min-width: max-content !important; }
+
     /* ESTILIZAÇÃO DO DROPDOWN / LISTA SUSPENSA */
     div[data-baseweb="menu"], ul[data-baseweb="menu"], div[role="listbox"] {
         background-color: #ffffff !important;
@@ -71,6 +73,7 @@ st.markdown("""
         background-color: #e2e8f0 !important;
         color: #0f172a !important;
     }
+
     .custom-footer-block { text-align: center !important; margin-top: 60px !important; border-top: 1px solid #e2e8f0 !important; padding-top: 24px !important; padding-bottom: 24px !important; position: static !important; clear: both !important; width: 100% !important; display: block !important; }
     .signature-fixed { position: fixed; bottom: 12px; left: 20px; color: #94a3b8; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; z-index: 999999; pointer-events: none; }
     .diag-box { background:#0f172a; color:#e2e8f0; padding:14px 18px; border-radius:8px; font-family: monospace; font-size: 13px; white-space: pre-wrap; margin-top:8px; }
@@ -80,14 +83,11 @@ st.markdown("""
 FILE_ID = "1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o"
 SCOPE_SHEETS = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 
-
 def autenticar_gspread():
-    """Centraliza a autenticação para reaproveitar em leitura, escrita e diagnóstico."""
     creds_dict = dict(st.secrets["gcp_service_account"])
     creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPE_SHEETS)
     client = gspread.authorize(creds)
     return client, creds_dict.get("client_email", "desconhecido")
-
 
 def abrir_worksheet(client):
     spreadsheet = client.open_by_key(FILE_ID)
@@ -97,13 +97,12 @@ def abrir_worksheet(client):
         worksheet = spreadsheet.get_worksheet(0)
     return spreadsheet, worksheet
 
-
 # 4. CARREGAMENTO SEGURO
-@st.cache_data(ttl=20)  # ALTERADO: era 60s. Cache mais curto para o auto-refresh fazer sentido.
+@st.cache_data(ttl=20)
 def carregar_dados_seguros():
     try:
         client, _ = autenticar_gspread()
-        spreadsheet, worksheet = abrir_worksheet(client)
+        _, worksheet = abrir_worksheet(client)
 
         dados = worksheet.get_all_values()
         if not dados:
@@ -124,18 +123,8 @@ def carregar_dados_seguros():
         st.session_state.erro_tecnico = f"Erro Gspread: {str(e)}"
         return pd.DataFrame()
 
-
-# NOVO: FUNÇÃO DE DIAGNÓSTICO — isola cada causa possível do erro 403
 def diagnosticar_conexao_sheets():
-    """
-    Executa uma bateria de testes, do mais básico ao mais específico,
-    e devolve uma lista de (rótulo, ok/erro, detalhe) para exibir na tela.
-    Não altera nenhum dado real: a escrita de teste grava o mesmo valor
-    que já está na célula A1 (é um "no-op" na prática).
-    """
     resultados = []
-
-    # 1) Ler as credenciais do secrets.toml
     try:
         client, email_conta = autenticar_gspread()
         resultados.append(("Credenciais carregadas", True, f"client_email: {email_conta}"))
@@ -143,49 +132,31 @@ def diagnosticar_conexao_sheets():
         resultados.append(("Credenciais carregadas", False, str(e)))
         return resultados
 
-    # 2) Abrir a planilha pelo ID
     try:
         spreadsheet, worksheet = abrir_worksheet(client)
         resultados.append(("Planilha localizada", True, f'"{spreadsheet.title}" / aba "{worksheet.title}"'))
-    except gspread.exceptions.APIError as e:
-        resultados.append(("Planilha localizada", False,
-                            f"{e}\n→ Verifique se a conta de serviço tem acesso a este arquivo (mesmo para leitura) "
-                            f"e se o FILE_ID está correto."))
-        return resultados
     except Exception as e:
         resultados.append(("Planilha localizada", False, str(e)))
         return resultados
 
-    # 3) Ler a célula A1 (testa permissão de leitura)
     try:
         valor_a1 = worksheet.acell("A1").value
-        resultados.append(("Leitura de dados (permissão de Leitor)", True, f"A1 = '{valor_a1}'"))
+        resultados.append(("Leitura de dados", True, f"A1 = '{valor_a1}'"))
     except Exception as e:
-        resultados.append(("Leitura de dados (permissão de Leitor)", False, str(e)))
+        resultados.append(("Leitura de dados", False, str(e)))
         return resultados
 
-    # 4) Gravar de volta o MESMO valor em A1 (testa permissão de escrita sem alterar nada)
     try:
         worksheet.update_cell(1, 1, valor_a1)
-        resultados.append(("Escrita de teste (permissão de Editor)", True,
-                            "Gravação aceita pela API — a conta de serviço TEM permissão de edição."))
-    except gspread.exceptions.APIError as e:
-        msg = str(e)
-        dica = ""
-        if "403" in msg or "PERMISSION_DENIED" in msg:
-            dica = (f"\n→ A conta {email_conta} provavelmente está compartilhada como 'Leitor' e não 'Editor'.\n"
-                    f"  Abra a planilha → Compartilhar → adicione {email_conta} como Editor.")
-        elif "API has not been used" in msg or "disabled" in msg.lower():
-            dica = "\n→ A Google Sheets API (ou Drive API) parece estar desativada no projeto do Google Cloud."
-        resultados.append(("Escrita de teste (permissão de Editor)", False, msg + dica))
+        resultados.append(("Escrita de teste (Editor)", True, "Gravação aceita pela API — permissão de edição confirmada."))
     except Exception as e:
-        resultados.append(("Escrita de teste (permissão de Editor)", False, str(e)))
+        resultados.append(("Escrita de teste (Editor)", False, str(e)))
 
     return resultados
 
-
 if 'dados_globais' not in st.session_state or st.session_state.dados_globais.empty:
     st.session_state.dados_globais = carregar_dados_seguros()
+
 df_pc = st.session_state.dados_globais
 
 # Estados de sessão
@@ -200,11 +171,9 @@ if "gaveta_aberta" not in st.session_state:
 if "mostrar_diagnostico" not in st.session_state:
     st.session_state.mostrar_diagnostico = False
 
-# NOVO: AUTO-REFRESH — só ativo para quem está apenas visualizando (não autenticado)
-# e só quando não há um popup/formulário de login aberto na tela, para não
-# atrapalhar quem está digitando a senha.
+# Auto-refresh ativo para visualizadores (15s)
 if not st.session_state.autenticado and not st.session_state.mostrar_popup_login:
-    st_autorefresh(interval=15000, key="auto_refresh_visualizador")  # 15s
+    st_autorefresh(interval=15000, key="auto_refresh_visualizador")
 
 # 5. CABEÇALHO INTEGRADO
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
@@ -266,12 +235,11 @@ if st.session_state.mostrar_popup_login and not st.session_state.autenticado:
                 st.session_state.mostrar_popup_login = False
                 st.rerun()
 
-        # NOVO: botão de diagnóstico, visível só na tela de login (uso interno/operador)
         if st.button("🔧 Diagnosticar conexão com Google Sheets"):
             st.session_state.mostrar_diagnostico = True
 
         if st.session_state.mostrar_diagnostico:
-            with st.spinner("Testando conexão, leitura e escrita na planilha..."):
+            with st.spinner("Testando conexão..."):
                 resultados_diag = diagnosticar_conexao_sheets()
             for rotulo, ok, detalhe in resultados_diag:
                 icone = "✅" if ok else "❌"
@@ -339,11 +307,10 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.filtro_data_val = ()
                 st.session_state.gaveta_aberta = True
                 st.rerun()
-
         with b3:
             btn_atualizar = st.form_submit_button("🔄 Atualizar Banco", use_container_width=True)
             if btn_atualizar:
-                st.cache_data.clear()  # ALTERADO: limpa o cache de fato antes de recarregar
+                st.cache_data.clear()
                 st.session_state.dados_globais = carregar_dados_seguros()
                 st.session_state.gaveta_aberta = True
                 st.rerun()
@@ -373,7 +340,6 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "LOGISTICA", "tela": "Logística", "tipo": "logistica"}
 ]
 
-
 def converter_para_numerico(valor):
     if not valor or str(valor).lower() == 'nan' or str(valor).strip() == '':
         return 0.0
@@ -388,7 +354,6 @@ def converter_para_numerico(valor):
     except:
         return 0.0
 
-
 def formatar_para_dd_mm_aaaa(valor):
     txt = str(valor).strip()
     if txt == "" or txt.lower() in ["nan", "none", "0", "n/a"]:
@@ -400,7 +365,6 @@ def formatar_para_dd_mm_aaaa(valor):
         return dt.strftime('%d/%m/%Y')
     except:
         return txt
-
 
 # 9. MOTOR DE BUSCA CASCATA
 tem_busca_ativa = st.session_state.filtro_pc_val or st.session_state.filtro_sc_val or st.session_state.filtro_cc_val or st.session_state.filtro_status_val != "Todos" or bool(st.session_state.filtro_data_val)
@@ -463,8 +427,10 @@ if tem_busca_ativa:
                             df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
                     else:
                         df_painel[nome_exibicao_tela] = ""
+
                 # Associa a linha física exata da planilha
                 df_painel["_row_idx"] = [idx + 2 for idx in df_final.index]
+
                 col_status_tela = next((c for c in df_painel.columns if "STATUS" in c.upper()), None)
                 if col_status_tela:
                     termos_excecao = ["SERVIÇO", "CANCELADO PELO SOLICITANTE", "REJEITADO PELO APROVADOR", "COMPRA DIRETA"]
@@ -493,12 +459,13 @@ if tem_busca_ativa:
                             lambda x: x if str(x).upper() == "N/A" else formatar_para_dd_mm_aaaa(x)
                         )
                 df_painel = df_painel.dropna(how='all')
+
                 if not df_painel.empty:
                     txt_status = f"🔍 Registros Localizados ({len(df_painel)} itens)"
                     st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
-
-                    # BOTÕES LADO A LADO ACIMA DA TABELA
-                    c_down1, c_down2, _ = st.columns([2.2, 2.2, 5.6])
+                    
+                    # BOTÕES LADO A LADO NA POSIÇÃO CORRETA (ACIMA DA TABELA)
+                    c_down1, c_down2 = st.columns([2.2, 2.2])
 
                     with c_down1:
                         out = BytesIO()
@@ -518,13 +485,14 @@ if tem_busca_ativa:
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True
                         )
+
                     with c_down2:
                         if st.session_state.autenticado:
                             btn_salvar_dados = st.button("💾 Salvar Alterações", use_container_width=True)
                         else:
                             btn_salvar_dados = False
-                    configuracao_colunas_tela = {}
 
+                    configuracao_colunas_tela = {}
                     lista_historico_status = sorted([str(x).strip() for x in df_painel[col_status_tela].unique() if str(x).strip() != ""])
                     if not lista_historico_status:
                         lista_historico_status = ["EM APROVAÇÃO", "LIBERADO", "PENDENTE"]
@@ -567,11 +535,14 @@ if tem_busca_ativa:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right")
                             else:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
+
                     configuracao_colunas_tela["_row_idx"] = None
+
                     if st.session_state.autenticado:
                         if "df_original_cache" not in st.session_state or st.session_state.get("atualizar_cache_editor", True):
                             st.session_state.df_original_cache = df_painel.copy()
                             st.session_state.atualizar_cache_editor = False
+
                         edited_df = st.data_editor(
                             df_painel,
                             use_container_width=True,
@@ -580,7 +551,7 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
 
-                        # EXECUÇÃO DO PROCV: GRAVAÇÃO NA LINHA EXATA DA PLANILHA
+                        # SALVAMENTO ESTILO PROCV (Localiza linha e coluna exata e grava)
                         if btn_salvar_dados:
                             if "df_original_cache" in st.session_state:
                                 df_orig = st.session_state.df_original_cache
@@ -588,7 +559,7 @@ if tem_busca_ativa:
 
                                 try:
                                     client, _ = autenticar_gspread()
-                                    spreadsheet, worksheet = abrir_worksheet(client)
+                                    _, worksheet = abrir_worksheet(client)
 
                                     dados_planilha = worksheet.get_all_values()
                                     cabecalho_bruto = dados_planilha[0]
@@ -627,16 +598,6 @@ if tem_busca_ativa:
                                     else:
                                         st.info("ℹ️ Nenhuma alteração foi realizada para salvar.")
 
-                                except gspread.exceptions.APIError as e:
-                                    msg = str(e)
-                                    if "403" in msg or "PERMISSION_DENIED" in msg:
-                                        st.error(
-                                            "❌ Erro 403: a conta de serviço não tem permissão de EDITOR nesta planilha. "
-                                            "Use o botão '🔧 Diagnosticar conexão' na tela de login do Operador para "
-                                            "ver exatamente qual e-mail precisa ser compartilhado como Editor."
-                                        )
-                                    else:
-                                        st.error(f"❌ Erro ao gravar: {e}")
                                 except Exception as e:
                                     st.error(f"❌ Erro ao gravar: {e}")
                     else:
