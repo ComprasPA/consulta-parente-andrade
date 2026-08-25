@@ -8,12 +8,12 @@ import urllib.request
 import gspread
 from google.oauth2.service_account import Credentials
 
-# 1. CONFIGURAÇÃO DA PÁGINA (Com barra lateral expandida por padrão)
+# 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
     page_title="Portal Gestão de Compras | Parente Andrade",
     page_icon="🏗️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # 2. FUNÇÃO LOGO
@@ -51,7 +51,6 @@ st.markdown("""
     div.stFormSubmitButton > button { width: 100% !important; min-height: 36px !important; max-height: 36px !important; font-size: 13px !important; font-weight: 600 !important; padding: 0px 8px !important; }
 
     .status-card { background: #ffffff; color: #1e293b; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; border-left: 5px solid #478c3b; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; }
-    .custom-info-blue { background-color: #e0f2fe !important; color: #0369a1 !important; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #0284c7; }
     .custom-error-red { background-color: #fee2e2 !important; color: #991b1b !important; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #ef4444; }
     .custom-welcome-salutation { background-color: #ffffff; color: #1e293b; padding: 32px 24px; border-radius: 12px; font-weight: 600; font-size: 20px; text-align: center; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); margin-top: 20px; }
     div[data-testid="stDataFrame"] { background: #ffffff; padding: 16px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
@@ -102,35 +101,41 @@ with c3:
     busca_cc = st.text_input("Busca Centro de Custo", placeholder="🔍 Rastrear Centro de Custo...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 6. PONTO DE ENTRADA: SELEÇÃO DE PERFIL E LOGINS DOS OPERADORES NA BARRA LATERAL
-with st.sidebar:
-    st.header("⚙️ Configurações de Acesso")
-    perfil_usuario = st.selectbox("Selecione o seu perfil:", ["Usuário (Visualização)", "Operador (Edição)"])
+# 6. PAINEL DE CONTROLE DE ACESSO CENTRALIZADO (Substitui a barra lateral inacessível)
+with st.container():
+    col_acc1, col_acc2 = st.columns([3, 7])
+    with col_acc1:
+        perfil_usuario = st.selectbox("Selecione o seu perfil de acesso:", ["Usuário (Visualização)", "Operador (Edição)"])
     
     operador_autenticado = False
-    
-    if "Operador" in perfil_usuario:
-        st.divider()
-        st.subheader("🔐 Painel de Autenticação")
-        
-        login_operador = st.selectbox("Selecione o Operador:", ["compras", "almoxarifado", "logistica"])
-        senha_digitada = st.text_input("Digite a senha:", type="password", placeholder="Sua senha...")
-        
-        SENHAS_OPERADORES = {
-            "compras": "compras@2026",
-            "almoxarifado": "almox@2026",
-            "logistica": "log@2026"
-        }
-        
-        if senha_digitada == SENHAS_OPERADORES.get(login_operador):
-            st.success(f"✅ Operador **{login_operador.upper()}** autenticado!")
-            operador_autenticado = True
-        elif senha_digitada != "":
-            st.error("❌ Senha incorreta!")
-            operador_autenticado = False
+    login_operador = ""
 
+    if "Operador" in perfil_usuario:
+        with st.expander("🔐 Clique aqui para fazer o Login do Operador", expanded=True):
+            col_op1, col_op2 = st.columns(2)
+            with col_op1:
+                login_operador = st.selectbox("Seu Departamento:", ["compras", "almoxarifado", "logistica"])
+            with col_op2:
+                senha_digitada = st.text_input("Senha de Acesso:", type="password", placeholder="Digite sua senha...")
+            
+            SENHAS_OPERADORES = {
+                "compras": "compras@2026",
+                "almoxarifado": "almox@2026",
+                "logistica": "log@2026"
+            }
+            
+            if senha_digitada == SENHAS_OPERADORES.get(login_operador):
+                st.success(f"✅ Operador **{login_operador.upper()}** autenticado com sucesso para edições!")
+                operador_autenticado = True
+            elif senha_digitada != "":
+                st.error("❌ Senha incorreta!")
+                operador_autenticado = False
+
+st.write("")
+
+# 7. FILTROS E LÓGICA DE GAVETA
 if "filtro_status_val" not in st.session_state:
-    st.session_state.fil_status_val = "Todos"
+    st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
     st.session_state.filtro_data_val = ()
 if "filtro_sc_val" not in st.session_state:
@@ -166,8 +171,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
 
         st.write("") 
         
-        # Adicionado botão extra de Atalho para abrir/focar na Barra Lateral
-        _, b1, b2, b3, b4 = st.columns([2.8, 1.2, 1.2, 1.2, 1.6])
+        _, b1, b2, b3 = st.columns([4, 1.2, 1.2, 1.2])
         with b1:
             btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True)
             if btn_pesquisar:
@@ -189,20 +193,13 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.rerun()
                 
         with b3:
-            btn_atualizar = st.form_submit_button("🔄 Atualizar", use_container_width=True)
+            btn_atualizar = st.form_submit_button("🔄 Atualizar Banco", use_container_width=True)
             if btn_atualizar:
                 st.session_state.dados_globais = carregar_dados_seguros()
                 st.session_state.gaveta_aberta = True  
                 st.rerun()
 
-        with b4:
-            btn_painel_login = st.form_submit_button("🔐 Menu Acesso", use_container_width=True)
-            if btn_painel_login:
-                st.toast("💡 A barra lateral de acessos está visível à esquerda da tela!", icon="ℹ️")
-                st.session_state.gaveta_aberta = True
-                st.rerun()
-
-# 7. MAPEAMENTO EXATO DAS COLUNAS
+# 8. MAPEAMENTO EXATO DAS COLUNAS
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "CENTRO DE CUSTO", "tela": "Centro de Custo", "tipo": "texto"},
@@ -258,12 +255,12 @@ def formatar_para_dd_mm_aaaa(valor):
     except:
         return txt
 
-# 8. MOTOR DE BUSCA SEPARADO
+# 9. MOTOR DE BUSCA SEPARADO
 tem_busca_ativa = busca_cc or st.session_state.filtro_sc_val or st.session_state.filtro_pc_val or st.session_state.filtro_status_val != "Todos"
 
 if tem_busca_ativa:
     if df_pc.empty:
-        st.markdown('<div class="custom-error-red">⚠️ Base de dados vazia. Clique em "🔄 Atualizar" nos Filtros Avançados.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="custom-error-red">⚠️ Base de dados vazia. Clique em "🔄 Atualizar Banco" nos Filtros Avançados.</div>', unsafe_allow_html=True)
     else:
         df_final = df_pc.copy()
         
@@ -466,7 +463,7 @@ if tem_busca_ativa:
                                 st.error(f"❌ Erro ao salvar no Google Sheets: {e}")
                     else:
                         if "Operador" in perfil_usuario and not operador_autenticado:
-                            st.warning("🔒 Selecione o seu login e digite a senha correta na barra lateral (à esquerda) para liberar o modo de edição.")
+                            st.warning("🔒 Selecione o seu departamento e digite a senha correta no painel acima para liberar o modo de edição.")
                         else:
                             st.success("👁️ Modo Usuário Ativo: Visualização somente leitura.")
                             
@@ -485,8 +482,8 @@ if tem_busca_ativa:
 else:
     st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras. Digite um Centro de Custo no topo ou utilize os Filtros Avançados.</div>', unsafe_allow_html=True)
 
-# 9. RODAPÉ INSTITUCIONAL
+# 10. RODAPÉ INSTITUCIONAL
 st.markdown("<div class=\"custom-footer-block\"><p style='color:#64748b; font-size:13px; font-weight:600; margin:0;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
 
-# 10. MARCA D'ÁGUA FIXA EXCLUSIVA DA AUTORIA
+# 11. MARCA D'ÁGUA FIXA EXCLUSIVA DA AUTORIA
 st.markdown('<div class="signature-fixed">Created by SS.</div>', unsafe_allow_html=True)
