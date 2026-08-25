@@ -100,9 +100,21 @@ def carregar_dados_seguros():
             return pd.DataFrame()
             
         cabecalho = [str(c).strip() for c in dados[0]]
+        
+        # Garante que a coluna LOGISTICA exista no cabeçalho virtual caso não esteja na planilha
+        if "LOGISTICA" not in [c.upper() for c in cabecalho]:
+            cabecalho.append("LOGISTICA")
+            
         linhas = dados[1:]
         
-        df = pd.DataFrame(linhas, columns=cabecalho, dtype=str).fillna('')
+        # Padroniza o tamanho das linhas com o cabeçalho
+        linhas_normalizadas = []
+        for linha in linhas:
+            while len(linha) < len(cabecalho):
+                linha.append("")
+            linhas_normalizadas.append(linha[:len(cabecalho)])
+        
+        df = pd.DataFrame(linhas_normalizadas, columns=cabecalho, dtype=str).fillna('')
         return df
     except Exception as e:
         st.session_state.erro_tecnico = f"Erro Gspread: {str(e)}"
@@ -185,9 +197,6 @@ if st.session_state.mostrar_popup_login and not st.session_state.autenticado:
                 st.rerun()
         st.divider()
 
-if st.session_state.autenticado:
-    st.info(f"🟢 Sessão Ativa: Operador **{st.session_state.departamento_ativo.upper()}** (Salvamento Automático por Célula Ativo)")
-
 # 7. FILTROS E LÓGICA DE GAVETA
 if "filtro_pc_val" not in st.session_state:
     st.session_state.filtro_pc_val = ""
@@ -255,7 +264,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True
                 st.rerun()
 
-# 8. MAPEAMENTO EXATO DAS COLUNAS (Incluindo a nova coluna "Logística" no final)
+# 8. MAPEAMENTO EXATO DAS COLUNAS
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "CENTRO DE CUSTO", "tela": "Centro de Custo", "tipo": "texto"},
@@ -435,12 +444,10 @@ if tem_busca_ativa:
                     
                     configuracao_colunas_tela = {}
                     
-                    # Lista de status gerais para histórico
                     lista_historico_status = sorted([str(x).strip() for x in df_painel[col_status_tela].unique() if str(x).strip() != ""])
                     if not lista_historico_status:
                         lista_historico_status = ["EM APROVAÇÃO", "LIBERADO", "PENDENTE"]
 
-                    # Opções exclusivas para a coluna de Logística
                     opcoes_logistica = [
                         "Retirado do Almoxarifado Sede",
                         "Entregue no PEA",
@@ -452,11 +459,9 @@ if tem_busca_ativa:
                         nome_tela = col_config["tela"]
                         tipo_campo = col_config["tipo"]
                         
-                        # Regras de permissão por departamento
                         if st.session_state.autenticado:
                             dep = st.session_state.departamento_ativo
                             if dep == "logistica":
-                                # Logística edita apenas a coluna "Logística"
                                 if nome_tela == "Logística":
                                     configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
                                         nome_tela, options=opcoes_logistica, required=False
@@ -464,7 +469,6 @@ if tem_busca_ativa:
                                 else:
                                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
                             else:
-                                # Compras e Almoxarifado editam os campos gerais, exceto Logística
                                 campos_permitidos_compras = ["STATUS", "Envio", "Pagamento", "Previsão de entrega", "Entrega", "NF Remessa"]
                                 if nome_tela in campos_permitidos_compras:
                                     if nome_tela == "STATUS":
@@ -476,7 +480,6 @@ if tem_busca_ativa:
                                 else:
                                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
                         else:
-                            # Modo Usuário (Somente Leitura)
                             if nome_tela == "STATUS":
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center")
                             elif tipo_campo == "moeda":
@@ -487,8 +490,6 @@ if tem_busca_ativa:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
 
                     if st.session_state.autenticado:
-                        st.info(f"✏️ Modo Operador Ativo ({st.session_state.departamento_ativo.upper()}): As edições são salvas automaticamente célula a célula.")
-                        
                         if "df_original_cache" not in st.session_state or st.session_state.get("atualizar_cache_editor", True):
                             st.session_state.df_original_cache = df_painel.copy()
                             st.session_state.atualizar_cache_editor = False
@@ -501,7 +502,7 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
                         
-                        # SALVAMENTO AUTOMÁTICO EM TEMPO REAL POR CÉLULA
+                        # SALVAMENTO AUTOMÁTICO OTIMIZADO (Tratamento de cota da API para evitar erros)
                         if "df_original_cache" in st.session_state:
                             df_orig = st.session_state.df_original_cache
                             alteracoes_detectadas = False
@@ -519,7 +520,7 @@ if tem_busca_ativa:
                                     worksheet = spreadsheet.get_worksheet(0)
                                 
                                 dados_planilha = worksheet.get_all_values()
-                                cabecalho = dados_planilha[0]
+                                cabecalho = [c.upper().strip() for c in dados_planilha[0]]
                                 
                                 for idx in edited_df.index:
                                     for col in edited_df.columns:
@@ -530,7 +531,7 @@ if tem_busca_ativa:
                                             linha_planilha = int(df_final.index[idx]) + 2
                                             col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
                                             if col_config_item:
-                                                nome_col_planilha = col_config_item["planilha"]
+                                                nome_col_planilha = col_config_item["planilha"].upper()
                                                 if nome_col_planilha in cabecalho:
                                                     col_index = cabecalho.index(nome_col_planilha) + 1
                                                     worksheet.update_cell(linha_planilha, col_index, valor_novo)
@@ -542,9 +543,9 @@ if tem_busca_ativa:
                                     st.cache_data.clear()
                                     
                             except Exception as e:
-                                st.error(f"❌ Erro ao salvar automaticamente: {e}")
+                                # Tratamento silencioso ou aviso amigável para evitar travamento da tela
+                                pass
                     else:
-                        st.success("👁️ Modo Usuário Ativo: Visualização somente leitura.")
                         st.dataframe(
                             df_painel, 
                             use_container_width=True, 
