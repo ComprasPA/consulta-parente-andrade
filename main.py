@@ -163,7 +163,7 @@ if st.session_state.mostrar_popup_login and not st.session_state.autenticado:
 if st.session_state.autenticado:
     st.info(f"🟢 Sessão Ativa: Operador **{st.session_state.departamento_ativo.upper()}** (Modo Edição Liberado)")
 
-# 7. FILTROS E LÓGICA DE GAVETA
+# 7. FILTROS E LÓGICA DE GAVETA (Ordem: Pedido, Solicitação, Centro de Custo, Status e Data)
 if "filtro_pc_val" not in st.session_state:
     st.session_state.filtro_pc_val = ""
 if "filtro_sc_val" not in st.session_state:
@@ -254,12 +254,6 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "NF REMESSA", "tela": "NF Remessa", "tipo": "texto"}
 ]
 
-def ajustar_zeros_protheus(valor, tamanho_alvo):
-    val_limpo = str(valor).split('.')[0].strip()
-    if val_limpo and val_limpo.lower() != 'nan' and val_limpo != '0' and val_limpo != '':
-        return val_limpo.lstrip('0')  # Remove zeros à esquerda para comparação flexível
-    return ""
-
 def converter_para_numerico(valor):
     if not valor or str(valor).lower() == 'nan' or str(valor).strip() == '':
         return 0.0
@@ -286,7 +280,7 @@ def formatar_para_dd_mm_aaaa(valor):
     except:
         return txt
 
-# 9. MOTOR DE BUSCA FLEXÍVEL
+# 9. MOTOR DE BUSCA ROBUSTO E FLEXÍVEL
 tem_busca_ativa = st.session_state.filtro_pc_val or st.session_state.filtro_sc_val or st.session_state.filtro_cc_val or st.session_state.filtro_status_val != "Todos" or bool(st.session_state.filtro_data_val)
 
 if tem_busca_ativa:
@@ -295,19 +289,19 @@ if tem_busca_ativa:
     else:
         df_final = df_pc.copy()
         
-        # Filtro Flexível para Pedido (PC) - Ignora zeros à esquerda na busca
+        # Filtro Robusto para Pedido (PC) - Converte para string limpa sem casas decimais ou zeros excedentes para garantir o match
         if st.session_state.filtro_pc_val:
-            pc_termo = str(st.session_state.filtro_pc_val).strip().lstrip('0')
+            pc_termo = str(st.session_state.filtro_pc_val).strip()
             col_pc = next((c for c in df_final.columns if "PEDIDO" in c.upper() or "PEDIDOS" in c.upper()), None)
             if col_pc and col_pc in df_final.columns:
-                df_final = df_final[df_final[col_pc].astype(str).str.strip().str.lstrip('0').str.contains(pc_termo, na=False)]
+                df_final = df_final[df_final[col_pc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(pc_termo, na=False)]
 
-        # Filtro Flexível para Solicitação (SC)
+        # Filtro Robusto para Solicitação (SC)
         if st.session_state.filtro_sc_val:
-            sc_termo = str(st.session_state.filtro_sc_val).strip().lstrip('0')
+            sc_termo = str(st.session_state.filtro_sc_val).strip()
             col_sc = next((c for c in df_final.columns if "SOLICITA" in c.upper()), None)
             if col_sc and col_sc in df_final.columns:
-                df_final = df_final[df_final[col_sc].astype(str).str.strip().str.lstrip('0').str.contains(sc_termo, na=False)]
+                df_final = df_final[df_final[col_sc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(sc_termo, na=False)]
 
         # Filtro de Centro de Custo
         if st.session_state.filtro_cc_val:
