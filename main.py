@@ -88,7 +88,7 @@ if 'dados_globais' not in st.session_state or st.session_state.dados_globais.emp
 
 df_pc = st.session_state.dados_globais
 
-# Estados de sessão para controle de login e gaveta (gaveta inicia True por padrão)
+# Estados de sessão
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 if "departamento_ativo" not in st.session_state:
@@ -96,7 +96,7 @@ if "departamento_ativo" not in st.session_state:
 if "mostrar_popup_login" not in st.session_state:
     st.session_state.mostrar_popup_login = False
 if "gaveta_aberta" not in st.session_state:
-    st.session_state.gaveta_aberta = True  # Aberto por padrão no início
+    st.session_state.gaveta_aberta = True
 
 # 5. CABEÇALHO INTEGRADO
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
@@ -163,7 +163,7 @@ if st.session_state.mostrar_popup_login and not st.session_state.autenticado:
 if st.session_state.autenticado:
     st.info(f"🟢 Sessão Ativa: Operador **{st.session_state.departamento_ativo.upper()}** (Modo Edição Liberado)")
 
-# 7. FILTROS E LÓGICA DE GAVETA (Abre por padrão no início e fecha após pesquisar)
+# 7. FILTROS E LÓGICA DE GAVETA
 if "filtro_pc_val" not in st.session_state:
     st.session_state.filtro_pc_val = ""
 if "filtro_sc_val" not in st.session_state:
@@ -209,7 +209,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.filtro_cc_val = filtro_cc
                 st.session_state.filtro_status_val = filtro_status
                 st.session_state.filtro_data_val = filtro_data
-                st.session_state.gaveta_aberta = False  # Fecha a gaveta após a busca
+                st.session_state.gaveta_aberta = False  
                 st.rerun()
 
         with b2:
@@ -220,7 +220,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.filtro_cc_val = ""
                 st.session_state.filtro_status_val = "Todos"
                 st.session_state.filtro_data_val = ()
-                st.session_state.gaveta_aberta = True  # Mantém aberto ao limpar
+                st.session_state.gaveta_aberta = True  
                 st.rerun()
                 
         with b3:
@@ -257,7 +257,7 @@ DICIONARIO_COLUNAS_EXATAS = [
 def ajustar_zeros_protheus(valor, tamanho_alvo):
     val_limpo = str(valor).split('.')[0].strip()
     if val_limpo and val_limpo.lower() != 'nan' and val_limpo != '0' and val_limpo != '':
-        return val_limpo.zfill(tamanho_alvo)
+        return val_limpo.lstrip('0')  # Remove zeros à esquerda para comparação flexível
     return ""
 
 def converter_para_numerico(valor):
@@ -286,7 +286,7 @@ def formatar_para_dd_mm_aaaa(valor):
     except:
         return txt
 
-# 9. MOTOR DE BUSCA
+# 9. MOTOR DE BUSCA FLEXÍVEL
 tem_busca_ativa = st.session_state.filtro_pc_val or st.session_state.filtro_sc_val or st.session_state.filtro_cc_val or st.session_state.filtro_status_val != "Todos" or bool(st.session_state.filtro_data_val)
 
 if tem_busca_ativa:
@@ -295,28 +295,33 @@ if tem_busca_ativa:
     else:
         df_final = df_pc.copy()
         
+        # Filtro Flexível para Pedido (PC) - Ignora zeros à esquerda na busca
         if st.session_state.filtro_pc_val:
-            pc_termo = st.session_state.filtro_pc_val.strip()
+            pc_termo = str(st.session_state.filtro_pc_val).strip().lstrip('0')
             col_pc = next((c for c in df_final.columns if "PEDIDO" in c.upper() or "PEDIDOS" in c.upper()), None)
             if col_pc and col_pc in df_final.columns:
-                df_final = df_final[df_final[col_pc].astype(str).str.strip().str.contains(pc_termo, na=False)]
+                df_final = df_final[df_final[col_pc].astype(str).str.strip().str.lstrip('0').str.contains(pc_termo, na=False)]
 
+        # Filtro Flexível para Solicitação (SC)
         if st.session_state.filtro_sc_val:
-            sc_termo = st.session_state.filtro_sc_val.strip()
+            sc_termo = str(st.session_state.filtro_sc_val).strip().lstrip('0')
             col_sc = next((c for c in df_final.columns if "SOLICITA" in c.upper()), None)
             if col_sc and col_sc in df_final.columns:
-                df_final = df_final[df_final[col_sc].astype(str).str.strip().str.contains(sc_termo, na=False)]
+                df_final = df_final[df_final[col_sc].astype(str).str.strip().str.lstrip('0').str.contains(sc_termo, na=False)]
 
+        # Filtro de Centro de Custo
         if st.session_state.filtro_cc_val:
             cc_termo = st.session_state.filtro_cc_val.strip().lower()
             col_cc = next((c for c in df_final.columns if "CUSTO" in c.upper() or "CC" in c.upper()), None)
             if col_cc and col_cc in df_final.columns:
                 df_final = df_final[df_final[col_cc].astype(str).str.lower().str.contains(cc_termo, na=False)]
 
+        # Filtro de Status
         col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None)
         if st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
+        # Filtro de Data de Emissão
         if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
             if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
                 col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper() or "EMISSÃO" in c.upper()), None)
@@ -352,9 +357,9 @@ if tem_busca_ativa:
                         if tipo_campo == "data":
                             df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace(['nan', 'NONE', '', '0'], '')
                         elif tipo_campo == "pedido":
-                            df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: ajustar_zeros_protheus(val, 6))
+                            df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: str(val).split('.')[0].strip().zfill(6) if str(val).strip() and str(val).lower() != 'nan' else "")
                         elif tipo_campo == "produto":
-                            df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: ajustar_zeros_protheus(val, 10))
+                            df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: str(val).split('.')[0].strip().zfill(10) if str(val).strip() and str(val).lower() != 'nan' else "")
                         elif tipo_campo in ["moeda", "numero"]:
                             df_painel[nome_exibicao_tela] = valores_originais.apply(converter_para_numerico)
                         else:
