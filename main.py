@@ -350,7 +350,7 @@ if tem_busca_ativa:
 
         try:
             if not df_final.empty:
-                df_painel = pd.DataFrame()
+                df_painel = pd.DataFrame(index=df_final.index)
                 
                 for col_config in DICIONARIO_COLUNAS_EXATAS:
                     nome_alvo = col_config["planilha"].strip().upper().replace('Í', 'I')
@@ -378,11 +378,8 @@ if tem_busca_ativa:
                     else:
                         df_painel[nome_exibicao_tela] = ""
 
-                # Reseta o índice do painel para alinhar perfeitamente com o editor de dados (0 até N)
-                df_painel = df_painel.reset_index(drop=False)
-                # Mantém o índice original da planilha armazenado em uma coluna oculta ou auxiliar para salvamento seguro
-                if "original_row_index" not in df_painel.columns:
-                    df_painel["_row_idx"] = df_painel["index"] + 2 # +2 considera cabeçalho do Sheets (linha 1) e índice 0-based
+                # Associa a linha física exata da planilha (índice do df_final + 2 por causa do cabeçalho)
+                df_painel["_row_idx"] = [idx + 2 for idx in df_final.index]
 
                 col_status_tela = next((c for c in df_painel.columns if "STATUS" in c.upper()), None)
                 if col_status_tela:
@@ -420,27 +417,6 @@ if tem_busca_ativa:
                 if not df_painel.empty:
                     txt_status = f"🔍 Registros Localizados ({len(df_painel)} itens)"
                     st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
-                    
-                    c_down, _ = st.columns([2.5, 7.5])
-                    with c_down:
-                        out = BytesIO()
-                        df_excel_export = df_painel.drop(columns=["index", "_row_idx"], errors="ignore")
-                        with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
-                            df_excel_export.to_excel(wr, index=False, sheet_name="Relatório")
-                            workbook  = wr.book
-                            worksheet = wr.sheets["Relatório"]
-                            formato_moeda = workbook.add_format({'num_format': 'R$ #,##0.00'})
-                            for idx, col_config in enumerate(DICIONARIO_COLUNAS_EXATAS):
-                                if col_config["tipo"] == "moeda":
-                                    worksheet.set_column(idx, idx, 22, formato_moeda)
-
-                        st.download_button(
-                            label="📥 Extrair Relatório Operacional",
-                            data=out.getvalue(),
-                            file_name=f"Relatorio_Compras_Filtro.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True
-                        )
                     
                     configuracao_colunas_tela = {}
                     
@@ -489,8 +465,7 @@ if tem_busca_ativa:
                             else:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
 
-                    # Esconde as colunas auxiliares de índice na tela
-                    configuracao_colunas_tela["index"] = None
+                    # Oculta a coluna de índice físico na tela
                     configuracao_colunas_tela["_row_idx"] = None
 
                     if st.session_state.autenticado:
@@ -506,66 +481,109 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
                         
-                        # SALVAMENTO AUTOMÁTICO USANDO O ÍNDICE EXATO DA LINHA DA PLANILHA
-                        if st.button("💾 Salvar Alterações na Planilha", use_container_width=True):
-                            if "df_original_cache" in st.session_state:
-                                df_orig = st.session_state.df_original_cache
-                                alteracoes_detectadas = 0
-                                
-                                try:
-                                    scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-                                    creds_dict = dict(st.secrets["gcp_service_account"])
-                                    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-                                    client = gspread.authorize(creds)
+                        # Botões lado a lado (Extrair Relatório e Salvar Alterações discretamente)
+                        c_down1, c_down2, _ = st.columns([2.2, 2.2, 5.6])
+                        with c_down1:
+                            out = BytesIO()
+                            df_excel_export = df_painel.drop(columns=["_row_idx"], errors="ignore")
+                            with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
+                                df_excel_export.to_excel(wr, index=False, sheet_name="Relatório")
+                                workbook  = wr.book
+                                worksheet = wr.sheets["Relatório"]
+                                formato_moeda = workbook.add_format({'num_format': 'R$ #,##0.00'})
+                                for idx, col_config in enumerate(DICIONARIO_COLUNAS_EXATAS):
+                                    if col_config["tipo"] == "moeda":
+                                        worksheet.set_column(idx, idx, 22, formato_moeda)
+
+                            st.download_button(
+                                label="📥 Baixar Relatório",
+                                data=out.getvalue(),
+                                file_name=f"Relatorio_Compras_Filtro.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True
+                            )
+                        with c_down2:
+                            btn_salvar_dados = st.button("💾 Salvar Alterações", use_container_width=True)
+                            if btn_salvar_dados:
+                                if "df_original_cache" in st.session_state:
+                                    df_orig = st.session_state.df_original_cache
+                                    alteracoes_detectadas = 0
                                     
-                                    spreadsheet = client.open_by_key(FILE_ID)
                                     try:
-                                        worksheet = spreadsheet.worksheet("Pedidos")
-                                    except:
-                                        worksheet = spreadsheet.get_worksheet(0)
-                                    
-                                    dados_planilha = worksheet.get_all_values()
-                                    cabecalho_bruto = dados_planilha[0]
-                                    cabecalho_map = {c.upper().strip().replace('Í', 'I'): i + 1 for i, c in enumerate(cabecalho_bruto)}
-                                    
-                                    for idx in edited_df.index:
-                                        linha_planilha = int(edited_df.loc[idx, "_row_idx"])
-                                        for col in edited_df.columns:
-                                            if col in ["index", "_row_idx"]:
-                                                continue
-                                            
-                                            valor_antigo = str(df_orig.loc[idx, col])
-                                            valor_novo = str(edited_df.loc[idx, col])
-                                            
-                                            if valor_antigo != valor_novo:
-                                                col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
-                                                if col_config_item:
-                                                    nome_col_planilha = col_config_item["planilha"].upper().replace('Í', 'I')
-                                                    
-                                                    col_index = cabecalho_map.get(nome_col_planilha)
-                                                    if not col_index:
-                                                        for c_map, idx_val in cabecalho_map.items():
-                                                            if nome_col_planilha in c_map or c_map in nome_col_planilha:
-                                                                col_index = idx_val
-                                                                break
-                                                    
-                                                    if col_index:
-                                                        worksheet.update_cell(linha_planilha, col_index, valor_novo)
-                                                        alteracoes_detectadas += 1
-                                                        
-                                    if alteracoes_detectadas > 0:
-                                        st.success(f"✅ {alteracoes_detectadas} alteração(ões) salva(s) com sucesso no Google Sheets!")
-                                        st.session_state.df_original_cache = edited_df.copy()
-                                        st.cache_data.clear()
-                                        st.rerun()
-                                    else:
-                                        st.info("ℹ️ Nenhuma alteração foi realizada para salvar.")
+                                        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+                                        creds_dict = dict(st.secrets["gcp_service_account"])
+                                        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+                                        client = gspread.authorize(creds)
                                         
-                                except Exception as e:
-                                    st.error(f"❌ Erro ao salvar: {e}")
+                                        spreadsheet = client.open_by_key(FILE_ID)
+                                        try:
+                                            worksheet = spreadsheet.worksheet("Pedidos")
+                                        except:
+                                            worksheet = spreadsheet.get_worksheet(0)
+                                        
+                                        dados_planilha = worksheet.get_all_values()
+                                        cabecalho_bruto = dados_planilha[0]
+                                        cabecalho_map = {c.upper().strip().replace('Í', 'I'): i + 1 for i, c in enumerate(cabecalho_bruto)}
+                                        
+                                        for idx in edited_df.index:
+                                            linha_planilha = int(edited_df.loc[idx, "_row_idx"])
+                                            for col in edited_df.columns:
+                                                if col == "_row_idx":
+                                                    continue
+                                                
+                                                valor_antigo = str(df_orig.loc[idx, col])
+                                                valor_novo = str(edited_df.loc[idx, col])
+                                                
+                                                if valor_antigo != valor_novo:
+                                                    col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
+                                                    if col_config_item:
+                                                        nome_col_planilha = col_config_item["planilha"].upper().replace('Í', 'I')
+                                                        
+                                                        col_index = cabecalho_map.get(nome_col_planilha)
+                                                        if not col_index:
+                                                            for c_map, idx_val in cabecalho_map.items():
+                                                                if nome_col_planilha in c_map or c_map in nome_col_planilha:
+                                                                    col_index = idx_val
+                                                                    break
+                                                        
+                                                        if col_index:
+                                                            worksheet.update_cell(linha_planilha, col_index, valor_novo)
+                                                            alteracoes_detectadas += 1
+                                                            
+                                        if alteracoes_detectadas > 0:
+                                            st.success(f"✅ {alteracoes_detectadas} alteração(ões) gravada(s) com sucesso na planilha!")
+                                            st.session_state.df_original_cache = edited_df.copy()
+                                            st.cache_data.clear()
+                                            st.rerun()
+                                        else:
+                                            st.info("ℹ️ Nenhuma alteração foi realizada para salvar.")
+                                            
+                                    except Exception as e:
+                                        st.error(f"❌ Erro ao gravar: {e}")
                     else:
+                        c_down1, _ = st.columns([2.2, 7.8])
+                        with c_down1:
+                            out = BytesIO()
+                            df_excel_export = df_painel.drop(columns=["_row_idx"], errors="ignore")
+                            with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
+                                df_excel_export.to_excel(wr, index=False, sheet_name="Relatório")
+                                workbook  = wr.book
+                                worksheet = wr.sheets["Relatório"]
+                                formato_moeda = workbook.add_format({'num_format': 'R$ #,##0.00'})
+                                for idx, col_config in enumerate(DICIONARIO_COLUNAS_EXATAS):
+                                    if col_config["tipo"] == "moeda":
+                                        worksheet.set_column(idx, idx, 22, formato_moeda)
+
+                            st.download_button(
+                                label="📥 Baixar Relatório",
+                                data=out.getvalue(),
+                                file_name=f"Relatorio_Compras_Filtro.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True
+                            )
+
                         st.dataframe(
-                            df_painel.drop(columns=["index", "_row_idx"], errors="ignore"), 
+                            df_painel.drop(columns=["_row_idx"], errors="ignore"), 
                             use_container_width=True, 
                             hide_index=True, 
                             column_config=configuracao_colunas_tela
