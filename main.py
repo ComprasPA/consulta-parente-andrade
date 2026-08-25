@@ -438,8 +438,9 @@ if tem_busca_ativa:
                     
                     configuracao_colunas_tela = {}
                     
-                    # LISTA FIXA OFICIAL DE STATUS EXIGIDA PELA EMPRESA
-                    lista_historico_status = [
+                    # Combina os status já existentes na planilha com as alternativas oficiais exigidas
+                    status_existentes = [str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""] if col_status_verificacao else []
+                    status_oficiais = [
                         "ENVIADO AO FORNECEDOR",
                         "ENVIADO AO FINANCEIRO",
                         "PAGO",
@@ -452,6 +453,7 @@ if tem_busca_ativa:
                         "COMPRA DIRETA",
                         "CORREÇÃO DE PROCESSO"
                     ]
+                    lista_historico_status = sorted(list(set(status_existentes + status_oficiais)))
 
                     opcoes_logistica = [
                         "Retirado do Almoxarifado Sede",
