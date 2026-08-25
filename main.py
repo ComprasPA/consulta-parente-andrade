@@ -100,14 +100,6 @@ def carregar_dados_seguros():
             return pd.DataFrame()
             
         cabecalho = [str(c).strip() for c in dados[0]]
-        
-        # Se a coluna LOGISTICA não existir na planilha, cria automaticamente na primeira linha
-        if "LOGISTICA" not in [c.upper() for c in cabecalho]:
-            col_idx = len(cabecalho) + 1
-            worksheet.update_cell(1, col_idx, "LOGISTICA")
-            cabecalho.append("LOGISTICA")
-            dados = worksheet.get_all_values() # Recarrega com a nova coluna
-            
         linhas = dados[1:]
         
         linhas_normalizadas = []
@@ -504,7 +496,7 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
                         
-                        # SALVAMENTO AUTOMÁTICO ROBUSTO POR CÉLULA COM DETECÇÃO DINÂMICA DE COLUNA
+                        # SALVAMENTO AUTOMÁTICO ROBUSTO POR CÉLULA
                         if "df_original_cache" in st.session_state:
                             df_orig = st.session_state.df_original_cache
                             alteracoes_detectadas = False
@@ -534,16 +526,10 @@ if tem_busca_ativa:
                                             col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
                                             if col_config_item:
                                                 nome_col_planilha = col_config_item["planilha"].upper()
-                                                
-                                                # Se a coluna de logistica não estiver no cabeçalho físico, insere automaticamente na hora
-                                                if nome_col_planilha not in cabecalho:
-                                                    novo_idx = len(cabecalho) + 1
-                                                    worksheet.update_cell(1, novo_idx, nome_col_planilha)
-                                                    cabecalho.append(nome_col_planilha)
-                                                
-                                                col_index = cabecalho.index(nome_col_planilha) + 1
-                                                worksheet.update_cell(linha_planilha, col_index, valor_novo)
-                                                alteracoes_detectadas = True
+                                                if nome_col_planilha in cabecalho:
+                                                    col_index = cabecalho.index(nome_col_planilha) + 1
+                                                    worksheet.update_cell(linha_planilha, col_index, valor_novo)
+                                                    alteracoes_detectadas = True
                                                     
                                 if alteracoes_detectadas:
                                     st.toast("💾 Alteração salva automaticamente no Google Sheets!", icon="✅")
