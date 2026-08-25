@@ -88,15 +88,17 @@ if 'dados_globais' not in st.session_state or st.session_state.dados_globais.emp
 
 df_pc = st.session_state.dados_globais
 
-# Inicializa estados de sessão para controle de login oculto
+# Estados de sessão para controle da janela popup de login
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 if "departamento_ativo" not in st.session_state:
     st.session_state.departamento_ativo = ""
+if "mostrar_popup_login" not in st.session_state:
+    st.session_state.mostrar_popup_login = False
 
-# 5. CABEÇALHO INTEGRADO COM BOTÃO DISCRETO DE ACESSO OPERADOR
+# 5. CABEÇALHO INTEGRADO COM BOTÃO DE ACESSO DISCRETO
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
-c1, c2, c3 = st.columns([1.5, 5.5, 3.0])
+c1, c2, c3, c4 = st.columns([1.5, 4.5, 2.5, 1.5])
 
 with c1:
     if base64_logo: 
@@ -105,22 +107,38 @@ with c2:
     st.markdown('<div class="center-title-container"><p class="portal-title">Portal Gestão de Compras</p></div>', unsafe_allow_html=True)
 with c3:
     busca_cc = st.text_input("Busca Centro de Custo", placeholder="🔍 Rastrear Centro de Custo...", label_visibility="collapsed")
+with c4:
+    if not st.session_state.autenticado:
+        if st.button("🔐 Operador", use_container_width=True):
+            st.session_state.mostrar_popup_login = not st.session_state.mostrar_popup_login
+            st.rerun()
+    else:
+        if st.button("🚪 Sair", use_container_width=True):
+            st.session_state.autenticado = False
+            st.session_state.departamento_ativo = ""
+            st.session_state.mostrar_popup_login = False
+            st.rerun()
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 6. MENU DISCRETO DE LOGIN (Ocultado automaticamente após autenticação)
-if not st.session_state.autenticado:
-    with st.expander("🔐 Acesso Restrito a Operadores", expanded=False):
-        col_log1, col_log2, col_log3 = st.columns([2.5, 2.5, 1.5])
-        with col_log1:
-            dep_escolhido = st.selectbox("Departamento:", ["compras", "almoxarifado", "logistica"], key="select_dep_login")
-        with col_log2:
-            senha_tentativa = st.text_input("Senha:", type="password", placeholder="Digite a senha...", key="input_senha_login")
-        with col_log3:
+# 6. JANELA POPUP DISCRETA DE LOGIN (Exibida apenas se o botão for acionado e não estiver logado)
+if st.session_state.mostrar_popup_login and not st.session_state.autenticado:
+    with st.container():
+        st.markdown("""
+            <div style="background-color: #ffffff; padding: 20px; border-radius: 12px; border: 2px solid #478c3b; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                <h3 style="color: #1e293b; margin-top: 0; font-size: 18px;">🔐 Autenticação de Operador</h3>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        pop_c1, pop_c2, pop_c3, pop_c4 = st.columns([2.5, 2.5, 2.0, 1.5])
+        with pop_c1:
+            dep_escolhido = st.selectbox("Departamento:", ["compras", "almoxarifado", "logistica"], key="pop_dep")
+        with pop_c2:
+            senha_tentativa = st.text_input("Senha:", type="password", placeholder="Digite a senha...", key="pop_senha")
+        with pop_c3:
             st.write("")
             st.write("")
-            btn_entrar = st.button("Entrar", use_container_width=True)
-            
-            if btn_entrar:
+            btn_confirmar = st.button("Confirmar Acesso", use_container_width=True)
+            if btn_confirmar:
                 senhas = {
                     "compras": "compras@2026",
                     "almoxarifado": "almox@2026",
@@ -129,21 +147,22 @@ if not st.session_state.autenticado:
                 if senha_tentativa == senhas.get(dep_escolhido):
                     st.session_state.autenticado = True
                     st.session_state.departamento_ativo = dep_escolhido
+                    st.session_state.mostrar_popup_login = False
+                    st.success("Autenticado com sucesso!")
                     st.rerun()
                 else:
                     st.error("Senha incorreta!")
-else:
-    # Barra discreta mostrando quem está logado com opção de sair
-    col_info, col_sair = st.columns([8, 2])
-    with col_info:
-        st.success(f"🟢 Sessão ativa como **Operador ({st.session_state.departamento_ativo.upper()})** - Edição liberada.")
-    with col_sair:
-        if st.button("🚪 Sair / Bloquear", use_container_width=True):
-            st.session_state.autenticado = False
-            st.session_state.departamento_ativo = ""
-            st.rerun()
+        with pop_c4:
+            st.write("")
+            st.write("")
+            if st.button("✖ Fechar", use_container_width=True):
+                st.session_state.mostrar_popup_login = False
+                st.rerun()
+        st.divider()
 
-st.write("")
+# Aviso discreto de sessão ativa para o operador
+if st.session_state.autenticado:
+    st.info(f"🟢 Sessão Ativa: Operador **{st.session_state.departamento_ativo.upper()}** (Modo Edição Liberado)")
 
 # 7. FILTROS E LÓGICA DE GAVETA
 if "filtro_status_val" not in st.session_state:
@@ -416,7 +435,7 @@ if tem_busca_ativa:
                             else:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right")
 
-                    # CONTROLE DE PERFIL: SE AUTENTICADO, EXIBE O EDITOR DE COMPRAS
+                    # EXIBIÇÃO CONFORME AUTENTICAÇÃO (EDITOR VS VISUALIZAÇÃO)
                     if st.session_state.autenticado:
                         st.info(f"✏️ Modo Operador Ativo ({st.session_state.departamento_ativo.upper()}): Edite os campos e clique em 'Salvar Alterações'.")
                         
