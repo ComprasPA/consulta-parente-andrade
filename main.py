@@ -95,7 +95,7 @@ if 'dados_globais' not in st.session_state or st.session_state.dados_globais.emp
 
 df_pc = st.session_state.dados_globais
 
-# Estados de sessão
+# Estados de sessão (Segurança: Exige login a cada recarregamento da página)
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 if "departamento_ativo" not in st.session_state:
@@ -170,7 +170,7 @@ if st.session_state.mostrar_popup_login and not st.session_state.autenticado:
 if st.session_state.autenticado:
     st.info(f"🟢 Sessão Ativa: Operador **{st.session_state.departamento_ativo.upper()}** (Modo Edição Liberado)")
 
-# 7. FILTROS E LÓGICA DE GAVETA (Ordem: Pedido, Solicitação, Centro de Custo, Status e Data)
+# 7. FILTROS E LÓGICA DE GAVETA
 if "filtro_pc_val" not in st.session_state:
     st.session_state.filtro_pc_val = ""
 if "filtro_sc_val" not in st.session_state:
@@ -287,7 +287,7 @@ def formatar_para_dd_mm_aaaa(valor):
     except:
         return txt
 
-# 9. MOTOR DE BUSCA CASCATA (Acumulativo por campo preenchido)
+# 9. MOTOR DE BUSCA CASCATA (Filtros acumulativos)
 tem_busca_ativa = st.session_state.filtro_pc_val or st.session_state.filtro_sc_val or st.session_state.filtro_cc_val or st.session_state.filtro_status_val != "Todos" or bool(st.session_state.filtro_data_val)
 
 if tem_busca_ativa:
@@ -297,33 +297,33 @@ if tem_busca_ativa:
         df_final = df_pc.copy()
         colunas_normalizadas = {c.upper().strip(): c for c in df_final.columns}
 
-        # Filtro acumulativo de Pedido (PC)
+        # Filtro de Pedido (PC)
         if st.session_state.filtro_pc_val:
             pc_termo = str(st.session_state.filtro_pc_val).strip()
             col_pc = colunas_normalizadas.get("PEDIDO")
             if col_pc:
                 df_final = df_final[df_final[col_pc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(pc_termo, na=False)]
 
-        # Filtro acumulativo de Solicitação (SC)
+        # Filtro de Solicitação (SC)
         if st.session_state.filtro_sc_val:
             sc_termo = str(st.session_state.filtro_sc_val).strip()
             col_sc = next((colunas_normalizadas[c] for c in colunas_normalizadas if "SOLICITA" in c), None)
             if col_sc:
                 df_final = df_final[df_final[col_sc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(sc_termo, na=False)]
 
-        # Filtro acumulativo de Centro de Custo
+        # Filtro de Centro de Custo
         if st.session_state.filtro_cc_val:
             cc_termo = st.session_state.filtro_cc_val.strip().lower()
             col_cc = next((colunas_normalizadas[c] for c in colunas_normalizadas if "CUSTO" in c or "CC" in c), None)
             if col_cc:
                 df_final = df_final[df_final[col_cc].astype(str).str.lower().str.contains(cc_termo, na=False)]
 
-        # Filtro acumulativo de Status
+        # Filtro de Status
         col_status_verificacao = next((colunas_normalizadas[c] for c in colunas_normalizadas if "STATUS" in c), None)
         if st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
-        # Filtro acumulativo de Data de Emissão
+        # Filtro de Data de Emissão
         if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
             if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
                 col_emissao_original = next((colunas_normalizadas[c] for c in colunas_normalizadas if "EMISSAO" in c or "EMISSÃO" in c), None)
@@ -420,23 +420,39 @@ if tem_busca_ativa:
                         )
                     
                     configuracao_colunas_tela = {}
+                    
+                    # Histórico de status para lista suspensa no editor
+                    lista_historico_status = sorted([str(x).strip() for x in df_painel[col_status_tela].unique() if str(x).strip() != ""])
+                    if not lista_historico_status:
+                        lista_historico_status = ["EM APROVAÇÃO", "LIBERADO", "PENDENTE"]
+
                     for col_config in DICIONARIO_COLUNAS_EXATAS:
                         nome_tela = col_config["tela"]
                         tipo_campo = col_config["tipo"]
-                        if nome_tela == "STATUS":
-                            configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center")
-                        elif tipo_campo == "moeda":
-                            configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right")
-                        elif tipo_campo == "numero":
-                            configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right")
-                        else:
-                            if nome_tela in ["Fornecedor", "Descrição"]:
-                                configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="left")
+                        
+                        # Definindo restrições estritas de quais campos o operador pode editar
+                        campos_permitidos_edicao = ["STATUS", "Envio", "Pagamento", "Previsão de entrega", "Entrega", "NF Remessa"]
+                        
+                        if st.session_state.autenticado and nome_tela in campos_permitidos_edicao:
+                            if nome_tela == "STATUS":
+                                configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
+                                    nome_tela, options=lista_historico_status, required=True
+                                )
                             else:
-                                configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right")
+                                configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=False)
+                        else:
+                            # Demais campos fixos / Somente leitura
+                            if nome_tela == "STATUS":
+                                configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center")
+                            elif tipo_campo == "moeda":
+                                configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right")
+                            elif tipo_campo == "numero":
+                                configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right")
+                            else:
+                                configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
 
                     if st.session_state.autenticado:
-                        st.info(f"✏️ Modo Operador Ativo ({st.session_state.departamento_ativo.upper()}): Edite os campos e clique em 'Salvar Alterações'.")
+                        st.info(f"✏️ Modo Operador Ativo ({st.session_state.departamento_ativo.upper()}): Edite os campos autorizados e clique em 'Salvar Alterações'.")
                         
                         if "df_original_cache" not in st.session_state or st.session_state.get("atualizar_cache_editor", True):
                             st.session_state.df_original_cache = df_painel.copy()
