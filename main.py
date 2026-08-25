@@ -5,6 +5,8 @@ import re
 from datetime import datetime, timedelta
 from io import BytesIO
 import urllib.request
+import gspread
+from google.oauth2.service_account import Credentials
 
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
@@ -59,11 +61,11 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+FILE_ID = "1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o"
+
 # 4. CARREGAMENTO COM ESTADO
 def carregar_dados_seguros():
-    file_id = "1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o"
-    URL_CSV = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv&gid=0"
-    
+    URL_CSV = f"https://docs.google.com/spreadsheets/d/{FILE_ID}/export?format=csv&gid=0"
     try:
         df = pd.read_csv(URL_CSV, dtype=str).fillna('')
         if "<html" in str(df.columns[0]).lower():
@@ -72,7 +74,7 @@ def carregar_dados_seguros():
         return df
     except Exception as e_csv:
         try:
-            URL_XLSX = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
+            URL_XLSX = f"https://docs.google.com/spreadsheets/d/{FILE_ID}/export?format=xlsx"
             excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
             aba = "Pedidos_App" if "Pedidos_App" in excel.sheet_names else ("Pedidos" if "Pedidos" in excel.sheet_names else excel.sheet_names[0])
             df = pd.read_excel(excel, sheet_name=aba, dtype=str).fillna('')
@@ -87,7 +89,7 @@ if 'dados_globais' not in st.session_state or st.session_state.dados_globais.emp
 
 df_pc = st.session_state.dados_globais
 
-# 5. CABEÇALHO INTEGRADO (Apenas Centro de Custo)
+# 5. CABEÇALHO INTEGRADO
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
 c1, c2, c3 = st.columns([1.5, 6.5, 2.0])
 
@@ -170,28 +172,28 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True  
                 st.rerun()
 
-# 7. MAPEAMENTO EXATO DAS COLUNAS (Baseado exatamente nos cabeçalhos da sua planilha)
+# 7. MAPEAMENTO EXATO DAS COLUNAS
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
-    {"planilha": "Centro de Custo", "tela": "Centro de Custo", "tipo": "texto"},
-    {"planilha": "Solicitação", "tela": "Solicitação", "tipo": "texto"},
-    {"planilha": "Pedido", "tela": "Pedidos", "tipo": "pedido"},   
-    {"planilha": "Condição Pagamento", "tela": "Condição Pagamento", "tipo": "texto"},
-    {"planilha": "Data Emissao", "tela": "Emissão", "tipo": "data"},
-    {"planilha": "Data Liberação", "tela": "Aprovação", "tipo": "data"},
-    {"planilha": "Envio", "tela": "Envio", "tipo": "data"},
-    {"planilha": "Pagamento", "tela": "Pagamento", "tipo": "texto"}, 
-    {"planilha": "Previsão de entrega", "tela": "Previsão de entrega", "tipo": "data"},
-    {"planilha": "Entrega", "tela": "Entrega", "tipo": "data"},
-    {"planilha": "Fornecedor", "tela": "Fornecedor", "tipo": "texto"},
-    {"planilha": "Grupo", "tela": "Grupo", "tipo": "texto"},
-    {"planilha": "Produto", "tela": "Produto", "tipo": "produto"},                 
-    {"planilha": "Descricao", "tela": "Descrição", "tipo": "texto"},
+    {"planilha": "CENTRO DE CUSTO", "tela": "Centro de Custo", "tipo": "texto"},
+    {"planilha": "SOLICITAÇÃO", "tela": "Solicitação", "tipo": "texto"},
+    {"planilha": "PEDIDO", "tela": "Pedidos", "tipo": "pedido"},   
+    {"planilha": "CONDIÇÃO PAGAMENTO", "tela": "Condição Pagamento", "tipo": "texto"},
+    {"planilha": "EMISSÃO", "tela": "Emissão", "tipo": "data"},
+    {"planilha": "APROVAÇÃO", "tela": "Aprovação", "tipo": "data"},
+    {"planilha": "ENVIO", "tela": "Envio", "tipo": "data"},
+    {"planilha": "PAGAMENTO", "tela": "Pagamento", "tipo": "texto"}, 
+    {"planilha": "PREVISÃO DE ENTREGA", "tela": "Previsão de entrega", "tipo": "data"},
+    {"planilha": "ENTREGA", "tela": "Entrega", "tipo": "data"},
+    {"planilha": "FORNECEDOR", "tela": "Fornecedor", "tipo": "texto"},
+    {"planilha": "GRUPO", "tela": "Grupo", "tipo": "texto"},
+    {"planilha": "PRODUTO", "tela": "Produto", "tipo": "produto"},                 
+    {"planilha": "DESCRIÇÃO", "tela": "Descrição", "tipo": "texto"},
     {"planilha": "UM", "tela": "UM", "tipo": "texto"},
-    {"planilha": "Qtd", "tela": "Qtd", "tipo": "numero"},
-    {"planilha": "Preço Unitário", "tela": "Preço Unitário", "tipo": "moeda"},
-    {"planilha": "Valor Total", "tela": "Valor Total", "tipo": "moeda"},
-    {"planilha": "NF Remessa", "tela": "NF Remessa", "tipo": "texto"}
+    {"planilha": "QTD", "tela": "Qtd", "tipo": "numero"},
+    {"planilha": "PREÇO UNITÁRIO", "tela": "Preço Unitário", "tipo": "moeda"},
+    {"planilha": "VALOR TOTAL", "tela": "Valor Total", "tipo": "moeda"},
+    {"planilha": "NF REMESSA", "tela": "NF Remessa", "tipo": "texto"}
 ]
 
 def ajustar_zeros_protheus(valor, tamanho_alvo):
@@ -259,7 +261,7 @@ if tem_busca_ativa:
 
         if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
             if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
-                col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper()), None)
+                col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper() or "EMISSÃO" in c.upper()), None)
                 if col_emissao_original:
                     datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed', dayfirst=True).dt.date
                     df_final = df_final[(datas_convertidas >= st.session_state.filtro_data_val[0]) & (datas_convertidas <= st.session_state.filtro_data_val[1])]
@@ -268,43 +270,24 @@ if tem_busca_ativa:
             if not df_final.empty:
                 df_painel = pd.DataFrame(index=df_final.index)
                 
-                # MAPEAMENTO ROBUSTO POR NOME EXATO E CORRESPONDÊNCIA PARCIAL DE CABEÇALHO
                 for col_config in DICIONARIO_COLUNAS_EXATAS:
-                    nome_original_planilha = col_config["planilha"].strip().upper()
+                    nome_alvo = col_config["planilha"].strip().upper()
                     nome_exibicao_tela = col_config["tela"]
                     tipo_campo = col_config["tipo"]
                     
                     col_real = None
                     for c in df_final.columns:
                         c_up = c.strip().upper()
-                        if c_up == nome_original_planilha:
+                        if c_up == nome_alvo or c_up.replace("Ã", "A").replace("Ç", "C").replace("Õ", "O") == nome_alvo.replace("Ã", "A").replace("Ç", "C").replace("Õ", "O"):
                             col_real = c
                             break
                     
-                    # Se não achar o nome exato, faz varredura por aproximação inteligente baseada na sua planilha do Excel
                     if not col_real:
                         for c in df_final.columns:
                             c_up = c.strip().upper()
-                            if "STATUS" in nome_original_planilha and "STATUS" in c_up: col_real = c; break
-                            if "CENTRO" in nome_original_planilha and "CUSTO" in nome_original_planilha and ("CUSTO" in c_up or "CC" in c_up): col_real = c; break
-                            if "SOLICITA" in nome_original_planilha and "SOLICITA" in c_up: col_real = c; break
-                            if "PEDIDO" in nome_original_planilha and ("PEDIDO" in c_up or "PEDIDOS" in c_up): col_real = c; break
-                            if "CONDICÃO" in nome_original_planilha and "PAGAMENTO" in nome_original_planilha and "COND" in c_up: col_real = c; break
-                            if "EMISSAO" in nome_original_planilha and "EMISS" in c_up: col_real = c; break
-                            if ("LIBERACÃO" in nome_original_planilha or "APROVACAO" in nome_original_planilha) and ("LIBERA" in c_up or "APROV" in c_up): col_real = c; break
-                            if "ENVIO" in nome_original_planilha and "ENVIO" in c_up: col_real = c; break
-                            if "PAGAMENTO" in nome_original_planilha and "PAGAMENTO" in c_up and "COND" not in c_up: col_real = c; break
-                            if "PREVISAO" in nome_original_planilha and "PREVISAO" in c_up: col_real = c; break
-                            if "ENTREGA" in nome_original_planilha and "ENTREGA" in c_up and "PREVISAO" not in c_up: col_real = c; break
-                            if "FORNECEDOR" in nome_original_planilha and "FORN" in c_up: col_real = c; break
-                            if "GRUPO" in nome_original_planilha and "GRUPO" in c_up: col_real = c; break
-                            if "PRODUTO" in nome_original_planilha and "PRODUTO" in c_up: col_real = c; break
-                            if "DESCRICAO" in nome_original_planilha and "DESCR" in c_up: col_real = c; break
-                            if "UM" in nome_original_planilha and c_up == "UM": col_real = c; break
-                            if "QTD" in nome_original_planilha and "QTD" in c_up: col_real = c; break
-                            if "PREÇO" in nome_original_planilha and "PREÇO" in c_up: col_real = c; break
-                            if "VALOR" in nome_original_planilha and "VALOR" in c_up: col_real = c; break
-                            if "REMESSA" in nome_original_planilha and "REMESSA" in c_up: col_real = c; break
+                            if nome_alvo in c_up or c_up in nome_alvo:
+                                col_real = c
+                                break
 
                     if col_real:
                         valores_originais = df_final[col_real]
@@ -321,7 +304,6 @@ if tem_busca_ativa:
                     else:
                         df_painel[nome_exibicao_tela] = ""
 
-                # REGRA: Baseado no STATUS da linha, define N/A para Previsão de entrega e Entrega
                 col_status_tela = next((c for c in df_painel.columns if "STATUS" in c.upper()), None)
                 if col_status_tela:
                     termos_excecao = ["SERVIÇO", "CANCELADO PELO SOLICITANTE", "REJEITADO PELO APROVADOR", "COMPRA DIRETA"]
@@ -395,9 +377,15 @@ if tem_busca_ativa:
                             else:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right")
 
-                    # CONTROLE DE PERFIL DE ACESSO
+                    # CONTROLE DE PERFIL DE ACESSO E SALVAMENTO POR CÉLULA ALTERADA
                     if "Operador" in perfil_usuario:
-                        st.info("✏️ Modo Operador Ativo: Você pode editar os campos diretamente na tabela abaixo.")
+                        st.info("✏️ Modo Operador Ativo: Edite os campos e clique em Salvar Alterações.")
+                        
+                        # Salva o dataframe original na sessão para comparar o que mudou
+                        if "df_original_cache" not in st.session_state or st.session_state.get("atualizar_cache_editor", True):
+                            st.session_state.df_original_cache = df_painel.copy()
+                            st.session_state.atualizar_cache_editor = False
+
                         edited_df = st.data_editor(
                             df_painel, 
                             use_container_width=True, 
@@ -405,8 +393,55 @@ if tem_busca_ativa:
                             column_config=configuracao_colunas_tela,
                             key="editor_painel_compras"
                         )
+                        
                         if st.button("💾 Salvar Alterações"):
-                            st.info("Funcionalidade de salvamento preparada. Configure as credenciais do Google Sheets para persistir as alterações editadas.")
+                            try:
+                                scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+                                creds_dict = dict(st.secrets["gcp_service_account"])
+                                creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+                                client = gspread.authorize(creds)
+                                
+                                spreadsheet = client.open_by_key(FILE_ID)
+                                worksheet = spreadsheet.get_worksheet(0)
+                                
+                                # Lê os dados atuais da planilha do Google para mapear exatamente as linhas originais
+                                dados_planilha = worksheet.get_all_values()
+                                cabecalho = dados_planilha[0]
+                                
+                                alteracoes_realizadas = 0
+                                df_orig = st.session_state.df_original_cache
+                                
+                                # Compara linha por linha e coluna por coluna o que foi modificado pelo operador
+                                for idx in edited_df.index:
+                                    for col in edited_df.columns:
+                                        valor_antigo = str(df_orig.loc[idx, col])
+                                        valor_novo = str(edited_df.loc[idx, col])
+                                        
+                                        if valor_antigo != valor_novo:
+                                            # Identifica a linha real na planilha do Google (considerando o índice do df original + 2 por causa do cabeçalho)
+                                            linha_planilha = int(df_final.index[idx]) + 2
+                                            
+                                            # Identifica a coluna exata na planilha do Google pelo nome do cabeçalho
+                                            col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
+                                            if col_config_item:
+                                                nome_col_planilha = col_config_item["planilha"]
+                                                if nome_col_planilha in cabecalho:
+                                                    col_index = cabecalho.index(nome_col_planilha) + 1
+                                                    
+                                                    # Atualiza apenas a célula alterada no Google Sheets
+                                                    worksheet.update_cell(linha_planilha, col_index, valor_novo)
+                                                    alteracoes_realizadas += 1
+
+                                if alteracoes_realizadas > 0:
+                                    st.success(f"✅ {alteracoes_realizadas} alteração(ões) salva(s) com sucesso na planilha do Google Sheets!")
+                                    st.session_state.atualizar_cache_editor = True
+                                    st.cache_data.clear()
+                                    st.rerun()
+                                else:
+                                    st.info("ℹ️ Nenhuma alteração foi detectada para salvar.")
+                                    
+                            except Exception as e:
+                                st.error(f"❌ Erro ao salvar no Google Sheets: {e}")
                     else:
                         st.success("👁️ Modo Usuário Ativo: Visualização somente leitura.")
                         st.dataframe(
