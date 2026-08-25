@@ -27,7 +27,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Com ajuste de contraste para a lista suspensa / dropdown)
+# 3. CSS MODERNIZADO (Contraste limpo para o dropdown da tabela)
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
@@ -57,7 +57,7 @@ st.markdown("""
     div[data-testid="stDataFrame"] { background: #ffffff; padding: 16px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
     div[data-testid="stDataFrame"] table th { white-space: nowrap !important; min-width: max-content !important; }
 
-    /* ESTILIZAÇÃO CUSTOMIZADA PARA O DROPDOWN / LISTA SUSPENSA DA TABELA EDITÁVEL */
+    /* ESTILIZAÇÃO DO DROPDOWN / LISTA SUSPENSA */
     div[data-baseweb="menu"], ul[data-baseweb="menu"], div[role="listbox"] {
         background-color: #ffffff !important;
         color: #1e293b !important;
@@ -186,7 +186,7 @@ if st.session_state.mostrar_popup_login and not st.session_state.autenticado:
         st.divider()
 
 if st.session_state.autenticado:
-    st.info(f"🟢 Sessão Ativa: Operador **{st.session_state.departamento_ativo.upper()}** (Modo Edição Liberado)")
+    st.info(f"🟢 Sessão Ativa: Operador **{st.session_state.departamento_ativo.upper()}** (Salvamento Automático por Célula Ativo)")
 
 # 7. FILTROS E LÓGICA DE GAVETA
 if "filtro_pc_val" not in st.session_state:
@@ -305,7 +305,7 @@ def formatar_para_dd_mm_aaaa(valor):
     except:
         return txt
 
-# 9. MOTOR DE BUSCA CASCATA (Filtros acumulativos)
+# 9. MOTOR DE BUSCA CASCATA
 tem_busca_ativa = st.session_state.filtro_pc_val or st.session_state.filtro_sc_val or st.session_state.filtro_cc_val or st.session_state.filtro_status_val != "Todos" or bool(st.session_state.filtro_data_val)
 
 if tem_busca_ativa:
@@ -315,33 +315,28 @@ if tem_busca_ativa:
         df_final = df_pc.copy()
         colunas_normalizadas = {c.upper().strip(): c for c in df_final.columns}
 
-        # Filtro de Pedido (PC)
         if st.session_state.filtro_pc_val:
             pc_termo = str(st.session_state.filtro_pc_val).strip()
             col_pc = colunas_normalizadas.get("PEDIDO")
             if col_pc:
                 df_final = df_final[df_final[col_pc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(pc_termo, na=False)]
 
-        # Filtro de Solicitação (SC)
         if st.session_state.filtro_sc_val:
             sc_termo = str(st.session_state.filtro_sc_val).strip()
             col_sc = next((colunas_normalizadas[c] for c in colunas_normalizadas if "SOLICITA" in c), None)
             if col_sc:
                 df_final = df_final[df_final[col_sc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(sc_termo, na=False)]
 
-        # Filtro de Centro de Custo
         if st.session_state.filtro_cc_val:
             cc_termo = st.session_state.filtro_cc_val.strip().lower()
             col_cc = next((colunas_normalizadas[c] for c in colunas_normalizadas if "CUSTO" in c or "CC" in c), None)
             if col_cc:
                 df_final = df_final[df_final[col_cc].astype(str).str.lower().str.contains(cc_termo, na=False)]
 
-        # Filtro de Status
         col_status_verificacao = next((colunas_normalizadas[c] for c in colunas_normalizadas if "STATUS" in c), None)
         if st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
-        # Filtro de Data de Emissão
         if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
             if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
                 col_emissao_original = next((colunas_normalizadas[c] for c in colunas_normalizadas if "EMISSAO" in c or "EMISSÃO" in c), None)
@@ -439,7 +434,7 @@ if tem_busca_ativa:
                     
                     configuracao_colunas_tela = {}
                     
-                    # Histórico de status para lista suspensa no editor
+                    # Lista suspensa baseada no histórico da coluna STATUS
                     lista_historico_status = sorted([str(x).strip() for x in df_painel[col_status_tela].unique() if str(x).strip() != ""])
                     if not lista_historico_status:
                         lista_historico_status = ["EM APROVAÇÃO", "LIBERADO", "PENDENTE"]
@@ -448,7 +443,7 @@ if tem_busca_ativa:
                         nome_tela = col_config["tela"]
                         tipo_campo = col_config["tipo"]
                         
-                        # Apenas os campos solicitados ficam editáveis; os demais ficam fixos (somente leitura)
+                        # Restrição estrita de colunas autorizadas para edição
                         campos_permitidos_edicao = ["STATUS", "Envio", "Pagamento", "Previsão de entrega", "Entrega", "NF Remessa"]
                         
                         if st.session_state.autenticado and nome_tela in campos_permitidos_edicao:
@@ -469,7 +464,7 @@ if tem_busca_ativa:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
 
                     if st.session_state.autenticado:
-                        st.info(f"✏️ Modo Operador Ativo ({st.session_state.departamento_ativo.upper()}): Edite os campos autorizados e clique em 'Salvar Alterações'.")
+                        st.info(f"✏️ Modo Operador Ativo ({st.session_state.departamento_ativo.upper()}): As edições são salvas automaticamente célula a célula.")
                         
                         if "df_original_cache" not in st.session_state or st.session_state.get("atualizar_cache_editor", True):
                             st.session_state.df_original_cache = df_painel.copy()
@@ -483,7 +478,11 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
                         
-                        if st.button("💾 Salvar Alterações"):
+                        # SALVAMENTO AUTOMÁTICO EM TEMPO REAL POR CÉLULA
+                        if "df_original_cache" in st.session_state:
+                            df_orig = st.session_state.df_original_cache
+                            alteracoes_detectadas = False
+                            
                             try:
                                 scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
                                 creds_dict = dict(st.secrets["gcp_service_account"])
@@ -499,9 +498,6 @@ if tem_busca_ativa:
                                 dados_planilha = worksheet.get_all_values()
                                 cabecalho = dados_planilha[0]
                                 
-                                alteracoes_realizadas = 0
-                                df_orig = st.session_state.df_original_cache
-                                
                                 for idx in edited_df.index:
                                     for col in edited_df.columns:
                                         valor_antigo = str(df_orig.loc[idx, col])
@@ -515,18 +511,15 @@ if tem_busca_ativa:
                                                 if nome_col_planilha in cabecalho:
                                                     col_index = cabecalho.index(nome_col_planilha) + 1
                                                     worksheet.update_cell(linha_planilha, col_index, valor_novo)
-                                                    alteracoes_realizadas += 1
-
-                                if alteracoes_realizadas > 0:
-                                    st.success(f"✅ {alteracoes_realizadas} alteração(ões) salva(s) com sucesso na planilha do Google Sheets!")
-                                    st.session_state.atualizar_cache_editor = True
+                                                    alteracoes_detectadas = True
+                                                    
+                                if alteracoes_detectadas:
+                                    st.toast("💾 Alteração salva automaticamente no Google Sheets!", icon="✅")
+                                    st.session_state.df_original_cache = edited_df.copy()
                                     st.cache_data.clear()
-                                    st.rerun()
-                                else:
-                                    st.info("ℹ️ Nenhuma alteração foi detectada para salvar.")
                                     
                             except Exception as e:
-                                st.error(f"❌ Erro ao salvar no Google Sheets: {e}")
+                                st.error(f"❌ Erro ao salvar automaticamente: {e}")
                     else:
                         st.success("👁️ Modo Usuário Ativo: Visualização somente leitura.")
                         st.dataframe(
