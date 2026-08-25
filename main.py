@@ -88,9 +88,15 @@ if 'dados_globais' not in st.session_state or st.session_state.dados_globais.emp
 
 df_pc = st.session_state.dados_globais
 
-# 5. CABEÇALHO INTEGRADO
+# Inicializa estados de sessão para controle de login oculto
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
+if "departamento_ativo" not in st.session_state:
+    st.session_state.departamento_ativo = ""
+
+# 5. CABEÇALHO INTEGRADO COM BOTÃO DISCRETO DE ACESSO OPERADOR
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
-c1, c2, c3 = st.columns([1.5, 6.5, 2.0])
+c1, c2, c3 = st.columns([1.5, 5.5, 3.0])
 
 with c1:
     if base64_logo: 
@@ -101,35 +107,41 @@ with c3:
     busca_cc = st.text_input("Busca Centro de Custo", placeholder="🔍 Rastrear Centro de Custo...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 6. PAINEL DE CONTROLE DE ACESSO CENTRALIZADO (Substitui a barra lateral inacessível)
-with st.container():
-    col_acc1, col_acc2 = st.columns([3, 7])
-    with col_acc1:
-        perfil_usuario = st.selectbox("Selecione o seu perfil de acesso:", ["Usuário (Visualização)", "Operador (Edição)"])
-    
-    operador_autenticado = False
-    login_operador = ""
-
-    if "Operador" in perfil_usuario:
-        with st.expander("🔐 Clique aqui para fazer o Login do Operador", expanded=True):
-            col_op1, col_op2 = st.columns(2)
-            with col_op1:
-                login_operador = st.selectbox("Seu Departamento:", ["compras", "almoxarifado", "logistica"])
-            with col_op2:
-                senha_digitada = st.text_input("Senha de Acesso:", type="password", placeholder="Digite sua senha...")
+# 6. MENU DISCRETO DE LOGIN (Ocultado automaticamente após autenticação)
+if not st.session_state.autenticado:
+    with st.expander("🔐 Acesso Restrito a Operadores", expanded=False):
+        col_log1, col_log2, col_log3 = st.columns([2.5, 2.5, 1.5])
+        with col_log1:
+            dep_escolhido = st.selectbox("Departamento:", ["compras", "almoxarifado", "logistica"], key="select_dep_login")
+        with col_log2:
+            senha_tentativa = st.text_input("Senha:", type="password", placeholder="Digite a senha...", key="input_senha_login")
+        with col_log3:
+            st.write("")
+            st.write("")
+            btn_entrar = st.button("Entrar", use_container_width=True)
             
-            SENHAS_OPERADORES = {
-                "compras": "compras@2026",
-                "almoxarifado": "almox@2026",
-                "logistica": "log@2026"
-            }
-            
-            if senha_digitada == SENHAS_OPERADORES.get(login_operador):
-                st.success(f"✅ Operador **{login_operador.upper()}** autenticado com sucesso para edições!")
-                operador_autenticado = True
-            elif senha_digitada != "":
-                st.error("❌ Senha incorreta!")
-                operador_autenticado = False
+            if btn_entrar:
+                senhas = {
+                    "compras": "compras@2026",
+                    "almoxarifado": "almox@2026",
+                    "logistica": "log@2026"
+                }
+                if senha_tentativa == senhas.get(dep_escolhido):
+                    st.session_state.autenticado = True
+                    st.session_state.departamento_ativo = dep_escolhido
+                    st.rerun()
+                else:
+                    st.error("Senha incorreta!")
+else:
+    # Barra discreta mostrando quem está logado com opção de sair
+    col_info, col_sair = st.columns([8, 2])
+    with col_info:
+        st.success(f"🟢 Sessão ativa como **Operador ({st.session_state.departamento_ativo.upper()})** - Edição liberada.")
+    with col_sair:
+        if st.button("🚪 Sair / Bloquear", use_container_width=True):
+            st.session_state.autenticado = False
+            st.session_state.departamento_ativo = ""
+            st.rerun()
 
 st.write("")
 
@@ -404,9 +416,9 @@ if tem_busca_ativa:
                             else:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right")
 
-                    # CONTROLE DE PERFIL DE ACESSO E SALVAMENTO CIRÚRGICO NO GOOGLE SHEETS
-                    if "Operador" in perfil_usuario and operador_autenticado:
-                        st.info(f"✏️ Modo Operador Ativo ({login_operador.upper()}): Edite os campos e clique em 'Salvar Alterações'.")
+                    # CONTROLE DE PERFIL: SE AUTENTICADO, EXIBE O EDITOR DE COMPRAS
+                    if st.session_state.autenticado:
+                        st.info(f"✏️ Modo Operador Ativo ({st.session_state.departamento_ativo.upper()}): Edite os campos e clique em 'Salvar Alterações'.")
                         
                         if "df_original_cache" not in st.session_state or st.session_state.get("atualizar_cache_editor", True):
                             st.session_state.df_original_cache = df_painel.copy()
@@ -462,11 +474,7 @@ if tem_busca_ativa:
                             except Exception as e:
                                 st.error(f"❌ Erro ao salvar no Google Sheets: {e}")
                     else:
-                        if "Operador" in perfil_usuario and not operador_autenticado:
-                            st.warning("🔒 Selecione o seu departamento e digite a senha correta no painel acima para liberar o modo de edição.")
-                        else:
-                            st.success("👁️ Modo Usuário Ativo: Visualização somente leitura.")
-                            
+                        st.success("👁️ Modo Usuário Ativo: Visualização somente leitura.")
                         st.dataframe(
                             df_painel, 
                             use_container_width=True, 
