@@ -350,7 +350,7 @@ if tem_busca_ativa:
 
         try:
             if not df_final.empty:
-                df_painel = pd.DataFrame(index=df_final.index)
+                df_painel = pd.DataFrame()
                 
                 for col_config in DICIONARIO_COLUNAS_EXATAS:
                     nome_alvo = col_config["planilha"].strip().upper().replace('Í', 'I')
@@ -377,6 +377,12 @@ if tem_busca_ativa:
                             df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
                     else:
                         df_painel[nome_exibicao_tela] = ""
+
+                # Reseta o índice do painel para alinhar perfeitamente com o editor de dados (0 até N)
+                df_painel = df_painel.reset_index(drop=False)
+                # Mantém o índice original da planilha armazenado em uma coluna oculta ou auxiliar para salvamento seguro
+                if "original_row_index" not in df_painel.columns:
+                    df_painel["_row_idx"] = df_painel["index"] + 2 # +2 considera cabeçalho do Sheets (linha 1) e índice 0-based
 
                 col_status_tela = next((c for c in df_painel.columns if "STATUS" in c.upper()), None)
                 if col_status_tela:
@@ -418,8 +424,9 @@ if tem_busca_ativa:
                     c_down, _ = st.columns([2.5, 7.5])
                     with c_down:
                         out = BytesIO()
+                        df_excel_export = df_painel.drop(columns=["index", "_row_idx"], errors="ignore")
                         with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
-                            df_painel.to_excel(wr, index=False, sheet_name="Relatório")
+                            df_excel_export.to_excel(wr, index=False, sheet_name="Relatório")
                             workbook  = wr.book
                             worksheet = wr.sheets["Relatório"]
                             formato_moeda = workbook.add_format({'num_format': 'R$ #,##0.00'})
@@ -482,6 +489,10 @@ if tem_busca_ativa:
                             else:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
 
+                    # Esconde as colunas auxiliares de índice na tela
+                    configuracao_colunas_tela["index"] = None
+                    configuracao_colunas_tela["_row_idx"] = None
+
                     if st.session_state.autenticado:
                         if "df_original_cache" not in st.session_state or st.session_state.get("atualizar_cache_editor", True):
                             st.session_state.df_original_cache = df_painel.copy()
@@ -495,7 +506,7 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
                         
-                        # BOTÃO EXPLÍCITO DE SALVAMENTO (Garante gravação 100% segura e sem falhas na planilha)
+                        # SALVAMENTO AUTOMÁTICO USANDO O ÍNDICE EXATO DA LINHA DA PLANILHA
                         if st.button("💾 Salvar Alterações na Planilha", use_container_width=True):
                             if "df_original_cache" in st.session_state:
                                 df_orig = st.session_state.df_original_cache
@@ -518,12 +529,15 @@ if tem_busca_ativa:
                                     cabecalho_map = {c.upper().strip().replace('Í', 'I'): i + 1 for i, c in enumerate(cabecalho_bruto)}
                                     
                                     for idx in edited_df.index:
+                                        linha_planilha = int(edited_df.loc[idx, "_row_idx"])
                                         for col in edited_df.columns:
+                                            if col in ["index", "_row_idx"]:
+                                                continue
+                                            
                                             valor_antigo = str(df_orig.loc[idx, col])
                                             valor_novo = str(edited_df.loc[idx, col])
                                             
                                             if valor_antigo != valor_novo:
-                                                linha_planilha = int(df_final.index[idx]) + 2
                                                 col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
                                                 if col_config_item:
                                                     nome_col_planilha = col_config_item["planilha"].upper().replace('Í', 'I')
@@ -551,7 +565,7 @@ if tem_busca_ativa:
                                     st.error(f"❌ Erro ao salvar: {e}")
                     else:
                         st.dataframe(
-                            df_painel, 
+                            df_painel.drop(columns=["index", "_row_idx"], errors="ignore"), 
                             use_container_width=True, 
                             hide_index=True, 
                             column_config=configuracao_colunas_tela
