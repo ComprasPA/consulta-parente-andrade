@@ -237,7 +237,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True
                 st.rerun()
 
-# 8. MAPEAMENTO EXATO DAS COLUNAS (Mapeando 'PEDIDO' no singular conforme a planilha)
+# 8. MAPEAMENTO EXATO DAS COLUNAS
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "CENTRO DE CUSTO", "tela": "Centro de Custo", "tipo": "texto"},
@@ -287,7 +287,7 @@ def formatar_para_dd_mm_aaaa(valor):
     except:
         return txt
 
-# 9. MOTOR DE BUSCA ROBUSTO
+# 9. MOTOR DE BUSCA FLEXÍVEL (Filtra apenas se o campo estiver preenchido)
 tem_busca_ativa = st.session_state.filtro_pc_val or st.session_state.filtro_sc_val or st.session_state.filtro_cc_val or st.session_state.filtro_status_val != "Todos" or bool(st.session_state.filtro_data_val)
 
 if tem_busca_ativa:
@@ -295,10 +295,9 @@ if tem_busca_ativa:
         st.markdown('<div class="custom-error-red">⚠️ Base de dados vazia. Clique em "🔄 Atualizar Banco" nos Filtros Avançados.</div>', unsafe_allow_html=True)
     else:
         df_final = df_pc.copy()
-        
         colunas_normalizadas = {c.upper().strip(): c for c in df_final.columns}
 
-        # Filtro de Pedido (busca exata ou parcial na coluna PEDIDO)
+        # Filtro de Pedido (PC)
         if st.session_state.filtro_pc_val:
             pc_termo = str(st.session_state.filtro_pc_val).strip()
             col_pc = colunas_normalizadas.get("PEDIDO")
