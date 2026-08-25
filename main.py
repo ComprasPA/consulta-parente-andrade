@@ -80,7 +80,7 @@ st.markdown("""
 
 FILE_ID = "1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o"
 
-# 4. CARREGAMENTO SEGURO DIRETO DA ABA "Pedidos"
+# 4. CARREGAMENTO SEGURO
 @st.cache_data(ttl=60)
 def carregar_dados_seguros():
     try:
@@ -119,7 +119,7 @@ if 'dados_globais' not in st.session_state or st.session_state.dados_globais.emp
 
 df_pc = st.session_state.dados_globais
 
-# Estados de sessão (Segurança: Exige login a cada recarregamento da página)
+# Estados de sessão
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 if "departamento_ativo" not in st.session_state:
@@ -495,57 +495,60 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
                         
-                        # SALVAMENTO AUTOMÁTICO BLINDADO (Atualiza diretamente a linha e coluna na planilha)
-                        if "df_original_cache" in st.session_state:
-                            df_orig = st.session_state.df_original_cache
-                            alteracoes_detectadas = False
-                            
-                            try:
-                                scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-                                creds_dict = dict(st.secrets["gcp_service_account"])
-                                creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-                                client = gspread.authorize(creds)
+                        # BOTÃO EXPLÍCITO DE SALVAMENTO (Garante gravação 100% segura e sem falhas na planilha)
+                        if st.button("💾 Salvar Alterações na Planilha", use_container_width=True):
+                            if "df_original_cache" in st.session_state:
+                                df_orig = st.session_state.df_original_cache
+                                alteracoes_detectadas = 0
                                 
-                                spreadsheet = client.open_by_key(FILE_ID)
                                 try:
-                                    worksheet = spreadsheet.worksheet("Pedidos")
-                                except:
-                                    worksheet = spreadsheet.get_worksheet(0)
-                                
-                                dados_planilha = worksheet.get_all_values()
-                                cabecalho_bruto = dados_planilha[0]
-                                cabecalho_map = {c.upper().strip().replace('Í', 'I'): i + 1 for i, c in enumerate(cabecalho_bruto)}
-                                
-                                for idx in edited_df.index:
-                                    for col in edited_df.columns:
-                                        valor_antigo = str(df_orig.loc[idx, col])
-                                        valor_novo = str(edited_df.loc[idx, col])
-                                        
-                                        if valor_antigo != valor_novo:
-                                            # Linha real na planilha física (considerando o cabeçalho na linha 1)
-                                            linha_planilha = int(df_final.index[idx]) + 2
-                                            col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
-                                            if col_config_item:
-                                                nome_col_planilha = col_config_item["planilha"].upper().replace('Í', 'I')
-                                                
-                                                col_index = cabecalho_map.get(nome_col_planilha)
-                                                if not col_index:
-                                                    for c_map, idx_val in cabecalho_map.items():
-                                                        if nome_col_planilha in c_map or c_map in nome_col_planilha:
-                                                            col_index = idx_val
-                                                            break
-                                                
-                                                if col_index:
-                                                    worksheet.update_cell(linha_planilha, col_index, valor_novo)
-                                                    alteracoes_detectadas = True
-                                                    
-                                if alteracoes_detectadas:
-                                    st.toast("💾 Alteração salva automaticamente no Google Sheets!", icon="✅")
-                                    st.session_state.df_original_cache = edited_df.copy()
-                                    st.cache_data.clear()
+                                    scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+                                    creds_dict = dict(st.secrets["gcp_service_account"])
+                                    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+                                    client = gspread.authorize(creds)
                                     
-                            except Exception as e:
-                                st.error(f"Erro ao salvar: {e}")
+                                    spreadsheet = client.open_by_key(FILE_ID)
+                                    try:
+                                        worksheet = spreadsheet.worksheet("Pedidos")
+                                    except:
+                                        worksheet = spreadsheet.get_worksheet(0)
+                                    
+                                    dados_planilha = worksheet.get_all_values()
+                                    cabecalho_bruto = dados_planilha[0]
+                                    cabecalho_map = {c.upper().strip().replace('Í', 'I'): i + 1 for i, c in enumerate(cabecalho_bruto)}
+                                    
+                                    for idx in edited_df.index:
+                                        for col in edited_df.columns:
+                                            valor_antigo = str(df_orig.loc[idx, col])
+                                            valor_novo = str(edited_df.loc[idx, col])
+                                            
+                                            if valor_antigo != valor_novo:
+                                                linha_planilha = int(df_final.index[idx]) + 2
+                                                col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
+                                                if col_config_item:
+                                                    nome_col_planilha = col_config_item["planilha"].upper().replace('Í', 'I')
+                                                    
+                                                    col_index = cabecalho_map.get(nome_col_planilha)
+                                                    if not col_index:
+                                                        for c_map, idx_val in cabecalho_map.items():
+                                                            if nome_col_planilha in c_map or c_map in nome_col_planilha:
+                                                                col_index = idx_val
+                                                                break
+                                                    
+                                                    if col_index:
+                                                        worksheet.update_cell(linha_planilha, col_index, valor_novo)
+                                                        alteracoes_detectadas += 1
+                                                        
+                                    if alteracoes_detectadas > 0:
+                                        st.success(f"✅ {alteracoes_detectadas} alteração(ões) salva(s) com sucesso no Google Sheets!")
+                                        st.session_state.df_original_cache = edited_df.copy()
+                                        st.cache_data.clear()
+                                        st.rerun()
+                                    else:
+                                        st.info("ℹ️ Nenhuma alteração foi realizada para salvar.")
+                                        
+                                except Exception as e:
+                                    st.error(f"❌ Erro ao salvar: {e}")
                     else:
                         st.dataframe(
                             df_painel, 
