@@ -88,15 +88,17 @@ if 'dados_globais' not in st.session_state or st.session_state.dados_globais.emp
 
 df_pc = st.session_state.dados_globais
 
-# Estados de sessão para controle da janela popup de login
+# Estados de sessão para controle de login e gaveta (gaveta inicia True por padrão)
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 if "departamento_ativo" not in st.session_state:
     st.session_state.departamento_ativo = ""
 if "mostrar_popup_login" not in st.session_state:
     st.session_state.mostrar_popup_login = False
+if "gaveta_aberta" not in st.session_state:
+    st.session_state.gaveta_aberta = True  # Aberto por padrão no início
 
-# 5. CABEÇALHO INTEGRADO (Apenas Logo e Título centralizado, sem busca no topo)
+# 5. CABEÇALHO INTEGRADO
 st.markdown('<div class="header-modern">', unsafe_allow_html=True)
 c1, c2, c3 = st.columns([1.5, 7.0, 1.5])
 
@@ -161,7 +163,7 @@ if st.session_state.mostrar_popup_login and not st.session_state.autenticado:
 if st.session_state.autenticado:
     st.info(f"🟢 Sessão Ativa: Operador **{st.session_state.departamento_ativo.upper()}** (Modo Edição Liberado)")
 
-# 7. FILTROS E LÓGICA DE GAVETA (Ordem: Pedido, Solicitação, Centro de Custo, Status e Data)
+# 7. FILTROS E LÓGICA DE GAVETA (Abre por padrão no início e fecha após pesquisar)
 if "filtro_pc_val" not in st.session_state:
     st.session_state.filtro_pc_val = ""
 if "filtro_sc_val" not in st.session_state:
@@ -172,8 +174,6 @@ if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
     st.session_state.filtro_data_val = ()
-if "gaveta_aberta" not in st.session_state:
-    st.session_state.gaveta_aberta = False
 
 rotulo_seta = "Filtros Avançados ▲" if st.session_state.gaveta_aberta else "Filtros Avançados ▼"
 
@@ -209,7 +209,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.filtro_cc_val = filtro_cc
                 st.session_state.filtro_status_val = filtro_status
                 st.session_state.filtro_data_val = filtro_data
-                st.session_state.gaveta_aberta = True  
+                st.session_state.gaveta_aberta = False  # Fecha a gaveta após a busca
                 st.rerun()
 
         with b2:
@@ -220,14 +220,14 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.filtro_cc_val = ""
                 st.session_state.filtro_status_val = "Todos"
                 st.session_state.filtro_data_val = ()
-                st.session_state.gaveta_aberta = False  
+                st.session_state.gaveta_aberta = True  # Mantém aberto ao limpar
                 st.rerun()
                 
         with b3:
             btn_atualizar = st.form_submit_button("🔄 Atualizar Banco", use_container_width=True)
             if btn_atualizar:
                 st.session_state.dados_globais = carregar_dados_seguros()
-                st.session_state.gaveta_aberta = True  
+                st.session_state.gaveta_aberta = True
                 st.rerun()
 
 # 8. MAPEAMENTO EXATO DAS COLUNAS
@@ -286,7 +286,7 @@ def formatar_para_dd_mm_aaaa(valor):
     except:
         return txt
 
-# 9. MOTOR DE BUSCA COM OS NOVOS FILTROS DA GAVETA
+# 9. MOTOR DE BUSCA
 tem_busca_ativa = st.session_state.filtro_pc_val or st.session_state.filtro_sc_val or st.session_state.filtro_cc_val or st.session_state.filtro_status_val != "Todos" or bool(st.session_state.filtro_data_val)
 
 if tem_busca_ativa:
@@ -295,33 +295,28 @@ if tem_busca_ativa:
     else:
         df_final = df_pc.copy()
         
-        # Filtro de Pedido (PC)
         if st.session_state.filtro_pc_val:
             pc_termo = st.session_state.filtro_pc_val.strip()
             col_pc = next((c for c in df_final.columns if "PEDIDO" in c.upper() or "PEDIDOS" in c.upper()), None)
             if col_pc and col_pc in df_final.columns:
                 df_final = df_final[df_final[col_pc].astype(str).str.strip().str.contains(pc_termo, na=False)]
 
-        # Filtro de Solicitação (SC)
         if st.session_state.filtro_sc_val:
             sc_termo = st.session_state.filtro_sc_val.strip()
             col_sc = next((c for c in df_final.columns if "SOLICITA" in c.upper()), None)
             if col_sc and col_sc in df_final.columns:
                 df_final = df_final[df_final[col_sc].astype(str).str.strip().str.contains(sc_termo, na=False)]
 
-        # Filtro de Centro de Custo
         if st.session_state.filtro_cc_val:
             cc_termo = st.session_state.filtro_cc_val.strip().lower()
             col_cc = next((c for c in df_final.columns if "CUSTO" in c.upper() or "CC" in c.upper()), None)
             if col_cc and col_cc in df_final.columns:
                 df_final = df_final[df_final[col_cc].astype(str).str.lower().str.contains(cc_termo, na=False)]
 
-        # Filtro de Status
         col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None)
         if st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
-        # Filtro de Data de Emissão
         if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
             if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
                 col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper() or "EMISSÃO" in c.upper()), None)
@@ -440,7 +435,6 @@ if tem_busca_ativa:
                             else:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right")
 
-                    # EXIBIÇÃO CONFORME AUTENTICAÇÃO (EDITOR VS VISUALIZAÇÃO)
                     if st.session_state.autenticado:
                         st.info(f"✏️ Modo Operador Ativo ({st.session_state.departamento_ativo.upper()}): Edite os campos e clique em 'Salvar Alterações'.")
                         
