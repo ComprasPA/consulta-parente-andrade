@@ -27,7 +27,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO
+# 3. CSS MODERNIZADO (Com ajuste de contraste para a lista suspensa / dropdown)
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
@@ -53,8 +53,26 @@ st.markdown("""
     .status-card { background: #ffffff; color: #1e293b; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; border-left: 5px solid #478c3b; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; }
     .custom-error-red { background-color: #fee2e2 !important; color: #991b1b !important; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #ef4444; }
     .custom-welcome-salutation { background-color: #ffffff; color: #1e293b; padding: 32px 24px; border-radius: 12px; font-weight: 600; font-size: 20px; text-align: center; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); margin-top: 20px; }
+    
     div[data-testid="stDataFrame"] { background: #ffffff; padding: 16px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
     div[data-testid="stDataFrame"] table th { white-space: nowrap !important; min-width: max-content !important; }
+
+    /* ESTILIZAÇÃO CUSTOMIZADA PARA O DROPDOWN / LISTA SUSPENSA DA TABELA EDITÁVEL */
+    div[data-baseweb="menu"], ul[data-baseweb="menu"], div[role="listbox"] {
+        background-color: #ffffff !important;
+        color: #1e293b !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+    }
+    div[data-baseweb="menu"] li, ul[data-baseweb="menu"] li, div[role="option"] {
+        background-color: #ffffff !important;
+        color: #1e293b !important;
+    }
+    div[data-baseweb="menu"] li:hover, ul[data-baseweb="menu"] li:hover, div[role="option"]:hover {
+        background-color: #e2e8f0 !important;
+        color: #0f172a !important;
+    }
+
     .custom-footer-block { text-align: center !important; margin-top: 60px !important; border-top: 1px solid #e2e8f0 !important; padding-top: 24px !important; padding-bottom: 24px !important; position: static !important; clear: both !important; width: 100% !important; display: block !important; }
     .signature-fixed { position: fixed; bottom: 12px; left: 20px; color: #94a3b8; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; z-index: 999999; pointer-events: none; }
     </style>
@@ -430,7 +448,7 @@ if tem_busca_ativa:
                         nome_tela = col_config["tela"]
                         tipo_campo = col_config["tipo"]
                         
-                        # Definindo restrições estritas de quais campos o operador pode editar
+                        # Apenas os campos solicitados ficam editáveis; os demais ficam fixos (somente leitura)
                         campos_permitidos_edicao = ["STATUS", "Envio", "Pagamento", "Previsão de entrega", "Entrega", "NF Remessa"]
                         
                         if st.session_state.autenticado and nome_tela in campos_permitidos_edicao:
@@ -441,7 +459,6 @@ if tem_busca_ativa:
                             else:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=False)
                         else:
-                            # Demais campos fixos / Somente leitura
                             if nome_tela == "STATUS":
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center")
                             elif tipo_campo == "moeda":
