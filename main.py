@@ -258,7 +258,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True
                 st.rerun()
 
-# 8. MAPEAMENTO EXATO DAS COLUNAS (Com suporte flexível a acentos ex: DESCRICAO / DESCRIÇÃO)
+# 8. MAPEAMENTO EXATO DAS COLUNAS (Com DESCRICAO sem acento para garantir a leitura)
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "CENTRO DE CUSTO", "tela": "Centro de Custo", "tipo": "texto"},
@@ -274,7 +274,7 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "FORNECEDOR", "tela": "Fornecedor", "tipo": "texto"},
     {"planilha": "GRUPO", "tela": "Grupo", "tipo": "texto"},
     {"planilha": "PRODUTO", "tela": "Produto", "tipo": "produto"},                 
-    {"planilha": "DESCRIÇÃO", "tela": "Descrição", "tipo": "texto"},
+    {"planilha": "DESCRICAO", "tela": "Descrição", "tipo": "texto"},
     {"planilha": "UM", "tela": "UM", "tipo": "texto"},
     {"planilha": "QTD", "tela": "Qtd", "tipo": "numero"},
     {"planilha": "PREÇO UNITÁRIO", "tela": "Preço Unitário", "tipo": "moeda"},
@@ -438,7 +438,6 @@ if tem_busca_ativa:
                     
                     configuracao_colunas_tela = {}
                     
-                    # Combina os status já existentes na planilha com as alternativas oficiais exigidas
                     status_existentes = [str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""] if col_status_verificacao else []
                     status_oficiais = [
                         "ENVIADO AO FORNECEDOR",
