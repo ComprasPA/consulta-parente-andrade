@@ -258,7 +258,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True
                 st.rerun()
 
-# 8. MAPEAMENTO EXATO DAS COLUNAS
+# 8. MAPEAMENTO EXATO DAS COLUNAS (Mapeando LOGISTICA de forma flexível)
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "CENTRO DE CUSTO", "tela": "Centro de Custo", "tipo": "texto"},
@@ -317,7 +317,7 @@ if tem_busca_ativa:
         st.markdown('<div class="custom-error-red">⚠️ Base de dados vazia. Clique em "🔄 Atualizar Banco" nos Filtros Avançados.</div>', unsafe_allow_html=True)
     else:
         df_final = df_pc.copy()
-        colunas_normalizadas = {c.upper().strip(): c for c in df_final.columns}
+        colunas_normalizadas = {c.upper().strip().replace('Í', 'I'): c for c in df_final.columns}
 
         if st.session_state.filtro_pc_val:
             pc_termo = str(st.session_state.filtro_pc_val).strip()
@@ -353,16 +353,15 @@ if tem_busca_ativa:
                 df_painel = pd.DataFrame(index=df_final.index)
                 
                 for col_config in DICIONARIO_COLUNAS_EXATAS:
-                    nome_alvo = col_config["planilha"].strip().upper()
+                    nome_alvo = col_config["planilha"].strip().upper().replace('Í', 'I')
                     nome_exibicao_tela = col_config["tela"]
                     tipo_campo = col_config["tipo"]
                     
-                    col_real = colunas_normalizadas.get(nome_alvo)
-                    if not col_real:
-                        for c_up in colunas_normalizadas:
-                            if nome_alvo in c_up or c_up in nome_alvo:
-                                col_real = colunas_normalizadas[c_up]
-                                break
+                    col_real = None
+                    for c_up in colunas_normalizadas:
+                        if c_up.replace('Í', 'I') == nome_alvo or nome_alvo in c_up or c_up in nome_alvo:
+                            col_real = colunas_normalizadas[c_up]
+                            break
 
                     if col_real:
                         valores_originais = df_final[col_real]
@@ -496,7 +495,7 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
                         
-                        # SALVAMENTO AUTOMÁTICO ROBUSTO POR CÉLULA
+                        # SALVAMENTO AUTOMÁTICO ROBUSTO POR CÉLULA COM CORRESPONDÊNCIA DE CABEÇALHO FLEXÍVEL
                         if "df_original_cache" in st.session_state:
                             df_orig = st.session_state.df_original_cache
                             alteracoes_detectadas = False
@@ -514,7 +513,8 @@ if tem_busca_ativa:
                                     worksheet = spreadsheet.get_worksheet(0)
                                 
                                 dados_planilha = worksheet.get_all_values()
-                                cabecalho = [c.upper().strip() for c in dados_planilha[0]]
+                                cabecalho_bruto = dados_planilha[0]
+                                cabecalho_map = {c.upper().strip().replace('Í', 'I'): i + 1 for i, c in enumerate(cabecalho_bruto)}
                                 
                                 for idx in edited_df.index:
                                     for col in edited_df.columns:
@@ -525,9 +525,17 @@ if tem_busca_ativa:
                                             linha_planilha = int(df_final.index[idx]) + 2
                                             col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
                                             if col_config_item:
-                                                nome_col_planilha = col_config_item["planilha"].upper()
-                                                if nome_col_planilha in cabecalho:
-                                                    col_index = cabecalho.index(nome_col_planilha) + 1
+                                                nome_col_planilha = col_config_item["planilha"].upper().replace('Í', 'I')
+                                                
+                                                col_index = cabecalho_map.get(nome_col_planilha)
+                                                if not col_index:
+                                                    # Procura correspondência parcial caso não ache exata
+                                                    for c_map, idx_val in cabecalho_map.items():
+                                                        if nome_col_planilha in c_map or c_map in nome_col_planilha:
+                                                            col_index = idx_val
+                                                            break
+                                                
+                                                if col_index:
                                                     worksheet.update_cell(linha_planilha, col_index, valor_novo)
                                                     alteracoes_detectadas = True
                                                     
