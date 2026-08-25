@@ -27,7 +27,7 @@ def get_base64_logo(image_path="logo"):
 
 base64_logo = get_base64_logo()
 
-# 3. CSS MODERNIZADO (Contraste limpo para o dropdown da tabela)
+# 3. CSS MODERNIZADO
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
@@ -255,7 +255,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True
                 st.rerun()
 
-# 8. MAPEAMENTO EXATO DAS COLUNAS
+# 8. MAPEAMENTO EXATO DAS COLUNAS (Incluindo a nova coluna "Logística" no final)
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "CENTRO DE CUSTO", "tela": "Centro de Custo", "tipo": "texto"},
@@ -276,7 +276,8 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "QTD", "tela": "Qtd", "tipo": "numero"},
     {"planilha": "PREÇO UNITÁRIO", "tela": "Preço Unitário", "tipo": "moeda"},
     {"planilha": "VALOR TOTAL", "tela": "Valor Total", "tipo": "moeda"},
-    {"planilha": "NF REMESSA", "tela": "NF Remessa", "tipo": "texto"}
+    {"planilha": "NF REMESSA", "tela": "NF Remessa", "tipo": "texto"},
+    {"planilha": "LOGISTICA", "tela": "Logística", "tipo": "logistica"}
 ]
 
 def converter_para_numerico(valor):
@@ -434,26 +435,48 @@ if tem_busca_ativa:
                     
                     configuracao_colunas_tela = {}
                     
-                    # Lista suspensa baseada no histórico da coluna STATUS
+                    # Lista de status gerais para histórico
                     lista_historico_status = sorted([str(x).strip() for x in df_painel[col_status_tela].unique() if str(x).strip() != ""])
                     if not lista_historico_status:
                         lista_historico_status = ["EM APROVAÇÃO", "LIBERADO", "PENDENTE"]
+
+                    # Opções exclusivas para a coluna de Logística
+                    opcoes_logistica = [
+                        "Retirado do Almoxarifado Sede",
+                        "Entregue no PEA",
+                        "A caminho da Obra",
+                        "Entregue na obra"
+                    ]
 
                     for col_config in DICIONARIO_COLUNAS_EXATAS:
                         nome_tela = col_config["tela"]
                         tipo_campo = col_config["tipo"]
                         
-                        # Restrição estrita de colunas autorizadas para edição
-                        campos_permitidos_edicao = ["STATUS", "Envio", "Pagamento", "Previsão de entrega", "Entrega", "NF Remessa"]
-                        
-                        if st.session_state.autenticado and nome_tela in campos_permitidos_edicao:
-                            if nome_tela == "STATUS":
-                                configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
-                                    nome_tela, options=lista_historico_status, required=True
-                                )
+                        # Regras de permissão por departamento
+                        if st.session_state.autenticado:
+                            dep = st.session_state.departamento_ativo
+                            if dep == "logistica":
+                                # Logística edita apenas a coluna "Logística"
+                                if nome_tela == "Logística":
+                                    configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
+                                        nome_tela, options=opcoes_logistica, required=False
+                                    )
+                                else:
+                                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
                             else:
-                                configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=False)
+                                # Compras e Almoxarifado editam os campos gerais, exceto Logística
+                                campos_permitidos_compras = ["STATUS", "Envio", "Pagamento", "Previsão de entrega", "Entrega", "NF Remessa"]
+                                if nome_tela in campos_permitidos_compras:
+                                    if nome_tela == "STATUS":
+                                        configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
+                                            nome_tela, options=lista_historico_status, required=True
+                                        )
+                                    else:
+                                        configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=False)
+                                else:
+                                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
                         else:
+                            # Modo Usuário (Somente Leitura)
                             if nome_tela == "STATUS":
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center")
                             elif tipo_campo == "moeda":
