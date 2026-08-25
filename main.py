@@ -8,12 +8,13 @@ import urllib.request
 import gspread
 from google.oauth2.service_account import Credentials
 
-# 1. CONFIGURAÇÃO DA PÁGINA
+# 1. CONFIGURAÇÃO DA PÁGINA (Com barra lateral expandida por padrão)
 st.set_page_config(
     page_title="Portal Gestão de Compras | Parente Andrade",
     page_icon="🏗️",
     layout="wide",
-initial_sidebar_state="expanded")
+    initial_sidebar_state="expanded"
+)
 
 # 2. FUNÇÃO LOGO
 @st.cache_data(ttl=86400)
@@ -112,18 +113,15 @@ with st.sidebar:
         st.divider()
         st.subheader("🔐 Painel de Autenticação")
         
-        # Seleção do login do operador
         login_operador = st.selectbox("Selecione o Operador:", ["compras", "almoxarifado", "logistica"])
         senha_digitada = st.text_input("Digite a senha:", type="password", placeholder="Sua senha...")
         
-        # Definição das senhas exclusivas para cada login
         SENHAS_OPERADORES = {
             "compras": "compras@2026",
             "almoxarifado": "almox@2026",
             "logistica": "log@2026"
         }
         
-        # Validação da senha correspondente ao login selecionado
         if senha_digitada == SENHAS_OPERADORES.get(login_operador):
             st.success(f"✅ Operador **{login_operador.upper()}** autenticado!")
             operador_autenticado = True
@@ -132,7 +130,7 @@ with st.sidebar:
             operador_autenticado = False
 
 if "filtro_status_val" not in st.session_state:
-    st.session_state.filtro_status_val = "Todos"
+    st.session_state.fil_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
     st.session_state.filtro_data_val = ()
 if "filtro_sc_val" not in st.session_state:
@@ -168,7 +166,8 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
 
         st.write("") 
         
-        _, b1, b2, b3 = st.columns([4, 1.2, 1.2, 1.2])
+        # Adicionado botão extra de Atalho para abrir/focar na Barra Lateral
+        _, b1, b2, b3, b4 = st.columns([2.8, 1.2, 1.2, 1.2, 1.6])
         with b1:
             btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True)
             if btn_pesquisar:
@@ -190,10 +189,17 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.rerun()
                 
         with b3:
-            btn_atualizar = st.form_submit_button("🔄 Atualizar Banco", use_container_width=True)
+            btn_atualizar = st.form_submit_button("🔄 Atualizar", use_container_width=True)
             if btn_atualizar:
                 st.session_state.dados_globais = carregar_dados_seguros()
                 st.session_state.gaveta_aberta = True  
+                st.rerun()
+
+        with b4:
+            btn_painel_login = st.form_submit_button("🔐 Menu Acesso", use_container_width=True)
+            if btn_painel_login:
+                st.toast("💡 A barra lateral de acessos está visível à esquerda da tela!", icon="ℹ️")
+                st.session_state.gaveta_aberta = True
                 st.rerun()
 
 # 7. MAPEAMENTO EXATO DAS COLUNAS
@@ -257,7 +263,7 @@ tem_busca_ativa = busca_cc or st.session_state.filtro_sc_val or st.session_state
 
 if tem_busca_ativa:
     if df_pc.empty:
-        st.markdown('<div class="custom-error-red">⚠️ Base de dados vazia. Clique em "🔄 Atualizar Banco" nos Filtros Avançados.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="custom-error-red">⚠️ Base de dados vazia. Clique em "🔄 Atualizar" nos Filtros Avançados.</div>', unsafe_allow_html=True)
     else:
         df_final = df_pc.copy()
         
@@ -460,7 +466,7 @@ if tem_busca_ativa:
                                 st.error(f"❌ Erro ao salvar no Google Sheets: {e}")
                     else:
                         if "Operador" in perfil_usuario and not operador_autenticado:
-                            st.warning("🔒 Selecione o seu login e digite a senha correta na barra lateral para liberar o modo de edição.")
+                            st.warning("🔒 Selecione o seu login e digite a senha correta na barra lateral (à esquerda) para liberar o modo de edição.")
                         else:
                             st.success("👁️ Modo Usuário Ativo: Visualização somente leitura.")
                             
