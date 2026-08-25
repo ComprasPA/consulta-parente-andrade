@@ -80,7 +80,7 @@ st.markdown("""
 
 FILE_ID = "1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o"
 
-# 4. CARREGAMENTO SEGURO DIRETO DA ABA "Pedidos"
+# 4. CARREGAMENTO SEGURO COM ALINHAMENTO COMPLETO DE COLUNAS
 @st.cache_data(ttl=60)
 def carregar_dados_seguros():
     try:
@@ -95,13 +95,20 @@ def carregar_dados_seguros():
         except:
             worksheet = spreadsheet.get_worksheet(0)
         
+        # Pega todos os dados brutos da planilha incluindo colunas vazias
         dados = worksheet.get_all_values()
         if not dados:
             return pd.DataFrame()
             
         cabecalho = [str(c).strip() for c in dados[0]]
+        
+        # Garante que LOGISTICA conste no cabeçalho se houver dados até lá
+        if "LOGISTICA" not in [c.upper() for c in cabecalho]:
+            cabecalho.append("LOGISTICA")
+            
         linhas = dados[1:]
         
+        # Normaliza cada linha para ter exatamente o mesmo comprimento do cabeçalho
         linhas_normalizadas = []
         for linha in linhas:
             while len(linha) < len(cabecalho):
@@ -258,7 +265,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True
                 st.rerun()
 
-# 8. MAPEAMENTO EXATO DAS COLUNAS (Mapeando LOGISTICA de forma flexível)
+# 8. MAPEAMENTO EXATO DAS COLUNAS
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "CENTRO DE CUSTO", "tela": "Centro de Custo", "tipo": "texto"},
@@ -495,7 +502,7 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
                         
-                        # SALVAMENTO AUTOMÁTICO ROBUSTO POR CÉLULA COM CORRESPONDÊNCIA DE CABEÇALHO FLEXÍVEL
+                        # SALVAMENTO AUTOMÁTICO ROBUSTO POR CÉLULA (MAPEAMENTO PRECISO DE ÍNDICE)
                         if "df_original_cache" in st.session_state:
                             df_orig = st.session_state.df_original_cache
                             alteracoes_detectadas = False
@@ -529,7 +536,6 @@ if tem_busca_ativa:
                                                 
                                                 col_index = cabecalho_map.get(nome_col_planilha)
                                                 if not col_index:
-                                                    # Procura correspondência parcial caso não ache exata
                                                     for c_map, idx_val in cabecalho_map.items():
                                                         if nome_col_planilha in c_map or c_map in nome_col_planilha:
                                                             col_index = idx_val
