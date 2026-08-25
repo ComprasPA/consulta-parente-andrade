@@ -62,26 +62,30 @@ st.markdown("""
 
 FILE_ID = "1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o"
 
-# 4. CARREGAMENTO COM ESTADO
+# 4. CARREGAMENTO SEGURO VIA GSPREAD (Sem depender de link público)
+@st.cache_data(ttl=60)
 def carregar_dados_seguros():
-    URL_CSV = f"https://docs.google.com/spreadsheets/d/{FILE_ID}/export?format=csv&gid=0"
     try:
-        df = pd.read_csv(URL_CSV, dtype=str).fillna('')
-        if "<html" in str(df.columns[0]).lower():
-            raise ValueError("O Google retornou bloqueio HTML.")
-        df.columns = [str(c).strip() for c in df.columns]
-        return df
-    except Exception as e_csv:
-        try:
-            URL_XLSX = f"https://docs.google.com/spreadsheets/d/{FILE_ID}/export?format=xlsx"
-            excel = pd.ExcelFile(URL_XLSX, engine='openpyxl')
-            aba = "Pedidos_App" if "Pedidos_App" in excel.sheet_names else ("Pedidos" if "Pedidos" in excel.sheet_names else excel.sheet_names[0])
-            df = pd.read_excel(excel, sheet_name=aba, dtype=str).fillna('')
-            df.columns = [str(c).strip() for c in df.columns]
-            return df
-        except Exception as e_xlsx:
-            st.session_state.erro_tecnico = f"CSV: {str(e_csv)} | XLSX: {str(e_xlsx)}"
+        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        creds_dict = dict(st.secrets["gcp_service_account"])
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+        client = gspread.authorize(creds)
+        
+        spreadsheet = client.open_by_key(FILE_ID)
+        worksheet = spreadsheet.get_worksheet(0)
+        
+        dados = worksheet.get_all_values()
+        if not dados:
             return pd.DataFrame()
+            
+        cabecalho = [str(c).strip() for c in dados[0]]
+        linhas = dados[1:]
+        
+        df = pd.DataFrame(linhas, columns=cabecalho, dtype=str).fillna('')
+        return df
+    except Exception as e:
+        st.session_state.erro_tecnico = f"Erro Gspread: {str(e)}"
+        return pd.DataFrame()
 
 if 'dados_globais' not in st.session_state or st.session_state.dados_globais.empty:
     st.session_state.dados_globais = carregar_dados_seguros()
@@ -289,33 +293,28 @@ if tem_busca_ativa:
     else:
         df_final = df_pc.copy()
         
-        # Filtro Robusto para Pedido (PC) - Converte para string limpa sem casas decimais ou zeros excedentes para garantir o match
         if st.session_state.filtro_pc_val:
             pc_termo = str(st.session_state.filtro_pc_val).strip()
             col_pc = next((c for c in df_final.columns if "PEDIDO" in c.upper() or "PEDIDOS" in c.upper()), None)
             if col_pc and col_pc in df_final.columns:
                 df_final = df_final[df_final[col_pc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(pc_termo, na=False)]
 
-        # Filtro Robusto para Solicitação (SC)
         if st.session_state.filtro_sc_val:
             sc_termo = str(st.session_state.filtro_sc_val).strip()
             col_sc = next((c for c in df_final.columns if "SOLICITA" in c.upper()), None)
             if col_sc and col_sc in df_final.columns:
                 df_final = df_final[df_final[col_sc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(sc_termo, na=False)]
 
-        # Filtro de Centro de Custo
         if st.session_state.filtro_cc_val:
             cc_termo = st.session_state.filtro_cc_val.strip().lower()
             col_cc = next((c for c in df_final.columns if "CUSTO" in c.upper() or "CC" in c.upper()), None)
             if col_cc and col_cc in df_final.columns:
                 df_final = df_final[df_final[col_cc].astype(str).str.lower().str.contains(cc_termo, na=False)]
 
-        # Filtro de Status
         col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None)
         if st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
-        # Filtro de Data de Emissão
         if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
             if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
                 col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper() or "EMISSÃO" in c.upper()), None)
