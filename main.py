@@ -62,7 +62,7 @@ st.markdown("""
 
 FILE_ID = "1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o"
 
-# 4. CARREGAMENTO SEGURO VIA GSPREAD (Sem depender de link público)
+# 4. CARREGAMENTO SEGURO DIRETO DA ABA "Pedidos"
 @st.cache_data(ttl=60)
 def carregar_dados_seguros():
     try:
@@ -72,7 +72,10 @@ def carregar_dados_seguros():
         client = gspread.authorize(creds)
         
         spreadsheet = client.open_by_key(FILE_ID)
-        worksheet = spreadsheet.get_worksheet(0)
+        try:
+            worksheet = spreadsheet.worksheet("Pedidos")
+        except:
+            worksheet = spreadsheet.get_worksheet(0)
         
         dados = worksheet.get_all_values()
         if not dados:
@@ -167,7 +170,7 @@ if st.session_state.mostrar_popup_login and not st.session_state.autenticado:
 if st.session_state.autenticado:
     st.info(f"🟢 Sessão Ativa: Operador **{st.session_state.departamento_ativo.upper()}** (Modo Edição Liberado)")
 
-# 7. FILTROS E LÓGICA DE GAVETA (Ordem: Pedido, Solicitação, Centro de Custo, Status e Data)
+# 7. FILTROS E LÓGICA DE GAVETA
 if "filtro_pc_val" not in st.session_state:
     st.session_state.filtro_pc_val = ""
 if "filtro_sc_val" not in st.session_state:
@@ -234,7 +237,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True
                 st.rerun()
 
-# 8. MAPEAMENTO EXATO DAS COLUNAS
+# 8. MAPEAMENTO EXATO DAS COLUNAS (Mapeando 'PEDIDO' no singular conforme a planilha)
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "CENTRO DE CUSTO", "tela": "Centro de Custo", "tipo": "texto"},
@@ -284,7 +287,7 @@ def formatar_para_dd_mm_aaaa(valor):
     except:
         return txt
 
-# 9. MOTOR DE BUSCA ROBUSTO E FLEXÍVEL
+# 9. MOTOR DE BUSCA ROBUSTO
 tem_busca_ativa = st.session_state.filtro_pc_val or st.session_state.filtro_sc_val or st.session_state.filtro_cc_val or st.session_state.filtro_status_val != "Todos" or bool(st.session_state.filtro_data_val)
 
 if tem_busca_ativa:
@@ -293,31 +296,38 @@ if tem_busca_ativa:
     else:
         df_final = df_pc.copy()
         
+        colunas_normalizadas = {c.upper().strip(): c for c in df_final.columns}
+
+        # Filtro de Pedido (busca exata ou parcial na coluna PEDIDO)
         if st.session_state.filtro_pc_val:
             pc_termo = str(st.session_state.filtro_pc_val).strip()
-            col_pc = next((c for c in df_final.columns if "PEDIDO" in c.upper() or "PEDIDOS" in c.upper()), None)
-            if col_pc and col_pc in df_final.columns:
+            col_pc = colunas_normalizadas.get("PEDIDO")
+            if col_pc:
                 df_final = df_final[df_final[col_pc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(pc_termo, na=False)]
 
+        # Filtro de Solicitação (SC)
         if st.session_state.filtro_sc_val:
             sc_termo = str(st.session_state.filtro_sc_val).strip()
-            col_sc = next((c for c in df_final.columns if "SOLICITA" in c.upper()), None)
-            if col_sc and col_sc in df_final.columns:
+            col_sc = next((colunas_normalizadas[c] for c in colunas_normalizadas if "SOLICITA" in c), None)
+            if col_sc:
                 df_final = df_final[df_final[col_sc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(sc_termo, na=False)]
 
+        # Filtro de Centro de Custo
         if st.session_state.filtro_cc_val:
             cc_termo = st.session_state.filtro_cc_val.strip().lower()
-            col_cc = next((c for c in df_final.columns if "CUSTO" in c.upper() or "CC" in c.upper()), None)
-            if col_cc and col_cc in df_final.columns:
+            col_cc = next((colunas_normalizadas[c] for c in colunas_normalizadas if "CUSTO" in c or "CC" in c), None)
+            if col_cc:
                 df_final = df_final[df_final[col_cc].astype(str).str.lower().str.contains(cc_termo, na=False)]
 
-        col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None)
+        # Filtro de Status
+        col_status_verificacao = next((colunas_normalizadas[c] for c in colunas_normalizadas if "STATUS" in c), None)
         if st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
+        # Filtro de Data de Emissão
         if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
             if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
-                col_emissao_original = next((c for c in df_pc.columns if "EMISSAO" in c.upper() or "EMISSÃO" in c.upper()), None)
+                col_emissao_original = next((colunas_normalizadas[c] for c in colunas_normalizadas if "EMISSAO" in c or "EMISSÃO" in c), None)
                 if col_emissao_original:
                     datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed', dayfirst=True).dt.date
                     df_final = df_final[(datas_convertidas >= st.session_state.filtro_data_val[0]) & (datas_convertidas <= st.session_state.filtro_data_val[1])]
@@ -331,18 +341,11 @@ if tem_busca_ativa:
                     nome_exibicao_tela = col_config["tela"]
                     tipo_campo = col_config["tipo"]
                     
-                    col_real = None
-                    for c in df_final.columns:
-                        c_up = c.strip().upper()
-                        if c_up == nome_alvo or c_up.replace("Ã", "A").replace("Ç", "C").replace("Õ", "O") == nome_alvo.replace("Ã", "A").replace("Ç", "C").replace("Õ", "O"):
-                            col_real = c
-                            break
-                    
+                    col_real = colunas_normalizadas.get(nome_alvo)
                     if not col_real:
-                        for c in df_final.columns:
-                            c_up = c.strip().upper()
+                        for c_up in colunas_normalizadas:
                             if nome_alvo in c_up or c_up in nome_alvo:
-                                col_real = c
+                                col_real = colunas_normalizadas[c_up]
                                 break
 
                     if col_real:
@@ -350,7 +353,7 @@ if tem_busca_ativa:
                         if tipo_campo == "data":
                             df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace(['nan', 'NONE', '', '0'], '')
                         elif tipo_campo == "pedido":
-                            df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: str(val).split('.')[0].strip().zfill(6) if str(val).strip() and str(val).lower() != 'nan' else "")
+                            df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
                         elif tipo_campo == "produto":
                             df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: str(val).split('.')[0].strip().zfill(10) if str(val).strip() and str(val).lower() != 'nan' else "")
                         elif tipo_campo in ["moeda", "numero"]:
@@ -456,7 +459,10 @@ if tem_busca_ativa:
                                 client = gspread.authorize(creds)
                                 
                                 spreadsheet = client.open_by_key(FILE_ID)
-                                worksheet = spreadsheet.get_worksheet(0)
+                                try:
+                                    worksheet = spreadsheet.worksheet("Pedidos")
+                                except:
+                                    worksheet = spreadsheet.get_worksheet(0)
                                 
                                 dados_planilha = worksheet.get_all_values()
                                 cabecalho = dados_planilha[0]
