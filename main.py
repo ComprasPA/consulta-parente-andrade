@@ -80,7 +80,7 @@ st.markdown("""
 
 FILE_ID = "1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o"
 
-# 4. CARREGAMENTO SEGURO COM ALINHAMENTO COMPLETO DE COLUNAS
+# 4. CARREGAMENTO SEGURO DIRETO DA ABA "Pedidos"
 @st.cache_data(ttl=60)
 def carregar_dados_seguros():
     try:
@@ -95,20 +95,13 @@ def carregar_dados_seguros():
         except:
             worksheet = spreadsheet.get_worksheet(0)
         
-        # Pega todos os dados brutos da planilha incluindo colunas vazias
         dados = worksheet.get_all_values()
         if not dados:
             return pd.DataFrame()
             
         cabecalho = [str(c).strip() for c in dados[0]]
-        
-        # Garante que LOGISTICA conste no cabeçalho se houver dados até lá
-        if "LOGISTICA" not in [c.upper() for c in cabecalho]:
-            cabecalho.append("LOGISTICA")
-            
         linhas = dados[1:]
         
-        # Normaliza cada linha para ter exatamente o mesmo comprimento do cabeçalho
         linhas_normalizadas = []
         for linha in linhas:
             while len(linha) < len(cabecalho):
@@ -502,7 +495,7 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
                         
-                        # SALVAMENTO AUTOMÁTICO ROBUSTO POR CÉLULA (MAPEAMENTO PRECISO DE ÍNDICE)
+                        # SALVAMENTO AUTOMÁTICO BLINDADO (Atualiza diretamente a linha e coluna na planilha)
                         if "df_original_cache" in st.session_state:
                             df_orig = st.session_state.df_original_cache
                             alteracoes_detectadas = False
@@ -529,6 +522,7 @@ if tem_busca_ativa:
                                         valor_novo = str(edited_df.loc[idx, col])
                                         
                                         if valor_antigo != valor_novo:
+                                            # Linha real na planilha física (considerando o cabeçalho na linha 1)
                                             linha_planilha = int(df_final.index[idx]) + 2
                                             col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
                                             if col_config_item:
@@ -551,7 +545,7 @@ if tem_busca_ativa:
                                     st.cache_data.clear()
                                     
                             except Exception as e:
-                                pass
+                                st.error(f"Erro ao salvar: {e}")
                     else:
                         st.dataframe(
                             df_painel, 
