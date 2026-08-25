@@ -102,10 +102,26 @@ with c3:
     busca_cc = st.text_input("Busca Centro de Custo", placeholder="🔍 Rastrear Centro de Custo...", label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 6. FILTROS E LÓGICA DE GAVETA
+# 6. FILTROS E LÓGICA DE GAVETA (Com Autenticação de Operador via Senha)
 with st.sidebar:
     st.header("⚙️ Configurações de Acesso")
     perfil_usuario = st.selectbox("Selecione o seu perfil:", ["Usuário (Visualização)", "Operador (Edição)"])
+    
+    operador_autenticado = False
+    if "Operador" in perfil_usuario:
+        st.divider()
+        st.subheader("🔐 Autenticação de Operador")
+        senha_digitada = st.text_input("Senha do Operador:", type="password", placeholder="Digite a senha...")
+        
+        # Senha padrão configurada para a equipe de suprimentos
+        SENHA_MESTRE = "suprimentos2026"
+        
+        if senha_digitada == SENHA_MESTRE:
+            st.success("✅ Acesso Liberado!")
+            operador_autenticado = True
+        elif senha_digitada != "":
+            st.error("❌ Senha incorreta!")
+            operador_autenticado = False
 
 if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
@@ -377,11 +393,10 @@ if tem_busca_ativa:
                             else:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="right")
 
-                    # CONTROLE DE PERFIL DE ACESSO E SALVAMENTO POR CÉLULA ALTERADA
-                    if "Operador" in perfil_usuario:
-                        st.info("✏️ Modo Operador Ativo: Edite os campos e clique em Salvar Alterações.")
+                    # CONTROLE DE PERFIL DE ACESSO E SALVAMENTO CIRÚRGICO NO GOOGLE SHEETS
+                    if "Operador" in perfil_usuario and operador_autenticado:
+                        st.info("✏️ Modo Operador Ativo: Edite os campos diretamente na tabela e clique em 'Salvar Alterações'.")
                         
-                        # Salva o dataframe original na sessão para comparar o que mudou
                         if "df_original_cache" not in st.session_state or st.session_state.get("atualizar_cache_editor", True):
                             st.session_state.df_original_cache = df_painel.copy()
                             st.session_state.atualizar_cache_editor = False
@@ -404,31 +419,24 @@ if tem_busca_ativa:
                                 spreadsheet = client.open_by_key(FILE_ID)
                                 worksheet = spreadsheet.get_worksheet(0)
                                 
-                                # Lê os dados atuais da planilha do Google para mapear exatamente as linhas originais
                                 dados_planilha = worksheet.get_all_values()
                                 cabecalho = dados_planilha[0]
                                 
                                 alteracoes_realizadas = 0
                                 df_orig = st.session_state.df_original_cache
                                 
-                                # Compara linha por linha e coluna por coluna o que foi modificado pelo operador
                                 for idx in edited_df.index:
                                     for col in edited_df.columns:
                                         valor_antigo = str(df_orig.loc[idx, col])
                                         valor_novo = str(edited_df.loc[idx, col])
                                         
                                         if valor_antigo != valor_novo:
-                                            # Identifica a linha real na planilha do Google (considerando o índice do df original + 2 por causa do cabeçalho)
                                             linha_planilha = int(df_final.index[idx]) + 2
-                                            
-                                            # Identifica a coluna exata na planilha do Google pelo nome do cabeçalho
                                             col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
                                             if col_config_item:
                                                 nome_col_planilha = col_config_item["planilha"]
                                                 if nome_col_planilha in cabecalho:
                                                     col_index = cabecalho.index(nome_col_planilha) + 1
-                                                    
-                                                    # Atualiza apenas a célula alterada no Google Sheets
                                                     worksheet.update_cell(linha_planilha, col_index, valor_novo)
                                                     alteracoes_realizadas += 1
 
@@ -443,7 +451,11 @@ if tem_busca_ativa:
                             except Exception as e:
                                 st.error(f"❌ Erro ao salvar no Google Sheets: {e}")
                     else:
-                        st.success("👁️ Modo Usuário Ativo: Visualização somente leitura.")
+                        if "Operador" in perfil_usuario and not operador_autenticado:
+                            st.warning("🔒 Digite a senha correta na barra lateral para liberar o modo de edição.")
+                        else:
+                            st.success("👁️ Modo Usuário Ativo: Visualização somente leitura.")
+                            
                         st.dataframe(
                             df_painel, 
                             use_container_width=True, 
