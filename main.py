@@ -261,29 +261,29 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True
                 st.rerun()
 
-# 8. DICIONÁRIO MAPEADO COM AS COLUNAS EXATAS
+# 8. DICIONÁRIO MAPEADO RIGOROSAMENTE COM AS SUAS COLUNAS EXATAS
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": ["STATUS"], "tela": "Status", "tipo": "texto"},
-    {"planilha": ["CENTRO DE CUSTO", "CENTRO CUSTO", "CC"], "tela": "Centro De Custo", "tipo": "texto"},
-    {"planilha": ["SOLICITAÇÃO", "SOLICITACAO", "SC"], "tela": "Solicitação", "tipo": "texto"},
-    {"planilha": ["PEDIDO", "PC"], "tela": "Pedido", "tipo": "pedido"},   
-    {"planilha": ["CONDIÇÃO PAGAMENTO", "CONDICAO PAGAMENTO", "COND PAG", "CONDIÇÃO DE PAGAMENTO"], "tela": "Condição Pagamento", "tipo": "texto"},
-    {"planilha": ["DATA PEDIDO", "EMISSÃO", "EMISSAO", "DATA EMISSÃO", "DATA EMISSAO", "DT EMISSAO"], "tela": "Emissão", "tipo": "data"},
-    {"planilha": ["DATA LIBERAÇÃO", "DATA LIBERACAO", "APROVAÇÃO", "APROVACAO", "DATA APROVAÇÃO", "DATA APROVACAO"], "tela": "Aprovação", "tipo": "data"},
-    {"planilha": ["ENVIO", "DATA ENVIO"], "tela": "Envio", "tipo": "data"},
+    {"planilha": ["CENTRO DE CUSTO"], "tela": "Centro De Custo", "tipo": "texto"},
+    {"planilha": ["SOLICITAÇÃO", "SOLICITACAO"], "tela": "Solicitação", "tipo": "texto"},
+    {"planilha": ["PEDIDO"], "tela": "Pedido", "tipo": "pedido"},   
+    {"planilha": ["CONDIÇÃO PAGAMENTO"], "tela": "Condição Pagamento", "tipo": "texto"},
+    {"planilha": ["DATA PEDIDO"], "tela": "Emissão", "tipo": "data"},
+    {"planilha": ["DATA LIBERAÇÃO", "DATA LIBERACAO"], "tela": "Aprovação", "tipo": "data"},
+    {"planilha": ["ENVIO"], "tela": "Envio", "tipo": "data"},
     {"planilha": ["PAGAMENTO"], "tela": "Pagamento", "tipo": "texto"}, 
-    {"planilha": ["PREVISÃO DE ENTREGA", "PREVISAO DE ENTREGA", "PREV ENTREGA"], "tela": "Previsão De Entrega", "tipo": "data"},
-    {"planilha": ["ENTREGA", "DATA ENTREGA", "Data de entrega"], "tela": "Entrega", "tipo": "data"},
+    {"planilha": ["PREVISÃO DE ENTREGA"], "tela": "Previsão De Entrega", "tipo": "data"},
+    {"planilha": ["ENTREGA"], "tela": "Entrega", "tipo": "data"},
     {"planilha": ["FORNECEDOR"], "tela": "Fornecedor", "tipo": "texto"},
     {"planilha": ["GRUPO"], "tela": "Grupo", "tipo": "texto"},
-    {"planilha": ["PRODUTO", "COD PRODUTO", "ITEM"], "tela": "Produto", "tipo": "produto"},                 
-    {"planilha": ["DESCRICAO", "DESCRIÇÃO", "DESC"], "tela": "Descrição", "tipo": "texto"},
-    {"planilha": ["UM", "UNIDADE"], "tela": "Um", "tipo": "texto"},
-    {"planilha": ["QTD", "QUANTIDADE"], "tela": "Qtd", "tipo": "numero"},
-    {"planilha": ["PREÇO UNITÁRIO", "PRECO UNITARIO", "VLR UNITARIO", "PRC UNITARIO"], "tela": "Preço Unitário", "tipo": "moeda"},
-    {"planilha": ["VALOR TOTAL", "VLR TOTAL", "TOTAL"], "tela": "Valor Total", "tipo": "moeda"},
-    {"planilha": ["NF REMESSA", "NOTA FISCAL", "NF"], "tela": "NF Remessa", "tipo": "texto"},
-    {"planilha": ["LOGISTICA", "LOGÍSTICA"], "tela": "Logística", "tipo": "logistica"}
+    {"planilha": ["PRODUTO"], "tela": "Produto", "tipo": "produto"},                 
+    {"planilha": ["DESCRICAO"], "tela": "Descrição", "tipo": "texto"},
+    {"planilha": ["UM"], "tela": "Um", "tipo": "texto"},
+    {"planilha": ["QTD"], "tela": "Qtd", "tipo": "numero"},
+    {"planilha": [" PREÇO UNITÁRIO ", "PREÇO UNITÁRIO", "PRECO UNITARIO"], "tela": "Preço Unitário", "tipo": "moeda"},
+    {"planilha": [" VALOR TOTAL ", "VALOR TOTAL"], "tela": "Valor Total", "tipo": "moeda"},
+    {"planilha": ["NF REMESSA"], "tela": "NF Remessa", "tipo": "texto"},
+    {"planilha": ["LOGISTICA"], "tela": "Logística", "tipo": "logistica"}
 ]
 
 def converter_para_numerico(valor):
@@ -324,29 +324,29 @@ if tem_busca_ativa:
 
         if st.session_state.filtro_pc_val:
             pc_termo = str(st.session_state.filtro_pc_val).strip()
-            col_pc = colunas_normalizadas.get("PEDIDO") or colunas_normalizadas.get("PC")
+            col_pc = colunas_normalizadas.get("PEDIDO")
             if col_pc:
                 df_final = df_final[df_final[col_pc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(pc_termo, na=False)]
 
         if st.session_state.filtro_sc_val:
             sc_termo = str(st.session_state.filtro_sc_val).strip()
-            col_sc = next((colunas_normalizadas[c] for c in colunas_normalizadas if "SOLICITA" in c or "SC" in c), None)
+            col_sc = colunas_normalizadas.get("SOLICITAÇÃO") or colunas_normalizadas.get("SOLICITACAO")
             if col_sc:
                 df_final = df_final[df_final[col_sc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(sc_termo, na=False)]
 
         if st.session_state.filtro_cc_val:
             cc_termo = st.session_state.filtro_cc_val.strip().lower()
-            col_cc = next((colunas_normalizadas[c] for c in colunas_normalizadas if "CUSTO" in c or "CC" in c), None)
+            col_cc = colunas_normalizadas.get("CENTRO DE CUSTO")
             if col_cc:
                 df_final = df_final[df_final[col_cc].astype(str).str.lower().str.contains(cc_termo, na=False)]
 
-        col_status_verificacao = next((colunas_normalizadas[c] for c in colunas_normalizadas if "STATUS" in c), None)
+        col_status_verificacao = colunas_normalizadas.get("STATUS")
         if st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
             df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
 
         if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
             if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
-                col_emissao_original = next((colunas_normalizadas[c] for c in colunas_normalizadas if "EMISSAO" in c or "DATA PEDIDO" in c), None)
+                col_emissao_original = colunas_normalizadas.get("DATA PEDIDO")
                 if col_emissao_original:
                     datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed', dayfirst=True).dt.date
                     df_final = df_final[(datas_convertidas >= st.session_state.filtro_data_val[0]) & (datas_convertidas <= st.session_state.filtro_data_val[1])]
@@ -364,7 +364,7 @@ if tem_busca_ativa:
                         alt_clean = alt.upper().strip().replace('Í', 'I').replace('Ã', 'A')
                         for c_up in colunas_normalizadas:
                             c_up_clean = c_up.replace('Í', 'I').replace('Ã', 'A')
-                            if c_up_clean == alt_clean or alt_clean in c_up_clean or c_up_clean in alt_clean:
+                            if c_up_clean == alt_clean:
                                 col_real = colunas_normalizadas[c_up]
                                 break
                         if col_real:
@@ -388,10 +388,10 @@ if tem_busca_ativa:
                 # Associa a linha física exata da planilha
                 df_painel["_row_idx"] = [idx + 2 for idx in df_final.index]
 
-                col_status_tela = next((c for c in df_painel.columns if "STATUS" in c.upper()), None)
+                col_status_tela = colunas_normalizadas.get("STATUS")
                 if col_status_tela:
                     termos_excecao = ["SERVIÇO", "CANCELADO PELO SOLICITANTE", "REJEITADO PELO APROVADOR", "COMPRA DIRETA"]
-                    mask_status = df_painel[col_status_tela].astype(str).str.upper().apply(
+                    mask_status = df_painel["Status"].astype(str).str.upper().apply(
                         lambda s: any(t in s for t in termos_excecao)
                     )
                     for col_nome in ["Previsão De Entrega", "Entrega"]:
@@ -528,7 +528,7 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
                         
-                        # SALVAMENTO PROCV COM MAPEAMENTO ROBUSTO DE COLUNAS
+                        # SALVAMENTO PROCV COM MAPA RIGOROSO
                         if btn_salvar_dados:
                             if "df_original_cache" in st.session_state:
                                 df_orig = st.session_state.df_original_cache
