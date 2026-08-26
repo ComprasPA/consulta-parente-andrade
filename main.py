@@ -261,7 +261,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True
                 st.rerun()
 
-# 8. DICIONÁRIO MAPEADO COM OS NOVOS CABEÇALHOS SOLICITADOS
+# 8. DICIONÁRIO MAPEADO RIGOROSAMENTE COM AS SUAS COLUNAS EXATAS
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": ["STATUS"], "tela": "Status", "tipo": "texto"},
     {"planilha": ["CENTRO DE CUSTO"], "tela": "Centro De Custo", "tipo": "texto"},
@@ -286,9 +286,9 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": ["LOGISTICA"], "tela": "Logística", "tipo": "logistica"}
 ]
 
-def formatar_moeda_br(valor):
+def converter_para_numerico(valor):
     if not valor or str(valor).lower() == 'nan' or str(valor).strip() == '':
-        return "R$ 0,00"
+        return 0.0
     dado = str(valor).strip().replace('R$', '').replace('$', '').replace(' ', '')
     try:
         if ',' in dado and '.' in dado:
@@ -296,9 +296,27 @@ def formatar_moeda_br(valor):
         elif ',' in dado:
             dado = dado.replace(',', '.')
         val_float = float(dado)
-        return f"R$ {val_float:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+        return round(val_float, 2)
     except:
-        return "R$ 0,00"
+        return 0.0
+
+def formatar_moeda_br(valor):
+    num = converter_para_numerico(valor)
+    return f"R$ {num:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+
+def validar_formato_data(txt):
+    txt = str(txt).strip()
+    if txt == "" or txt.upper() in ["N/A", "NONE", "NAN", "0"]:
+        return True # Campos vazios ou N/A permitidos
+    # Valida rigorosamente o formato DD/MM/AAAA
+    padrao_data = r"^\d{2}/\d{2}/\d{4}$"
+    if not re.match(padrao_data, txt):
+        return False
+    try:
+        datetime.strptime(txt, '%d/%m/%Y')
+        return True
+    except ValueError:
+        return False
 
 def formatar_para_dd_mm_aaaa(valor):
     txt = str(valor).strip()
@@ -531,70 +549,86 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
                         
-                        # SALVAMENTO PROCV COM MAPA RIGOROSO
+                        # SALVAMENTO PROCV COM VALIDAÇÃO RÍGIDA DE DATAS (DD/MM/AAAA)
                         if btn_salvar_dados:
                             if "df_original_cache" in st.session_state:
                                 df_orig = st.session_state.df_original_cache
                                 alteracoes_detectadas = 0
+                                data_invalida_encontrada = False
                                 
-                                try:
-                                    scope = [
-                                        "https://www.googleapis.com/auth/spreadsheets",
-                                        "https://www.googleapis.com/auth/drive"
-                                    ]
-                                    creds_dict = dict(st.secrets["gcp_service_account"])
-                                    email_servico = creds_dict.get("client_email", "desconhecido")
-                                    
-                                    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-                                    client = gspread.authorize(creds)
-                                    
-                                    spreadsheet = client.open_by_key(FILE_ID)
+                                # Verifica se alguma data alterada está fora do formato DD/MM/AAAA
+                                colunas_de_data_tela = ["Emissão Pc", "Aprovação Pc", "Envio Pc", "Previsão De Entrega", "Entrega"]
+                                for idx in edited_df.index:
+                                    for col_dt in colunas_de_data_tela:
+                                        if col_dt in edited_df.columns:
+                                            val_novo_dt = str(edited_df.loc[idx, col_dt])
+                                            if not validar_formato_data(val_novo_dt):
+                                                data_invalida_encontrada = True
+                                                break
+                                    if data_invalida_encontrada:
+                                        break
+
+                                if data_invalida_encontrada:
+                                    st.markdown('<div class="custom-error-red">⚠️ Erro: Há campos de data preenchidos fora do formato obrigatório <b>DD/MM/AAAA</b>. Nenhuma alteração foi salva. Por favor, corrija antes de salvar.</div>', unsafe_allow_html=True)
+                                else:
                                     try:
-                                        worksheet = spreadsheet.worksheet("Pedidos")
-                                    except:
-                                        worksheet = spreadsheet.get_worksheet(0)
-                                    
-                                    dados_planilha = worksheet.get_all_values()
-                                    cabecalho_bruto = dados_planilha[0]
-                                    cabecalho_map = {c.upper().strip().replace('Í', 'I').replace('Ã', 'A'): i + 1 for i, c in enumerate(cabecalho_bruto)}
-                                    
-                                    for idx in edited_df.index:
-                                        linha_planilha = int(edited_df.loc[idx, "_row_idx"])
-                                        for col in edited_df.columns:
-                                            if col == "_row_idx":
-                                                continue
-                                            
-                                            valor_antigo = str(df_orig.loc[idx, col])
-                                            valor_novo = str(edited_df.loc[idx, col])
-                                            
-                                            if valor_antigo != valor_novo:
-                                                col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
-                                                if col_config_item:
-                                                    col_index = None
-                                                    for alt in col_config_item["planilha"]:
-                                                        alt_clean = alt.upper().strip().replace('Í', 'I').replace('Ã', 'A')
-                                                        col_index = cabecalho_map.get(alt_clean)
-                                                        if col_index:
-                                                            break
-                                                    
-                                                    if col_index:
-                                                        worksheet.update_cell(linha_planilha, col_index, valor_novo)
-                                                        alteracoes_detectadas += 1
-                                                        
-                                    if alteracoes_detectadas > 0:
-                                        st.success(f"✅ {alteracoes_detectadas} alteração(ões) gravada(s) com sucesso na planilha!")
-                                        st.session_state.df_original_cache = edited_df.copy()
-                                        st.cache_data.clear()
-                                        st.rerun()
-                                    else:
-                                        st.info("ℹ️ Nenhuma alteração foi realizada para salvar.")
+                                        scope = [
+                                            "https://www.googleapis.com/auth/spreadsheets",
+                                            "https://www.googleapis.com/auth/drive"
+                                        ]
+                                        creds_dict = dict(st.secrets["gcp_service_account"])
+                                        email_servico = creds_dict.get("client_email", "desconhecido")
                                         
-                                except Exception as e:
-                                    erro_str = str(e)
-                                    if "403" in erro_str or "permission" in erro_str.lower():
-                                        st.error(f"❌ Erro 403 (Permissão Negada). Verifique se o e-mail da conta de serviço **{email_servico}** está adicionado como **Editor** na planilha.")
-                                    else:
-                                        st.error(f"❌ Erro ao gravar: {e}")
+                                        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+                                        client = gspread.authorize(creds)
+                                        
+                                        spreadsheet = client.open_by_key(FILE_ID)
+                                        try:
+                                            worksheet = spreadsheet.worksheet("Pedidos")
+                                        except:
+                                            worksheet = spreadsheet.get_worksheet(0)
+                                        
+                                        dados_planilha = worksheet.get_all_values()
+                                        cabecalho_bruto = dados_planilha[0]
+                                        cabecalho_map = {c.upper().strip().replace('Í', 'I').replace('Ã', 'A'): i + 1 for i, c in enumerate(cabecalho_bruto)}
+                                        
+                                        for idx in edited_df.index:
+                                            linha_planilha = int(edited_df.loc[idx, "_row_idx"])
+                                            for col in edited_df.columns:
+                                                if col == "_row_idx":
+                                                    continue
+                                                
+                                                valor_antigo = str(df_orig.loc[idx, col])
+                                                valor_novo = str(edited_df.loc[idx, col])
+                                                
+                                                if valor_antigo != valor_novo:
+                                                    col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
+                                                    if col_config_item:
+                                                        col_index = None
+                                                        for alt in col_config_item["planilha"]:
+                                                            alt_clean = alt.upper().strip().replace('Í', 'I').replace('Ã', 'A')
+                                                            col_index = cabecalho_map.get(alt_clean)
+                                                            if col_index:
+                                                                break
+                                                        
+                                                        if col_index:
+                                                            worksheet.update_cell(linha_planilha, col_index, valor_novo)
+                                                            alteracoes_detectadas += 1
+                                                            
+                                        if alteracoes_detectadas > 0:
+                                            st.success(f"✅ {alteracoes_detectadas} alteração(ões) gravada(s) com sucesso na planilha!")
+                                            st.session_state.df_original_cache = edited_df.copy()
+                                            st.cache_data.clear()
+                                            st.rerun()
+                                        else:
+                                            st.info("ℹ️ Nenhuma alteração foi realizada para salvar.")
+                                            
+                                    except Exception as e:
+                                        erro_str = str(e)
+                                        if "403" in erro_str or "permission" in erro_str.lower():
+                                            st.error(f"❌ Erro 403 (Permissão Negada). Verifique se o e-mail da conta de serviço **{email_servico}** está adicionado como **Editor** na planilha.")
+                                        else:
+                                            st.error(f"❌ Erro ao gravar: {e}")
                     else:
                         st.dataframe(
                             df_painel.drop(columns=["_row_idx"], errors="ignore"), 
