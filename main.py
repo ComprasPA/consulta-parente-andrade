@@ -280,8 +280,8 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": ["DESCRICAO"], "tela": "Descrição", "tipo": "texto"},
     {"planilha": ["UM"], "tela": "Um", "tipo": "texto"},
     {"planilha": ["QTD"], "tela": "Qtd", "tipo": "numero"},
-    {"planilha": [" PREÇO UNITÁRIO ", "PREÇO UNITÁRIO", "PRECO UNITARIO"], "tela": "Preço Unitário", "tipo": "moeda"},
-    {"planilha": [" VALOR TOTAL ", "VALOR TOTAL"], "tela": "Valor Total", "tipo": "moeda"},
+    {"planilha": ["PREÇO UNITÁRIO", "PRECO UNITARIO"], "tela": "Preço Unitário", "tipo": "moeda"},
+    {"planilha": ["VALOR TOTAL"], "tela": "Valor Total", "tipo": "moeda"},
     {"planilha": ["NF REMESSA"], "tela": "NF Remessa", "tipo": "texto"},
     {"planilha": ["LOGISTICA"], "tela": "Logística", "tipo": "logistica"}
 ]
@@ -571,11 +571,6 @@ if tem_busca_ativa:
                                                     for alt in col_config_item["planilha"]:
                                                         alt_clean = alt.upper().strip().replace('Í', 'I').replace('Ã', 'A')
                                                         col_index = cabecalho_map.get(alt_clean)
-                                                        if not col_index:
-                                                            for c_map, idx_val in cabecalho_map.items():
-                                                                if alt_clean in c_map or c_map in alt_clean:
-                                                                    col_index = idx_val
-                                                                    break
                                                         if col_index:
                                                             break
                                                     
