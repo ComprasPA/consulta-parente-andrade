@@ -122,7 +122,7 @@ if 'dados_globais' not in st.session_state or st.session_state.dados_globais.emp
 
 df_pc = st.session_state.dados_globais
 
-# Estados de sessão (Segurança: Exige login a cada recarregamento da página)
+# Estados de sessão
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 if "departamento_ativo" not in st.session_state:
@@ -382,7 +382,7 @@ if tem_busca_ativa:
                     else:
                         df_painel[nome_exibicao_tela] = ""
 
-                # Associa a linha física exata da planilha (índice original do df_final + 2)
+                # Associa a linha física exata da planilha
                 df_painel["_row_idx"] = [idx + 2 for idx in df_final.index]
 
                 col_status_tela = next((c for c in df_painel.columns if "STATUS" in c.upper()), None)
@@ -422,7 +422,7 @@ if tem_busca_ativa:
                     txt_status = f"🔍 Registros Localizados ({len(df_painel)} itens)"
                     st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
                     
-                    # BOTÕES LADO A LADO ACIMA DA TABELA (Baixar Relatório e Salvar Alterações)
+                    # BOTÕES LADO A LADO ACIMA DA TABELA
                     c_down1, c_down2 = st.columns([2.2, 2.2])
                     
                     with c_down1:
@@ -525,7 +525,7 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
                         
-                        # SALVAMENTO PROCV: GRAVAÇÃO EXATA NA LINHA E COLUNA DA PLANILHA
+                        # SALVAMENTO PROCV COM EXIBIÇÃO DO E-MAIL EM CASO DE ERRO 403
                         if btn_salvar_dados:
                             if "df_original_cache" in st.session_state:
                                 df_orig = st.session_state.df_original_cache
@@ -537,6 +537,8 @@ if tem_busca_ativa:
                                         "https://www.googleapis.com/auth/drive"
                                     ]
                                     creds_dict = dict(st.secrets["gcp_service_account"])
+                                    email_servico = creds_dict.get("client_email", "desconhecido")
+                                    
                                     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
                                     client = gspread.authorize(creds)
                                     
@@ -584,7 +586,11 @@ if tem_busca_ativa:
                                         st.info("ℹ️ Nenhuma alteração foi realizada para salvar.")
                                         
                                 except Exception as e:
-                                    st.error(f"❌ Erro ao gravar: {e}")
+                                    erro_str = str(e)
+                                    if "403" in erro_str or "permission" in erro_str.lower():
+                                        st.error(f"❌ Erro 403 (Permissão Negada). Verifique se o e-mail da conta de serviço **{email_servico}** está adicionado como **Editor** na planilha.")
+                                    else:
+                                        st.error(f"❌ Erro ao gravar: {e}")
                     else:
                         st.dataframe(
                             df_painel.drop(columns=["_row_idx"], errors="ignore"), 
