@@ -305,7 +305,6 @@ def formatar_para_dd_mm_aaaa(valor):
     if txt == "" or txt.lower() in ["nan", "none", "0", "n/a"]:
         return txt
     try:
-        # Trata números seriais do Excel/Google Sheets se vierem corrompidos
         if re.match(r'^\d{5}$', txt):
             dt = datetime(1899, 12, 30) + timedelta(days=int(txt))
             return dt.strftime('%d/%m/%Y')
@@ -518,6 +517,7 @@ if tem_busca_ativa:
                             if nome_tela == "Status":
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center")
                             elif tipo_campo == "moeda":
+                                # Força o formato de exibição com o cifrão brasileiro R$
                                 configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right")
                             elif tipo_campo == "numero":
                                 configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right")
