@@ -261,29 +261,29 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True
                 st.rerun()
 
-# 8. MAPEAMENTO EXATO DAS COLUNAS (Com nomenclaturas revisadas e primeira letra maiúscula)
+# 8. MAPEAMENTO ROBUSTO DE COLUNAS (Trata variações do Protheus)
 DICIONARIO_COLUNAS_EXATAS = [
-    {"planilha": "STATUS", "tela": "Status", "tipo": "texto"},
-    {"planilha": "CENTRO DE CUSTO", "tela": "Centro de Custo", "tipo": "texto"},
-    {"planilha": "SOLICITAÇÃO", "tela": "Solicitação", "tipo": "texto"},
-    {"planilha": "PEDIDO", "tela": "Pedido", "tipo": "pedido"},   
-    {"planilha": "CONDIÇÃO PAGAMENTO", "tela": "Condição Pagamento", "tipo": "texto"},
-    {"planilha": "EMISSÃO", "tela": "Emissão", "tipo": "data"},
-    {"planilha": "APROVAÇÃO", "tela": "Aprovação", "tipo": "data"},
-    {"planilha": "ENVIO", "tela": "Envio", "tipo": "data"},
-    {"planilha": "PAGAMENTO", "tela": "Pagamento", "tipo": "texto"}, 
-    {"planilha": "PREVISÃO DE ENTREGA", "tela": "Previsão de Entrega", "tipo": "data"},
-    {"planilha": "ENTREGA", "tela": "Entrega", "tipo": "data"},
-    {"planilha": "FORNECEDOR", "tela": "Fornecedor", "tipo": "texto"},
-    {"planilha": "GRUPO", "tela": "Grupo", "tipo": "texto"},
-    {"planilha": "PRODUTO", "tela": "Produto", "tipo": "produto"},                 
-    {"planilha": "DESCRICAO", "tela": "Descrição", "tipo": "texto"},
-    {"planilha": "UM", "tela": "Um", "tipo": "texto"},
-    {"planilha": "QTD", "tela": "Qtd", "tipo": "numero"},
-    {"planilha": "PREÇO UNITÁRIO", "tela": "Preço Unitário", "tipo": "moeda"},
-    {"planilha": "VALOR TOTAL", "tela": "Valor Total", "tipo": "moeda"},
-    {"planilha": "NF REMESSA", "tela": "Nf Remessa", "tipo": "texto"},
-    {"planilha": "LOGISTICA", "tela": "Logística", "tipo": "logistica"}
+    {"planilha": ["STATUS"], "tela": "Status", "tipo": "texto"},
+    {"planilha": ["CENTRO DE CUSTO", "CENTRO CUSTO", "CC"], "tela": "Centro de Custo", "tipo": "texto"},
+    {"planilha": ["SOLICITAÇÃO", "SOLICITACAO", "SC"], "tela": "Solicitação", "tipo": "texto"},
+    {"planilha": ["PEDIDO", "PC"], "tela": "Pedido", "tipo": "pedido"},   
+    {"planilha": ["CONDIÇÃO PAGAMENTO", "CONDICAO PAGAMENTO", "COND PAG", "CONDIÇÃO DE PAGAMENTO"], "tela": "Condição Pagamento", "tipo": "texto"},
+    {"planilha": ["EMISSÃO", "EMISSAO", "DATA EMISSÃO", "DATA EMISSAO"], "tela": "Emissão", "tipo": "data"},
+    {"planilha": ["APROVAÇÃO", "APROVACAO", "DATA APROVAÇÃO", "DATA APROVACAO"], "tela": "Aprovação", "tipo": "data"},
+    {"planilha": ["ENVIO", "DATA ENVIO"], "tela": "Envio", "tipo": "data"},
+    {"planilha": ["PAGAMENTO"], "tela": "Pagamento", "tipo": "texto"}, 
+    {"planilha": ["PREVISÃO DE ENTREGA", "PREVISAO DE ENTREGA", "PREV ENTREGA"], "tela": "Previsão de Entrega", "tipo": "data"},
+    {"planilha": ["ENTREGA", "DATA ENTREGA"], "tela": "Entrega", "tipo": "data"},
+    {"planilha": ["FORNECEDOR"], "tela": "Fornecedor", "tipo": "texto"},
+    {"planilha": ["GRUPO"], "tela": "Grupo", "tipo": "texto"},
+    {"planilha": ["PRODUTO", "COD PRODUTO", "ITEM"], "tela": "Produto", "tipo": "produto"},                 
+    {"planilha": ["DESCRICAO", "DESCRIÇÃO", "DESC"], "tela": "Descrição", "tipo": "texto"},
+    {"planilha": ["UM", "UNIDADE"], "tela": "Um", "tipo": "texto"},
+    {"planilha": ["QTD", "QUANTIDADE"], "tela": "Qtd", "tipo": "numero"},
+    {"planilha": ["PREÇO UNITÁRIO", "PRECO UNITARIO", "VLR UNITARIO"], "tela": "Preço Unitário", "tipo": "moeda"},
+    {"planilha": ["VALOR TOTAL", "VLR TOTAL", "TOTAL"], "tela": "Valor Total", "tipo": "moeda"},
+    {"planilha": ["NF REMESSA", "NOTA FISCAL", "NF"], "tela": "Nf Remessa", "tipo": "texto"},
+    {"planilha": ["LOGISTICA", "LOGÍSTICA"], "tela": "Logística", "tipo": "logistica"}
 ]
 
 def converter_para_numerico(valor):
@@ -324,13 +324,13 @@ if tem_busca_ativa:
 
         if st.session_state.filtro_pc_val:
             pc_termo = str(st.session_state.filtro_pc_val).strip()
-            col_pc = colunas_normalizadas.get("PEDIDO")
+            col_pc = colunas_normalizadas.get("PEDIDO") or colunas_normalizadas.get("PC")
             if col_pc:
                 df_final = df_final[df_final[col_pc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(pc_termo, na=False)]
 
         if st.session_state.filtro_sc_val:
             sc_termo = str(st.session_state.filtro_sc_val).strip()
-            col_sc = next((colunas_normalizadas[c] for c in colunas_normalizadas if "SOLICITA" in c), None)
+            col_sc = next((colunas_normalizadas[c] for c in colunas_normalizadas if "SOLICITA" in c or "SC" in c), None)
             if col_sc:
                 df_final = df_final[df_final[col_sc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(sc_termo, na=False)]
 
@@ -346,7 +346,7 @@ if tem_busca_ativa:
 
         if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
             if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
-                col_emissao_original = next((colunas_normalizadas[c] for c in colunas_normalizadas if "EMISSAO" in c or "EMISSÃO" in c), None)
+                col_emissao_original = next((colunas_normalizadas[c] for c in colunas_normalizadas if "EMISSAO" in c), None)
                 if col_emissao_original:
                     datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed', dayfirst=True).dt.date
                     df_final = df_final[(datas_convertidas >= st.session_state.filtro_data_val[0]) & (datas_convertidas <= st.session_state.filtro_data_val[1])]
@@ -356,15 +356,18 @@ if tem_busca_ativa:
                 df_painel = pd.DataFrame(index=df_final.index)
                 
                 for col_config in DICIONARIO_COLUNAS_EXATAS:
-                    nome_alvo = col_config["planilha"].strip().upper().replace('Í', 'I').replace('Ã', 'A')
                     nome_exibicao_tela = col_config["tela"]
                     tipo_campo = col_config["tipo"]
                     
                     col_real = None
-                    for c_up in colunas_normalizadas:
-                        c_up_clean = c_up.replace('Í', 'I').replace('Ã', 'A')
-                        if c_up_clean == nome_alvo or nome_alvo in c_up_clean or c_up_clean in nome_alvo:
-                            col_real = colunas_normalizadas[c_up]
+                    for alt in col_config["planilha"]:
+                        alt_clean = alt.upper().strip().replace('Í', 'I').replace('Ã', 'A')
+                        for c_up in colunas_normalizadas:
+                            c_up_clean = c_up.replace('Í', 'I').replace('Ã', 'A')
+                            if c_up_clean == alt_clean or alt_clean in c_up_clean or c_up_clean in alt_clean:
+                                col_real = colunas_normalizadas[c_up]
+                                break
+                        if col_real:
                             break
 
                     if col_real:
@@ -525,7 +528,7 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
                         
-                        # SALVAMENTO PROCV: GRAVAÇÃO EXATA NA LINHA E COLUNA DA PLANILHA
+                        # SALVAMENTO BLINDADO COM CORREÇÃO DE MAPEAMENTO DE COLUNAS
                         if btn_salvar_dados:
                             if "df_original_cache" in st.session_state:
                                 df_orig = st.session_state.df_original_cache
@@ -564,14 +567,17 @@ if tem_busca_ativa:
                                             if valor_antigo != valor_novo:
                                                 col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
                                                 if col_config_item:
-                                                    nome_col_planilha = col_config_item["planilha"].upper().replace('Í', 'I').replace('Ã', 'A')
-                                                    
-                                                    col_index = cabecalho_map.get(nome_col_planilha)
-                                                    if not col_index:
-                                                        for c_map, idx_val in cabecalho_map.items():
-                                                            if nome_col_planilha in c_map or c_map in nome_col_planilha:
-                                                                col_index = idx_val
-                                                                break
+                                                    col_index = None
+                                                    for alt in col_config_item["planilha"]:
+                                                        alt_clean = alt.upper().strip().replace('Í', 'I').replace('Ã', 'A')
+                                                        col_index = cabecalho_map.get(alt_clean)
+                                                        if not col_index:
+                                                            for c_map, idx_val in cabecalho_map.items():
+                                                                if alt_clean in c_map or c_map in alt_clean:
+                                                                    col_index = idx_val
+                                                                    break
+                                                        if col_index:
+                                                            break
                                                     
                                                     if col_index:
                                                         worksheet.update_cell(linha_planilha, col_index, valor_novo)
