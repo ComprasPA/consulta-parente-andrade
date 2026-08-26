@@ -261,7 +261,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True
                 st.rerun()
 
-# 8. MAPEAMENTO EXATO DAS COLUNAS
+# 8. MAPEAMENTO EXATO DAS COLUNAS (Com DESCRICAO sem acento)
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
     {"planilha": "CENTRO DE CUSTO", "tela": "Centro de Custo", "tipo": "texto"},
@@ -382,7 +382,7 @@ if tem_busca_ativa:
                     else:
                         df_painel[nome_exibicao_tela] = ""
 
-                # Associa a linha física exata da planilha
+                # Associa a linha física exata da planilha (índice original do df_final + 2)
                 df_painel["_row_idx"] = [idx + 2 for idx in df_final.index]
 
                 col_status_tela = next((c for c in df_painel.columns if "STATUS" in c.upper()), None)
@@ -525,7 +525,7 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
                         
-                        # SALVAMENTO ESTILO PROCV COM BOTÃO EXPLICITO (Garante gravação sem erro 403)
+                        # SALVAMENTO PROCV: GRAVAÇÃO EXATA NA LINHA E COLUNA DA PLANILHA
                         if btn_salvar_dados:
                             if "df_original_cache" in st.session_state:
                                 df_orig = st.session_state.df_original_cache
