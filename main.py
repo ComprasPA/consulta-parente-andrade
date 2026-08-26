@@ -261,26 +261,26 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True
                 st.rerun()
 
-# 8. MAPEAMENTO ROBUSTO DE COLUNAS (Trata variações do Protheus)
+# 8. DICIONÁRIO MAPEADO COM AS COLUNAS EXATAS DA PLANILHA E NOMES NA TELA COM PRIMEIRA LETRA MAIÚSCULA
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": ["STATUS"], "tela": "Status", "tipo": "texto"},
-    {"planilha": ["CENTRO DE CUSTO", "CENTRO CUSTO", "CC"], "tela": "Centro de Custo", "tipo": "texto"},
+    {"planilha": ["CENTRO DE CUSTO", "CENTRO CUSTO", "CC"], "tela": "Centro De Custo", "tipo": "texto"},
     {"planilha": ["SOLICITAÇÃO", "SOLICITACAO", "SC"], "tela": "Solicitação", "tipo": "texto"},
     {"planilha": ["PEDIDO", "PC"], "tela": "Pedido", "tipo": "pedido"},   
     {"planilha": ["CONDIÇÃO PAGAMENTO", "CONDICAO PAGAMENTO", "COND PAG", "CONDIÇÃO DE PAGAMENTO"], "tela": "Condição Pagamento", "tipo": "texto"},
-    {"planilha": ["EMISSÃO", "EMISSAO", "DATA EMISSÃO", "DATA EMISSAO"], "tela": "Emissão", "tipo": "data"},
-    {"planilha": ["APROVAÇÃO", "APROVACAO", "DATA APROVAÇÃO", "DATA APROVACAO"], "tela": "Aprovação", "tipo": "data"},
+    {"planilha": ["DATA PEDIDO", "EMISSÃO", "EMISSAO", "DATA EMISSÃO", "DATA EMISSAO", "DT EMISSAO"], "tela": "Emissão", "tipo": "data"},
+    {"planilha": ["DATA LIBERAÇÃO", "DATA LIBERACAO", "APROVAÇÃO", "APROVACAO", "DATA APROVAÇÃO", "DATA APROVACAO"], "tela": "Aprovação", "tipo": "data"},
     {"planilha": ["ENVIO", "DATA ENVIO"], "tela": "Envio", "tipo": "data"},
     {"planilha": ["PAGAMENTO"], "tela": "Pagamento", "tipo": "texto"}, 
-    {"planilha": ["PREVISÃO DE ENTREGA", "PREVISAO DE ENTREGA", "PREV ENTREGA"], "tela": "Previsão de Entrega", "tipo": "data"},
-    {"planilha": ["ENTREGA", "DATA ENTREGA"], "tela": "Entrega", "tipo": "data"},
+    {"planilha": ["PREVISÃO DE ENTREGA", "PREVISAO DE ENTREGA", "PREV ENTREGA"], "tela": "Previsão De Entrega", "tipo": "data"},
+    {"planilha": ["ENTREGA", "DATA ENTREGA", "Data de entrega"], "tela": "Entrega", "tipo": "data"},
     {"planilha": ["FORNECEDOR"], "tela": "Fornecedor", "tipo": "texto"},
     {"planilha": ["GRUPO"], "tela": "Grupo", "tipo": "texto"},
     {"planilha": ["PRODUTO", "COD PRODUTO", "ITEM"], "tela": "Produto", "tipo": "produto"},                 
     {"planilha": ["DESCRICAO", "DESCRIÇÃO", "DESC"], "tela": "Descrição", "tipo": "texto"},
     {"planilha": ["UM", "UNIDADE"], "tela": "Um", "tipo": "texto"},
     {"planilha": ["QTD", "QUANTIDADE"], "tela": "Qtd", "tipo": "numero"},
-    {"planilha": ["PREÇO UNITÁRIO", "PRECO UNITARIO", "VLR UNITARIO"], "tela": "Preço Unitário", "tipo": "moeda"},
+    {"planilha": ["PREÇO UNITÁRIO", "PRECO UNITARIO", "VLR UNITARIO", "PRC UNITARIO"], "tela": "Preço Unitário", "tipo": "moeda"},
     {"planilha": ["VALOR TOTAL", "VLR TOTAL", "TOTAL"], "tela": "Valor Total", "tipo": "moeda"},
     {"planilha": ["NF REMESSA", "NOTA FISCAL", "NF"], "tela": "Nf Remessa", "tipo": "texto"},
     {"planilha": ["LOGISTICA", "LOGÍSTICA"], "tela": "Logística", "tipo": "logistica"}
@@ -289,7 +289,7 @@ DICIONARIO_COLUNAS_EXATAS = [
 def converter_para_numerico(valor):
     if not valor or str(valor).lower() == 'nan' or str(valor).strip() == '':
         return 0.0
-    dado = str(valor).strip().replace(' ', '')
+    dado = str(valor).strip().replace('R$', '').replace('$', '').replace(' ', '')
     try:
         if ',' in dado and '.' in dado:
             dado = dado.replace('.', '').replace(',', '.')
@@ -346,7 +346,7 @@ if tem_busca_ativa:
 
         if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
             if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
-                col_emissao_original = next((colunas_normalizadas[c] for c in colunas_normalizadas if "EMISSAO" in c), None)
+                col_emissao_original = next((colunas_normalizadas[c] for c in colunas_normalizadas if "EMISSAO" in c or "DATA PEDIDO" in c), None)
                 if col_emissao_original:
                     datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed', dayfirst=True).dt.date
                     df_final = df_final[(datas_convertidas >= st.session_state.filtro_data_val[0]) & (datas_convertidas <= st.session_state.filtro_data_val[1])]
@@ -394,13 +394,13 @@ if tem_busca_ativa:
                     mask_status = df_painel[col_status_tela].astype(str).str.upper().apply(
                         lambda s: any(t in s for t in termos_excecao)
                     )
-                    for col_nome in ["Previsão de Entrega", "Entrega"]:
+                    for col_nome in ["Previsão De Entrega", "Entrega"]:
                         if col_nome in df_painel.columns:
                             df_painel.loc[mask_status, col_nome] = "N/A"
 
-                if "Previsão de Entrega" in df_painel.columns and "Entrega" in df_painel.columns:
-                    mascara_vazia = (df_painel["Previsão de Entrega"] == "") | (df_painel["Previsão de Entrega"].isna())
-                    df_painel.loc[mascara_vazia, "Previsão de Entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
+                if "Previsão De Entrega" in df_painel.columns and "Entrega" in df_painel.columns:
+                    mascara_vazia = (df_painel["Previsão De Entrega"] == "") | (df_painel["Previsão De Entrega"].isna())
+                    df_painel.loc[mascara_vazia, "Previsão De Entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
 
                 if "Pagamento" in df_painel.columns and "Condição Pagamento" in df_painel.columns:
                     condicao_normalizada = df_painel["Condição Pagamento"].astype(str).str.upper().str.strip()
@@ -412,7 +412,7 @@ if tem_busca_ativa:
                     )
                     df_painel.loc[mascara_na, "Pagamento"] = "N/A"
 
-                colunas_para_formatar = ["Envio", "Pagamento", "Previsão de Entrega", "Entrega", "Emissão", "Aprovação"]
+                colunas_para_formatar = ["Envio", "Pagamento", "Previsão De Entrega", "Entrega", "Emissão", "Aprovação"]
                 for col_data in colunas_para_formatar:
                     if col_data in df_painel.columns:
                         df_painel[col_data] = df_painel[col_data].apply(
@@ -493,7 +493,7 @@ if tem_busca_ativa:
                                 else:
                                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
                             else:
-                                campos_permitidos_compras = ["Status", "Envio", "Pagamento", "Previsão de Entrega", "Entrega", "Nf Remessa"]
+                                campos_permitidos_compras = ["Status", "Envio", "Pagamento", "Previsão De Entrega", "Entrega", "Nf Remessa"]
                                 if nome_tela in campos_permitidos_compras:
                                     if nome_tela == "Status":
                                         configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
@@ -528,7 +528,7 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
                         
-                        # SALVAMENTO BLINDADO COM CORREÇÃO DE MAPEAMENTO DE COLUNAS
+                        # SALVAMENTO PROCV COM MAPEAMENTO ROBUSTO DE COLUNAS
                         if btn_salvar_dados:
                             if "df_original_cache" in st.session_state:
                                 df_orig = st.session_state.df_original_cache
