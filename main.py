@@ -261,17 +261,17 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True
                 st.rerun()
 
-# 8. DICIONÁRIO MAPEADO RIGOROSAMENTE COM AS SUAS COLUNAS EXATAS
+# 8. DICIONÁRIO MAPEADO COM OS NOVOS CABEÇALHOS SOLICITADOS
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": ["STATUS"], "tela": "Status", "tipo": "texto"},
     {"planilha": ["CENTRO DE CUSTO"], "tela": "Centro De Custo", "tipo": "texto"},
     {"planilha": ["SOLICITAÇÃO", "SOLICITACAO"], "tela": "Solicitação", "tipo": "texto"},
     {"planilha": ["PEDIDO"], "tela": "Pedido", "tipo": "pedido"},   
     {"planilha": ["CONDIÇÃO PAGAMENTO"], "tela": "Condição Pagamento", "tipo": "texto"},
-    {"planilha": ["DATA PEDIDO"], "tela": "Emissão", "tipo": "data"},
-    {"planilha": ["DATA LIBERAÇÃO", "DATA LIBERACAO"], "tela": "Aprovação", "tipo": "data"},
-    {"planilha": ["ENVIO"], "tela": "Envio", "tipo": "data"},
-    {"planilha": ["PAGAMENTO"], "tela": "Pagamento", "tipo": "texto"}, 
+    {"planilha": ["DATA PEDIDO"], "tela": "Emissão Pc", "tipo": "data"},
+    {"planilha": ["DATA LIBERAÇÃO", "DATA LIBERACAO"], "tela": "Aprovação Pc", "tipo": "data"},
+    {"planilha": ["ENVIO"], "tela": "Envio Pc", "tipo": "data"},
+    {"planilha": ["PAGAMENTO"], "tela": "Pagamento Pc", "tipo": "texto"}, 
     {"planilha": ["PREVISÃO DE ENTREGA"], "tela": "Previsão De Entrega", "tipo": "data"},
     {"planilha": ["ENTREGA"], "tela": "Entrega", "tipo": "data"},
     {"planilha": ["FORNECEDOR"], "tela": "Fornecedor", "tipo": "texto"},
@@ -286,9 +286,9 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": ["LOGISTICA"], "tela": "Logística", "tipo": "logistica"}
 ]
 
-def converter_para_numerico(valor):
+def formatar_moeda_br(valor):
     if not valor or str(valor).lower() == 'nan' or str(valor).strip() == '':
-        return 0.0
+        return "R$ 0,00"
     dado = str(valor).strip().replace('R$', '').replace('$', '').replace(' ', '')
     try:
         if ',' in dado and '.' in dado:
@@ -296,9 +296,9 @@ def converter_para_numerico(valor):
         elif ',' in dado:
             dado = dado.replace(',', '.')
         val_float = float(dado)
-        return round(val_float, 2)
+        return f"R$ {val_float:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
     except:
-        return 0.0
+        return "R$ 0,00"
 
 def formatar_para_dd_mm_aaaa(valor):
     txt = str(valor).strip()
@@ -382,8 +382,10 @@ if tem_busca_ativa:
                             df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
                         elif tipo_campo == "produto":
                             df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: str(val).split('.')[0].strip().zfill(10) if str(val).strip() and str(val).lower() != 'nan' else "")
-                        elif tipo_campo in ["moeda", "numero"]:
-                            df_painel[nome_exibicao_tela] = valores_originais.apply(converter_para_numerico)
+                        elif tipo_campo == "moeda":
+                            df_painel[nome_exibicao_tela] = valores_originais.apply(formatar_moeda_br)
+                        elif tipo_campo == "numero":
+                            df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
                         else:
                             df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
                     else:
@@ -406,7 +408,7 @@ if tem_busca_ativa:
                     mascara_vazia = (df_painel["Previsão De Entrega"] == "") | (df_painel["Previsão De Entrega"].isna())
                     df_painel.loc[mascara_vazia, "Previsão De Entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
 
-                if "Pagamento" in df_painel.columns and "Condição Pagamento" in df_painel.columns:
+                if "Pagamento Pc" in df_painel.columns and "Condição Pagamento" in df_painel.columns:
                     condicao_normalizada = df_painel["Condição Pagamento"].astype(str).str.upper().str.strip()
                     mascara_na = (
                         (~condicao_normalizada.str.contains("A VISTA", na=False)) & 
@@ -414,9 +416,9 @@ if tem_busca_ativa:
                         (~condicao_normalizada.str.contains("VENCIDO", na=False)) & 
                         (~condicao_normalizada.str.contains("PAGO", na=False))
                     )
-                    df_painel.loc[mascara_na, "Pagamento"] = "N/A"
+                    df_painel.loc[mascara_na, "Pagamento Pc"] = "N/A"
 
-                colunas_para_formatar = ["Envio", "Pagamento", "Previsão De Entrega", "Entrega", "Emissão", "Aprovação"]
+                colunas_para_formatar = ["Envio Pc", "Pagamento Pc", "Previsão De Entrega", "Entrega", "Emissão Pc", "Aprovação Pc"]
                 for col_data in colunas_para_formatar:
                     if col_data in df_painel.columns:
                         df_painel[col_data] = df_painel[col_data].apply(
@@ -440,15 +442,10 @@ if tem_busca_ativa:
                             workbook  = wr.book
                             worksheet = wr.sheets["Relatório"]
                             
-                            formato_moeda = workbook.add_format({'num_format': 'R$ #,##0.00'})
                             for idx, col_name in enumerate(df_excel_export.columns):
                                 serie_coluna = df_excel_export[col_name].astype(str)
                                 max_len = max(serie_coluna.map(len).max(), len(col_name)) + 3
                                 worksheet.set_column(idx, idx, max(max_len, 12))
-                                
-                                col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col_name), None)
-                                if col_config_item and col_config_item["tipo"] == "moeda":
-                                    worksheet.set_column(idx, idx, max(max_len, 15), formato_moeda)
 
                         st.download_button(
                             label="📥 Baixar Relatório",
@@ -503,7 +500,7 @@ if tem_busca_ativa:
                                 else:
                                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
                             else:
-                                campos_permitidos_compras = ["Status", "Envio", "Pagamento", "Previsão De Entrega", "Entrega", "NF Remessa"]
+                                campos_permitidos_compras = ["Status", "Envio Pc", "Pagamento Pc", "Previsão De Entrega", "Entrega", "NF Remessa"]
                                 if nome_tela in campos_permitidos_compras:
                                     if nome_tela == "Status":
                                         configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
@@ -516,11 +513,6 @@ if tem_busca_ativa:
                         else:
                             if nome_tela == "Status":
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center")
-                            elif tipo_campo == "moeda":
-                                # Força o formato de exibição com o cifrão brasileiro R$
-                                configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right")
-                            elif tipo_campo == "numero":
-                                configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, alignment="right")
                             else:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
 
