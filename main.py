@@ -261,28 +261,28 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True
                 st.rerun()
 
-# 8. MAPEAMENTO EXATO DAS COLUNAS (Com DESCRICAO sem acento)
+# 8. MAPEAMENTO EXATO DAS COLUNAS (Com nomenclaturas revisadas e primeira letra maiúscula)
 DICIONARIO_COLUNAS_EXATAS = [
-    {"planilha": "STATUS", "tela": "STATUS", "tipo": "texto"},
+    {"planilha": "STATUS", "tela": "Status", "tipo": "texto"},
     {"planilha": "CENTRO DE CUSTO", "tela": "Centro de Custo", "tipo": "texto"},
     {"planilha": "SOLICITAÇÃO", "tela": "Solicitação", "tipo": "texto"},
-    {"planilha": "PEDIDO", "tela": "Pedidos", "tipo": "pedido"},   
+    {"planilha": "PEDIDO", "tela": "Pedido", "tipo": "pedido"},   
     {"planilha": "CONDIÇÃO PAGAMENTO", "tela": "Condição Pagamento", "tipo": "texto"},
     {"planilha": "EMISSÃO", "tela": "Emissão", "tipo": "data"},
     {"planilha": "APROVAÇÃO", "tela": "Aprovação", "tipo": "data"},
     {"planilha": "ENVIO", "tela": "Envio", "tipo": "data"},
     {"planilha": "PAGAMENTO", "tela": "Pagamento", "tipo": "texto"}, 
-    {"planilha": "PREVISÃO DE ENTREGA", "tela": "Previsão de entrega", "tipo": "data"},
+    {"planilha": "PREVISÃO DE ENTREGA", "tela": "Previsão de Entrega", "tipo": "data"},
     {"planilha": "ENTREGA", "tela": "Entrega", "tipo": "data"},
     {"planilha": "FORNECEDOR", "tela": "Fornecedor", "tipo": "texto"},
     {"planilha": "GRUPO", "tela": "Grupo", "tipo": "texto"},
     {"planilha": "PRODUTO", "tela": "Produto", "tipo": "produto"},                 
     {"planilha": "DESCRICAO", "tela": "Descrição", "tipo": "texto"},
-    {"planilha": "UM", "tela": "UM", "tipo": "texto"},
+    {"planilha": "UM", "tela": "Um", "tipo": "texto"},
     {"planilha": "QTD", "tela": "Qtd", "tipo": "numero"},
     {"planilha": "PREÇO UNITÁRIO", "tela": "Preço Unitário", "tipo": "moeda"},
     {"planilha": "VALOR TOTAL", "tela": "Valor Total", "tipo": "moeda"},
-    {"planilha": "NF REMESSA", "tela": "NF Remessa", "tipo": "texto"},
+    {"planilha": "NF REMESSA", "tela": "Nf Remessa", "tipo": "texto"},
     {"planilha": "LOGISTICA", "tela": "Logística", "tipo": "logistica"}
 ]
 
@@ -391,13 +391,13 @@ if tem_busca_ativa:
                     mask_status = df_painel[col_status_tela].astype(str).str.upper().apply(
                         lambda s: any(t in s for t in termos_excecao)
                     )
-                    for col_nome in ["Previsão de entrega", "Entrega"]:
+                    for col_nome in ["Previsão de Entrega", "Entrega"]:
                         if col_nome in df_painel.columns:
                             df_painel.loc[mask_status, col_nome] = "N/A"
 
-                if "Previsão de entrega" in df_painel.columns and "Entrega" in df_painel.columns:
-                    mascara_vazia = (df_painel["Previsão de entrega"] == "") | (df_painel["Previsão de entrega"].isna())
-                    df_painel.loc[mascara_vazia, "Previsão de entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
+                if "Previsão de Entrega" in df_painel.columns and "Entrega" in df_painel.columns:
+                    mascara_vazia = (df_painel["Previsão de Entrega"] == "") | (df_painel["Previsão de Entrega"].isna())
+                    df_painel.loc[mascara_vazia, "Previsão de Entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
 
                 if "Pagamento" in df_painel.columns and "Condição Pagamento" in df_painel.columns:
                     condicao_normalizada = df_painel["Condição Pagamento"].astype(str).str.upper().str.strip()
@@ -409,7 +409,7 @@ if tem_busca_ativa:
                     )
                     df_painel.loc[mascara_na, "Pagamento"] = "N/A"
 
-                colunas_para_formatar = ["Envio", "Pagamento", "Previsão de entrega", "Entrega", "Emissão", "Aprovação"]
+                colunas_para_formatar = ["Envio", "Pagamento", "Previsão de Entrega", "Entrega", "Emissão", "Aprovação"]
                 for col_data in colunas_para_formatar:
                     if col_data in df_painel.columns:
                         df_painel[col_data] = df_painel[col_data].apply(
@@ -490,9 +490,9 @@ if tem_busca_ativa:
                                 else:
                                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
                             else:
-                                campos_permitidos_compras = ["STATUS", "Envio", "Pagamento", "Previsão de entrega", "Entrega", "NF Remessa"]
+                                campos_permitidos_compras = ["Status", "Envio", "Pagamento", "Previsão de Entrega", "Entrega", "Nf Remessa"]
                                 if nome_tela in campos_permitidos_compras:
-                                    if nome_tela == "STATUS":
+                                    if nome_tela == "Status":
                                         configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
                                             nome_tela, options=lista_historico_status, required=True
                                         )
@@ -501,7 +501,7 @@ if tem_busca_ativa:
                                 else:
                                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
                         else:
-                            if nome_tela == "STATUS":
+                            if nome_tela == "Status":
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center")
                             elif tipo_campo == "moeda":
                                 configuracao_colunas_tela[nome_tela] = st.column_config.NumberColumn(nome_tela, format="R$ %.2f", alignment="right")
@@ -525,7 +525,7 @@ if tem_busca_ativa:
                             key="editor_painel_compras"
                         )
                         
-                        # SALVAMENTO PROCV COM EXIBIÇÃO DO E-MAIL EM CASO DE ERRO 403
+                        # SALVAMENTO PROCV: GRAVAÇÃO EXATA NA LINHA E COLUNA DA PLANILHA
                         if btn_salvar_dados:
                             if "df_original_cache" in st.session_state:
                                 df_orig = st.session_state.df_original_cache
