@@ -261,7 +261,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.gaveta_aberta = True
                 st.rerun()
 
-# 8. DICIONÁRIO MAPEADO COM AS COLUNAS EXATAS DA PLANILHA E NOMES NA TELA COM PRIMEIRA LETRA MAIÚSCULA
+# 8. DICIONÁRIO MAPEADO COM AS COLUNAS EXATAS
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": ["STATUS"], "tela": "Status", "tipo": "texto"},
     {"planilha": ["CENTRO DE CUSTO", "CENTRO CUSTO", "CC"], "tela": "Centro De Custo", "tipo": "texto"},
@@ -282,7 +282,7 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": ["QTD", "QUANTIDADE"], "tela": "Qtd", "tipo": "numero"},
     {"planilha": ["PREÇO UNITÁRIO", "PRECO UNITARIO", "VLR UNITARIO", "PRC UNITARIO"], "tela": "Preço Unitário", "tipo": "moeda"},
     {"planilha": ["VALOR TOTAL", "VLR TOTAL", "TOTAL"], "tela": "Valor Total", "tipo": "moeda"},
-    {"planilha": ["NF REMESSA", "NOTA FISCAL", "NF"], "tela": "Nf Remessa", "tipo": "texto"},
+    {"planilha": ["NF REMESSA", "NOTA FISCAL", "NF"], "tela": "NF Remessa", "tipo": "texto"},
     {"planilha": ["LOGISTICA", "LOGÍSTICA"], "tela": "Logística", "tipo": "logistica"}
 ]
 
@@ -493,7 +493,7 @@ if tem_busca_ativa:
                                 else:
                                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
                             else:
-                                campos_permitidos_compras = ["Status", "Envio", "Pagamento", "Previsão De Entrega", "Entrega", "Nf Remessa"]
+                                campos_permitidos_compras = ["Status", "Envio", "Pagamento", "Previsão De Entrega", "Entrega", "NF Remessa"]
                                 if nome_tela in campos_permitidos_compras:
                                     if nome_tela == "Status":
                                         configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
