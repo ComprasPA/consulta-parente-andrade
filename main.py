@@ -305,6 +305,11 @@ def formatar_para_dd_mm_aaaa(valor):
     if txt == "" or txt.lower() in ["nan", "none", "0", "n/a"]:
         return txt
     try:
+        # Trata números seriais do Excel/Google Sheets se vierem corrompidos
+        if re.match(r'^\d{5}$', txt):
+            dt = datetime(1899, 12, 30) + timedelta(days=int(txt))
+            return dt.strftime('%d/%m/%Y')
+        
         dt = pd.to_datetime(txt, errors='coerce', format='mixed', dayfirst=True)
         if pd.isna(dt):
             return txt
@@ -373,7 +378,7 @@ if tem_busca_ativa:
                     if col_real:
                         valores_originais = df_final[col_real]
                         if tipo_campo == "data":
-                            df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace(['nan', 'NONE', '', '0'], '')
+                            df_painel[nome_exibicao_tela] = valores_originais.apply(formatar_para_dd_mm_aaaa)
                         elif tipo_campo == "pedido":
                             df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
                         elif tipo_campo == "produto":
@@ -435,10 +440,16 @@ if tem_busca_ativa:
                             df_excel_export.to_excel(wr, index=False, sheet_name="Relatório")
                             workbook  = wr.book
                             worksheet = wr.sheets["Relatório"]
+                            
                             formato_moeda = workbook.add_format({'num_format': 'R$ #,##0.00'})
-                            for idx, col_config in enumerate(DICIONARIO_COLUNAS_EXATAS):
-                                if col_config["tipo"] == "moeda":
-                                    worksheet.set_column(idx, idx, 22, formato_moeda)
+                            for idx, col_name in enumerate(df_excel_export.columns):
+                                serie_coluna = df_excel_export[col_name].astype(str)
+                                max_len = max(serie_coluna.map(len).max(), len(col_name)) + 3
+                                worksheet.set_column(idx, idx, max(max_len, 12))
+                                
+                                col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col_name), None)
+                                if col_config_item and col_config_item["tipo"] == "moeda":
+                                    worksheet.set_column(idx, idx, max(max_len, 15), formato_moeda)
 
                         st.download_button(
                             label="📥 Baixar Relatório",
