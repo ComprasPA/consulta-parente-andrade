@@ -486,14 +486,18 @@ if tem_busca_ativa:
                         "ENVIADO AO FORNECEDOR",
                         "ENVIADO AO FINANCEIRO",
                         "PAGO",
-                        "CANCELADO PELO SOLICITANTE",
                         "FORNECEDOR DECLINOU",
-                        "RECEBIDO NA SEDE",
-                        "RECEBIDO PARCIAL",
-                        "RECEBIDO DIRETO NA OBRA",
+                        "RECEBIDO NA OBRA",
                         "SERVIÇO",
                         "COMPRA DIRETA",
-                        "CORREÇÃO DE PROCESSO"
+                        "CORREÇÃO DE PROCESSO",
+                        "ATENDIDO",
+                        "ATENDIDO PARCIALMENTE",
+                        "REJEITADO",
+                        "APROVADO",
+                        "BLOQUEADO",
+                        "PENDENTE DE APROVAÇÃO",
+                        "NÃO POSSUI CONTROLE DE APROVAÇÃO"
                     ]
                     lista_historico_status = sorted(list(set(status_existentes + status_oficiais)))
 
