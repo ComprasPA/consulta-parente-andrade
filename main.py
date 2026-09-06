@@ -492,10 +492,10 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
 
         st.write("") 
         
-        esp0, b1, b2, b3, b4, esp5 = st.columns([1.6, 1, 1, 1, 1, 1])
+        esp0, espb, b1, b2, b3, b4 = st.columns([1.6, 1, 1, 1, 1, 1])
         with esp0:
             st.markdown("&nbsp;", unsafe_allow_html=True)
-        with esp5:
+        with espb:
             st.markdown("&nbsp;", unsafe_allow_html=True)
         with b1:
             btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True, type="primary")
@@ -539,8 +539,8 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                     st.rerun()
 
     linha_relatorio = st.container(key="linha_baixar_relatorio")
-    esp0b, esp1b, esp2b, esp3b, esp4b, rb = linha_relatorio.columns([1.6, 1, 1, 1, 1, 1])
-    for _esp in (esp0b, esp1b, esp2b, esp3b, esp4b):
+    esp0b, rb, esp2b, esp3b, esp4b, esp5b = linha_relatorio.columns([1.6, 1, 1, 1, 1, 1])
+    for _esp in (esp0b, esp2b, esp3b, esp4b, esp5b):
         with _esp:
             st.markdown("&nbsp;", unsafe_allow_html=True)
     with rb:
