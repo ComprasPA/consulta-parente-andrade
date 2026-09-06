@@ -74,13 +74,13 @@ st.markdown("""
     div[data-testid="stDateInput"] { width: 100%; }
     div[data-testid="stForm"] { border: none !important; padding: 0px !important; box-shadow: none !important; background-color: transparent !important; }
 
-    div.stFormSubmitButton > button { width: 100% !important; min-height: 36px !important; max-height: 36px !important; font-size: 13px !important; font-weight: 600 !important; padding: 0px 8px !important; border-radius: 9px !important; }
+    div.stFormSubmitButton > button { width: 100% !important; min-height: 27px !important; max-height: 27px !important; font-size: 10px !important; font-weight: 600 !important; padding: 0px 6px !important; border-radius: 7px !important; }
     div.stFormSubmitButton > button[kind="primary"] { background-color: var(--pa-verde) !important; border-color: var(--pa-verde) !important; color: #fff !important; }
     div.stFormSubmitButton > button[kind="primary"]:hover { background-color: var(--pa-verde-deep) !important; border-color: var(--pa-verde-deep) !important; }
     div.stFormSubmitButton > button[kind="secondary"] { background-color: #ffffff !important; border-color: var(--pa-mist) !important; color: var(--pa-ink) !important; }
     div.stFormSubmitButton > button[kind="secondary"]:hover { border-color: var(--pa-slate-soft) !important; }
 
-    div.stButton > button, div.stDownloadButton > button { border-radius: 9px !important; font-weight: 600 !important; }
+    div.stButton > button, div.stDownloadButton > button { border-radius: 7px !important; font-weight: 600 !important; min-height: 27px !important; font-size: 10px !important; padding: 0px 10px !important; }
     div.stButton > button[kind="primary"], div.stDownloadButton > button[kind="primary"] { background-color: var(--pa-verde) !important; border-color: var(--pa-verde) !important; color: #fff !important; }
     div.stButton > button[kind="primary"]:hover, div.stDownloadButton > button[kind="primary"]:hover { background-color: var(--pa-verde-deep) !important; border-color: var(--pa-verde-deep) !important; }
     div.stButton > button[kind="secondary"], div.stDownloadButton > button[kind="secondary"] { background-color: #ffffff !important; border-color: var(--pa-mist) !important; color: var(--pa-ink) !important; }
@@ -235,85 +235,6 @@ if st.session_state.mostrar_popup_login and not st.session_state.autenticado:
                 st.rerun()
         st.divider()
 
-# 7. FILTROS E LÓGICA DE GAVETA
-if "filtro_pc_val" not in st.session_state:
-    st.session_state.filtro_pc_val = ""
-if "filtro_sc_val" not in st.session_state:
-    st.session_state.filtro_sc_val = ""
-if "filtro_cc_val" not in st.session_state:
-    st.session_state.filtro_cc_val = ""
-if "filtro_status_val" not in st.session_state:
-    st.session_state.filtro_status_val = "Todos"
-if "filtro_data_val" not in st.session_state:
-    st.session_state.filtro_data_val = ()
-
-rotulo_seta = "Filtros Avançados ▲" if st.session_state.gaveta_aberta else "Filtros Avançados ▼"
-
-with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
-    with st.form("form_filtros", clear_on_submit=False):
-        f1, f2, f3, f4, f5 = st.columns(5)
-        
-        with f1:
-            filtro_pc = st.text_input("Pedido (PC):", value=st.session_state.filtro_pc_val, placeholder="Nº do PC...")
-        with f2:
-            filtro_sc = st.text_input("Solicitação (SC):", value=st.session_state.filtro_sc_val, placeholder="Nº da SC...")
-        with f3:
-            filtro_cc = st.text_input("Centro de Custo:", value=st.session_state.filtro_cc_val, placeholder="Centro de custo...")
-        with f4:
-            col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
-            if col_status_verificacao:
-                lista_status_Filtro = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
-            else:
-                lista_status_Filtro = ["Todos"]
-            idx_padrao = lista_status_Filtro.index(st.session_state.filtro_status_val) if st.session_state.filtro_status_val in lista_status_Filtro else 0
-            filtro_status = st.selectbox("Status:", options=lista_status_Filtro, index=idx_padrao)
-        with f5:
-            filtro_data = st.date_input("Data de Emissão:", value=st.session_state.filtro_data_val, format="DD/MM/YYYY")
-
-        st.write("") 
-        
-        _, b1, b2, b3, b4 = st.columns([2.6, 1.2, 1.2, 1.2, 1.3])
-        with b1:
-            btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True, type="primary")
-            if btn_pesquisar:
-                st.session_state.filtro_pc_val = filtro_pc
-                st.session_state.filtro_sc_val = filtro_sc
-                st.session_state.filtro_cc_val = filtro_cc
-                st.session_state.filtro_status_val = filtro_status
-                st.session_state.filtro_data_val = filtro_data
-                st.session_state.gaveta_aberta = False  
-                st.rerun()
-
-        with b2:
-            btn_limpar = st.form_submit_button("❌ Limpar", use_container_width=True)
-            if btn_limpar:
-                st.session_state.filtro_pc_val = ""
-                st.session_state.filtro_sc_val = ""
-                st.session_state.filtro_cc_val = ""
-                st.session_state.filtro_status_val = "Todos"
-                st.session_state.filtro_data_val = ()
-                st.session_state.gaveta_aberta = True  
-                st.rerun()
-                
-        with b3:
-            btn_atualizar = st.form_submit_button("🔄 Atualizar Banco", use_container_width=True)
-            if btn_atualizar:
-                st.session_state.dados_globais = carregar_dados_seguros()
-                st.session_state.gaveta_aberta = True
-                st.rerun()
-
-        with b4:
-            if not st.session_state.autenticado:
-                if st.form_submit_button("🔐 Operador", use_container_width=True):
-                    st.session_state.mostrar_popup_login = not st.session_state.mostrar_popup_login
-                    st.rerun()
-            else:
-                if st.form_submit_button("🚪 Sair", use_container_width=True, key="btn_sair"):
-                    st.session_state.autenticado = False
-                    st.session_state.departamento_ativo = ""
-                    st.session_state.mostrar_popup_login = False
-                    st.rerun()
-
 # 8. DICIONÁRIO MAPEADO RIGOROSAMENTE COM AS SUAS COLUNAS EXATAS
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": ["STATUS"], "tela": "Status", "tipo": "texto"},
@@ -387,150 +308,258 @@ def formatar_para_dd_mm_aaaa(valor):
     except:
         return txt
 
-# 9. MOTOR DE BUSCA CASCATA
+
+
+def aplicar_filtros(df_pc):
+    """Aplica os filtros ativos (lidos do session_state) e devolve (df_final, colunas_normalizadas)."""
+    df_final = df_pc.copy()
+    colunas_normalizadas = {c.upper().strip().replace('Í', 'I').replace('Ã', 'A'): c for c in df_final.columns}
+
+    if st.session_state.filtro_pc_val:
+        pc_termo = str(st.session_state.filtro_pc_val).strip()
+        col_pc = colunas_normalizadas.get("PEDIDO")
+        if col_pc:
+            df_final = df_final[df_final[col_pc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(pc_termo, na=False)]
+
+    if st.session_state.filtro_sc_val:
+        sc_termo = str(st.session_state.filtro_sc_val).strip()
+        col_sc = colunas_normalizadas.get("SOLICITAÇÃO") or colunas_normalizadas.get("SOLICITACAO")
+        if col_sc:
+            df_final = df_final[df_final[col_sc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(sc_termo, na=False)]
+
+    if st.session_state.filtro_cc_val:
+        cc_termo = st.session_state.filtro_cc_val.strip().lower()
+        col_cc = colunas_normalizadas.get("CENTRO DE CUSTO")
+        if col_cc:
+            df_final = df_final[df_final[col_cc].astype(str).str.lower().str.contains(cc_termo, na=False)]
+
+    col_status_verificacao = colunas_normalizadas.get("STATUS")
+    if st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
+        df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
+
+    if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
+        if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
+            col_emissao_original = colunas_normalizadas.get("DATA PEDIDO")
+            if col_emissao_original:
+                datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed', dayfirst=True).dt.date
+                df_final = df_final[(datas_convertidas >= st.session_state.filtro_data_val[0]) & (datas_convertidas <= st.session_state.filtro_data_val[1])]
+
+    return df_final, colunas_normalizadas
+
+
+def montar_df_painel(df_final, colunas_normalizadas):
+    """Recebe o df ja filtrado e monta o df_painel (colunas da tela), aplicando as mesmas regras de N/A."""
+    df_painel = pd.DataFrame(index=df_final.index)
+
+    for col_config in DICIONARIO_COLUNAS_EXATAS:
+        nome_exibicao_tela = col_config["tela"]
+        tipo_campo = col_config["tipo"]
+
+        col_real = None
+        for alt in col_config["planilha"]:
+            alt_clean = alt.upper().strip().replace('Í', 'I').replace('Ã', 'A')
+            for c_up in colunas_normalizadas:
+                c_up_clean = c_up.replace('Í', 'I').replace('Ã', 'A')
+                if c_up_clean == alt_clean:
+                    col_real = colunas_normalizadas[c_up]
+                    break
+            if col_real:
+                break
+
+        if col_real:
+            valores_originais = df_final[col_real]
+            if tipo_campo == "data":
+                df_painel[nome_exibicao_tela] = valores_originais.apply(formatar_para_dd_mm_aaaa)
+            elif tipo_campo == "pedido":
+                df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+            elif tipo_campo == "produto":
+                df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: str(val).split('.')[0].strip().zfill(10) if str(val).strip() and str(val).lower() != 'nan' else "")
+            elif tipo_campo == "moeda":
+                df_painel[nome_exibicao_tela] = valores_originais.apply(formatar_moeda_br)
+            elif tipo_campo == "numero":
+                df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+            else:
+                df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
+        else:
+            df_painel[nome_exibicao_tela] = ""
+
+    # Associa a linha física exata da planilha
+    df_painel["_row_idx"] = [idx + 2 for idx in df_final.index]
+
+    col_status_tela = colunas_normalizadas.get("STATUS")
+    if col_status_tela:
+        termos_excecao = ["SERVIÇO", "CANCELADO PELO SOLICITANTE", "REJEITADO PELO APROVADOR", "COMPRA DIRETA"]
+        mask_status = df_painel["Status"].astype(str).str.upper().apply(
+            lambda s: any(t in s for t in termos_excecao)
+        )
+        for col_nome in ["Previsão De Entrega", "Entrega"]:
+            if col_nome in df_painel.columns:
+                df_painel.loc[mask_status, col_nome] = "N/A"
+
+    if "Previsão De Entrega" in df_painel.columns and "Entrega" in df_painel.columns:
+        mascara_vazia = (df_painel["Previsão De Entrega"] == "") | (df_painel["Previsão De Entrega"].isna())
+        df_painel.loc[mascara_vazia, "Previsão De Entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
+
+    if "Pagamento Pc" in df_painel.columns and "Condição Pagamento" in df_painel.columns:
+        condicao_normalizada = df_painel["Condição Pagamento"].astype(str).str.upper().str.strip()
+        mascara_na = (
+            (~condicao_normalizada.str.contains("A VISTA", na=False)) &
+            (~condicao_normalizada.str.contains("ENT", na=False)) &
+            (~condicao_normalizada.str.contains("VENCIDO", na=False)) &
+            (~condicao_normalizada.str.contains("PAGO", na=False))
+        )
+        df_painel.loc[mascara_na, "Pagamento Pc"] = "N/A"
+
+    colunas_para_formatar = ["Envio Pc", "Pagamento Pc", "Previsão De Entrega", "Entrega", "Emissão Pc", "Aprovação Pc"]
+    for col_data in colunas_para_formatar:
+        if col_data in df_painel.columns:
+            df_painel[col_data] = df_painel[col_data].apply(
+                lambda x: x if str(x).upper() == "N/A" else formatar_para_dd_mm_aaaa(x)
+            )
+
+    return df_painel.dropna(how='all')
+
+
+def gerar_bytes_excel(df_painel):
+    """Gera o .xlsx (bytes) do relatorio a partir do df_painel ja montado."""
+    out = BytesIO()
+    df_excel_export = df_painel.drop(columns=["_row_idx"], errors="ignore")
+    with pd.ExcelWriter(out, engine='xlsxwriter') as wr:
+        df_excel_export.to_excel(wr, index=False, sheet_name="Relatório")
+        worksheet = wr.sheets["Relatório"]
+        for idx, col_name in enumerate(df_excel_export.columns):
+            serie_coluna = df_excel_export[col_name].astype(str)
+            max_len = max(serie_coluna.map(len).max(), len(col_name)) + 3
+            worksheet.set_column(idx, idx, max(max_len, 12))
+    return out.getvalue()
+
+
+# 7. FILTROS E LÓGICA DE GAVETA
+if "filtro_pc_val" not in st.session_state:
+    st.session_state.filtro_pc_val = ""
+if "filtro_sc_val" not in st.session_state:
+    st.session_state.filtro_sc_val = ""
+if "filtro_cc_val" not in st.session_state:
+    st.session_state.filtro_cc_val = ""
+if "filtro_status_val" not in st.session_state:
+    st.session_state.filtro_status_val = "Todos"
+if "filtro_data_val" not in st.session_state:
+    st.session_state.filtro_data_val = ()
+
+# Pré-cálculo do relatório (pra habilitar o botão Baixar Relatório dentro dos Filtros Avançados,
+# com o resultado da busca mais recente - sem isso o botão mostraria dado de uma busca anterior)
 tem_busca_ativa = st.session_state.filtro_pc_val or st.session_state.filtro_sc_val or st.session_state.filtro_cc_val or st.session_state.filtro_status_val != "Todos" or bool(st.session_state.filtro_data_val)
+
+relatorio_bytes = None
+if tem_busca_ativa and not df_pc.empty:
+    try:
+        _df_final_preview, _colunas_preview = aplicar_filtros(df_pc)
+        if not _df_final_preview.empty:
+            _df_painel_preview = montar_df_painel(_df_final_preview, _colunas_preview)
+            if not _df_painel_preview.empty:
+                relatorio_bytes = gerar_bytes_excel(_df_painel_preview)
+    except Exception:
+        relatorio_bytes = None
+
+rotulo_seta = "Filtros Avançados ▲" if st.session_state.gaveta_aberta else "Filtros Avançados ▼"
+
+with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
+    with st.form("form_filtros", clear_on_submit=False):
+        f1, f2, f3, f4, f5 = st.columns(5)
+        
+        with f1:
+            filtro_pc = st.text_input("Pedido (PC):", value=st.session_state.filtro_pc_val, placeholder="Nº do PC...")
+        with f2:
+            filtro_sc = st.text_input("Solicitação (SC):", value=st.session_state.filtro_sc_val, placeholder="Nº da SC...")
+        with f3:
+            filtro_cc = st.text_input("Centro de Custo:", value=st.session_state.filtro_cc_val, placeholder="Centro de custo...")
+        with f4:
+            col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
+            if col_status_verificacao:
+                lista_status_Filtro = ["Todos"] + sorted([str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""])
+            else:
+                lista_status_Filtro = ["Todos"]
+            idx_padrao = lista_status_Filtro.index(st.session_state.filtro_status_val) if st.session_state.filtro_status_val in lista_status_Filtro else 0
+            filtro_status = st.selectbox("Status:", options=lista_status_Filtro, index=idx_padrao)
+        with f5:
+            filtro_data = st.date_input("Data de Emissão:", value=st.session_state.filtro_data_val, format="DD/MM/YYYY")
+
+        st.write("") 
+        
+        _, b1, b2, b3, b4 = st.columns([2.6, 1.2, 1.2, 1.2, 1.3])
+        with b1:
+            btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True, type="primary")
+            if btn_pesquisar:
+                st.session_state.filtro_pc_val = filtro_pc
+                st.session_state.filtro_sc_val = filtro_sc
+                st.session_state.filtro_cc_val = filtro_cc
+                st.session_state.filtro_status_val = filtro_status
+                st.session_state.filtro_data_val = filtro_data
+                st.session_state.gaveta_aberta = False  
+                st.rerun()
+
+        with b2:
+            btn_limpar = st.form_submit_button("❌ Limpar", use_container_width=True)
+            if btn_limpar:
+                st.session_state.filtro_pc_val = ""
+                st.session_state.filtro_sc_val = ""
+                st.session_state.filtro_cc_val = ""
+                st.session_state.filtro_status_val = "Todos"
+                st.session_state.filtro_data_val = ()
+                st.session_state.gaveta_aberta = True  
+                st.rerun()
+                
+        with b3:
+            btn_atualizar = st.form_submit_button("🔄 Atualizar Banco", use_container_width=True)
+            if btn_atualizar:
+                st.session_state.dados_globais = carregar_dados_seguros()
+                st.session_state.gaveta_aberta = True
+                st.rerun()
+
+        with b4:
+            if not st.session_state.autenticado:
+                if st.form_submit_button("🔐 Operador", use_container_width=True):
+                    st.session_state.mostrar_popup_login = not st.session_state.mostrar_popup_login
+                    st.rerun()
+            else:
+                if st.form_submit_button("🚪 Sair", use_container_width=True, key="btn_sair"):
+                    st.session_state.autenticado = False
+                    st.session_state.departamento_ativo = ""
+                    st.session_state.mostrar_popup_login = False
+                    st.rerun()
+
+    if relatorio_bytes:
+        st.download_button(
+            label="📥 Baixar Relatório",
+            data=relatorio_bytes,
+            file_name="Relatorio_Compras_Filtro.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="btn_baixar_relatorio",
+        )
+
+# 9. MOTOR DE BUSCA CASCATA
+# tem_busca_ativa e o relatorio ja foram calculados antes dos Filtros Avançados
+# (o botao de download mora la agora - ver secao 7).
 
 if tem_busca_ativa:
     if df_pc.empty:
         st.markdown('<div class="custom-error-red">⚠️ Base de dados vazia. Clique em "🔄 Atualizar Banco" nos Filtros Avançados.</div>', unsafe_allow_html=True)
     else:
-        df_final = df_pc.copy()
-        colunas_normalizadas = {c.upper().strip().replace('Í', 'I').replace('Ã', 'A'): c for c in df_final.columns}
-
-        if st.session_state.filtro_pc_val:
-            pc_termo = str(st.session_state.filtro_pc_val).strip()
-            col_pc = colunas_normalizadas.get("PEDIDO")
-            if col_pc:
-                df_final = df_final[df_final[col_pc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(pc_termo, na=False)]
-
-        if st.session_state.filtro_sc_val:
-            sc_termo = str(st.session_state.filtro_sc_val).strip()
-            col_sc = colunas_normalizadas.get("SOLICITAÇÃO") or colunas_normalizadas.get("SOLICITACAO")
-            if col_sc:
-                df_final = df_final[df_final[col_sc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(sc_termo, na=False)]
-
-        if st.session_state.filtro_cc_val:
-            cc_termo = st.session_state.filtro_cc_val.strip().lower()
-            col_cc = colunas_normalizadas.get("CENTRO DE CUSTO")
-            if col_cc:
-                df_final = df_final[df_final[col_cc].astype(str).str.lower().str.contains(cc_termo, na=False)]
-
+        df_final, colunas_normalizadas = aplicar_filtros(df_pc)
         col_status_verificacao = colunas_normalizadas.get("STATUS")
-        if st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
-            df_final = df_final[df_final[col_status_verificacao].astype(str).str.strip() == st.session_state.filtro_status_val]
-
-        if st.session_state.filtro_data_val and len(st.session_state.filtro_data_val) == 2:
-            if st.session_state.filtro_data_val[0] is not None and st.session_state.filtro_data_val[1] is not None:
-                col_emissao_original = colunas_normalizadas.get("DATA PEDIDO")
-                if col_emissao_original:
-                    datas_convertidas = pd.to_datetime(df_final[col_emissao_original], errors='coerce', format='mixed', dayfirst=True).dt.date
-                    df_final = df_final[(datas_convertidas >= st.session_state.filtro_data_val[0]) & (datas_convertidas <= st.session_state.filtro_data_val[1])]
 
         try:
             if not df_final.empty:
-                df_painel = pd.DataFrame(index=df_final.index)
-                
-                for col_config in DICIONARIO_COLUNAS_EXATAS:
-                    nome_exibicao_tela = col_config["tela"]
-                    tipo_campo = col_config["tipo"]
-                    
-                    col_real = None
-                    for alt in col_config["planilha"]:
-                        alt_clean = alt.upper().strip().replace('Í', 'I').replace('Ã', 'A')
-                        for c_up in colunas_normalizadas:
-                            c_up_clean = c_up.replace('Í', 'I').replace('Ã', 'A')
-                            if c_up_clean == alt_clean:
-                                col_real = colunas_normalizadas[c_up]
-                                break
-                        if col_real:
-                            break
-
-                    if col_real:
-                        valores_originais = df_final[col_real]
-                        if tipo_campo == "data":
-                            df_painel[nome_exibicao_tela] = valores_originais.apply(formatar_para_dd_mm_aaaa)
-                        elif tipo_campo == "pedido":
-                            df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-                        elif tipo_campo == "produto":
-                            df_painel[nome_exibicao_tela] = valores_originais.apply(lambda val: str(val).split('.')[0].strip().zfill(10) if str(val).strip() and str(val).lower() != 'nan' else "")
-                        elif tipo_campo == "moeda":
-                            df_painel[nome_exibicao_tela] = valores_originais.apply(formatar_moeda_br)
-                        elif tipo_campo == "numero":
-                            df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-                        else:
-                            df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
-                    else:
-                        df_painel[nome_exibicao_tela] = ""
-
-                # Associa a linha física exata da planilha
-                df_painel["_row_idx"] = [idx + 2 for idx in df_final.index]
-
-                col_status_tela = colunas_normalizadas.get("STATUS")
-                if col_status_tela:
-                    termos_excecao = ["SERVIÇO", "CANCELADO PELO SOLICITANTE", "REJEITADO PELO APROVADOR", "COMPRA DIRETA"]
-                    mask_status = df_painel["Status"].astype(str).str.upper().apply(
-                        lambda s: any(t in s for t in termos_excecao)
-                    )
-                    for col_nome in ["Previsão De Entrega", "Entrega"]:
-                        if col_nome in df_painel.columns:
-                            df_painel.loc[mask_status, col_nome] = "N/A"
-
-                if "Previsão De Entrega" in df_painel.columns and "Entrega" in df_painel.columns:
-                    mascara_vazia = (df_painel["Previsão De Entrega"] == "") | (df_painel["Previsão De Entrega"].isna())
-                    df_painel.loc[mascara_vazia, "Previsão De Entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
-
-                if "Pagamento Pc" in df_painel.columns and "Condição Pagamento" in df_painel.columns:
-                    condicao_normalizada = df_painel["Condição Pagamento"].astype(str).str.upper().str.strip()
-                    mascara_na = (
-                        (~condicao_normalizada.str.contains("A VISTA", na=False)) & 
-                        (~condicao_normalizada.str.contains("ENT", na=False)) & 
-                        (~condicao_normalizada.str.contains("VENCIDO", na=False)) & 
-                        (~condicao_normalizada.str.contains("PAGO", na=False))
-                    )
-                    df_painel.loc[mascara_na, "Pagamento Pc"] = "N/A"
-
-                colunas_para_formatar = ["Envio Pc", "Pagamento Pc", "Previsão De Entrega", "Entrega", "Emissão Pc", "Aprovação Pc"]
-                for col_data in colunas_para_formatar:
-                    if col_data in df_painel.columns:
-                        df_painel[col_data] = df_painel[col_data].apply(
-                            lambda x: x if str(x).upper() == "N/A" else formatar_para_dd_mm_aaaa(x)
-                        )
-
-                df_painel = df_painel.dropna(how='all')
+                df_painel = montar_df_painel(df_final, colunas_normalizadas)
 
                 if not df_painel.empty:
                     txt_status = f"🔍 Registros Localizados ({len(df_painel)} itens)"
                     st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
-                    
-                    # BOTÕES LADO A LADO ACIMA DA TABELA
-                    c_down1, c_down2, _ = st.columns([1.3, 1.3, 5.4])
-                    
-                    with c_down1:
-                        out = BytesIO()
-                        df_excel_export = df_painel.drop(columns=["_row_idx"], errors="ignore")
-                        with pd.ExcelWriter(out, engine='xlsxwriter') as wr: 
-                            df_excel_export.to_excel(wr, index=False, sheet_name="Relatório")
-                            workbook  = wr.book
-                            worksheet = wr.sheets["Relatório"]
-                            
-                            for idx, col_name in enumerate(df_excel_export.columns):
-                                serie_coluna = df_excel_export[col_name].astype(str)
-                                max_len = max(serie_coluna.map(len).max(), len(col_name)) + 3
-                                worksheet.set_column(idx, idx, max(max_len, 12))
 
-                        st.download_button(
-                            label="📥 Baixar Relatório",
-                            data=out.getvalue(),
-                            file_name=f"Relatorio_Compras_Filtro.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True
-                        )
-
-                    with c_down2:
-                        if st.session_state.autenticado:
-                            btn_salvar_dados = st.button("💾 Salvar Alterações", use_container_width=True, type="primary")
-                        else:
-                            btn_salvar_dados = False
+                    if st.session_state.autenticado:
+                        btn_salvar_dados = st.button("💾 Salvar Alterações", type="primary")
+                    else:
+                        btn_salvar_dados = False
 
                     configuracao_colunas_tela = {}
                     
