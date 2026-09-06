@@ -491,7 +491,11 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
 
         st.write("") 
         
-        _, b1, b2, b3, b4, _ = st.columns([1.6, 1, 1, 1, 1, 1])
+        esp0, b1, b2, b3, b4, esp5 = st.columns([1.6, 1, 1, 1, 1, 1])
+        with esp0:
+            st.markdown("&nbsp;", unsafe_allow_html=True)
+        with esp5:
+            st.markdown("&nbsp;", unsafe_allow_html=True)
         with b1:
             btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True, type="primary")
             if btn_pesquisar:
@@ -533,7 +537,10 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                     st.session_state.mostrar_popup_login = False
                     st.rerun()
 
-    _, _, _, _, _, rb = st.columns([1.6, 1, 1, 1, 1, 1])
+    esp0b, esp1b, esp2b, esp3b, esp4b, rb = st.columns([1.6, 1, 1, 1, 1, 1])
+    for _esp in (esp0b, esp1b, esp2b, esp3b, esp4b):
+        with _esp:
+            st.markdown("&nbsp;", unsafe_allow_html=True)
     with rb:
         if relatorio_bytes:
             st.download_button(
