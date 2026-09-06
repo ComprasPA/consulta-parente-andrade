@@ -55,9 +55,9 @@ st.markdown("""
     div[data-testid="column"] { display: flex; align-items: center; justify-content: center; }
     .center-title-container { width: 100%; text-align: center; display: flex; justify-content: center; align-items: center; }
     .portal-title { font-family: 'Sora', sans-serif !important; color: var(--pa-ink) !important; font-size: 26px !important; font-weight: 700 !important; margin: 0 auto !important; letter-spacing: -0.01em; line-height: 1; white-space: nowrap; }
-    .brand-text-block { display: flex; flex-direction: column; align-items: center; line-height: 1.35; border-left: 1px solid var(--pa-mist); padding-left: 16px; }
-    .brand-eyebrow { font-family: 'Public Sans', sans-serif; font-weight: 700; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--pa-laranja-deep); margin: 0; display: block; white-space: nowrap; }
-    .brand-subtitle { font-family: 'Sora', sans-serif; font-weight: 700; font-size: 15px; color: var(--pa-slate); display: block; white-space: nowrap; }
+    .brand-text-block { display: flex; flex-direction: column; align-items: center; line-height: 1.35; }
+    .brand-eyebrow { font-family: 'Public Sans', sans-serif; font-weight: 700; font-size: 15.75px; letter-spacing: .12em; text-transform: uppercase; color: var(--pa-laranja-deep); margin: 0; display: block; white-space: nowrap; }
+    .brand-subtitle { font-family: 'Sora', sans-serif; font-weight: 700; font-size: 22.5px; color: var(--pa-slate); display: block; white-space: nowrap; }
     div[data-testid="stVerticalBlock"] > div:has(input), div[data-testid="stVerticalBlock"] > div:has(select), div[data-testid="stVerticalBlock"] > div:has(button) { background-color: transparent; padding: 2px 0 !important; border: none !important; box-shadow: none !important; width: 100%; }
     div[data-testid="stTextInput"] input, div[data-testid="stDateInput"] input, div[data-baseweb="select"] > div, div[data-baseweb="base-input"] { background-color: var(--pa-paper) !important; border: none !important; border-radius: 9px !important; box-shadow: none !important; transition: background-color 0.2s; }
     div[data-testid="stTextInput"] input:focus, div[data-testid="stDateInput"] input:focus, div[data-baseweb="select"] > div:focus-within, div[data-baseweb="base-input"]:focus-within { background-color: var(--pa-verde-soft) !important; }
@@ -174,16 +174,19 @@ if "gaveta_aberta" not in st.session_state:
 
 # 5. CABEÇALHO INTEGRADO
 with st.container(key="header_card"):
-    if base64_logo:
-        st.markdown(f'''
-            <div style="display:flex; align-items:center; justify-content:center; gap:16px;">
-                <img src="data:image/png;base64,{base64_logo}" style="width:130px; display:block;">
-                <div class="brand-text-block">
-                    <span class="brand-eyebrow">Coordenação de Suprimentos</span>
-                    <span class="brand-subtitle">Portal Gestão de Compras</span>
-                </div>
+    c1, c2, c3 = st.columns([1.5, 6.0, 1.5])
+    with c1:
+        if base64_logo:
+            st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:130px; display:block;">', unsafe_allow_html=True)
+    with c2:
+        st.markdown('''
+            <div class="brand-text-block">
+                <span class="brand-eyebrow">Coordenação de Suprimentos</span>
+                <span class="brand-subtitle">Portal Gestão de Compras</span>
             </div>
         ''', unsafe_allow_html=True)
+    with c3:
+        pass
 
 # 6. JANELA POPUP DISCRETA DE LOGIN
 if st.session_state.mostrar_popup_login and not st.session_state.autenticado:
