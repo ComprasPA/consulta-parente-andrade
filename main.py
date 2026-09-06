@@ -55,7 +55,9 @@ st.markdown("""
     div[data-testid="column"] { display: flex; align-items: center; justify-content: center; }
     .center-title-container { width: 100%; text-align: center; display: flex; justify-content: center; align-items: center; }
     .portal-title { font-family: 'Sora', sans-serif !important; color: var(--pa-ink) !important; font-size: 26px !important; font-weight: 700 !important; margin: 0 auto !important; letter-spacing: -0.01em; line-height: 1; white-space: nowrap; }
-    .brand-eyebrow { font-family: 'Public Sans', sans-serif; font-weight: 700; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--pa-laranja-deep); margin: 6px 0 0 2px; display: block; }
+    .brand-text-block { display: flex; flex-direction: column; line-height: 1.35; border-left: 1px solid var(--pa-mist); padding-left: 16px; }
+    .brand-eyebrow { font-family: 'Public Sans', sans-serif; font-weight: 700; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--pa-laranja-deep); margin: 0; display: block; white-space: nowrap; }
+    .brand-subtitle { font-family: 'Sora', sans-serif; font-weight: 700; font-size: 15px; color: var(--pa-slate); display: block; white-space: nowrap; }
     div[data-testid="stVerticalBlock"] > div:has(input), div[data-testid="stVerticalBlock"] > div:has(select), div[data-testid="stVerticalBlock"] > div:has(button) { background-color: #ffffff; padding: 2px 6px !important; border-radius: 9px; border: 1px solid var(--pa-mist) !important; box-shadow: inset 0 2px 4px 0 rgba(28,36,32,.02); transition: border-color 0.2s; width: 100%; }
     div[data-testid="stVerticalBlock"] > div:has(input):focus-within, div[data-testid="stVerticalBlock"] > div:has(select):focus-within { border-color: var(--pa-verde) !important; }
     div[data-testid="stExpander"] { background-color: #ffffff !important; border: 1px solid var(--pa-mist) !important; border-radius: 16px !important; box-shadow: 0 1px 2px rgba(28,36,32,.04), 0 10px 28px -14px rgba(28,36,32,.14) !important; margin-bottom: 16px; }
@@ -80,6 +82,8 @@ st.markdown("""
     div.stButton > button[kind="primary"]:hover, div.stDownloadButton > button[kind="primary"]:hover { background-color: var(--pa-verde-deep) !important; border-color: var(--pa-verde-deep) !important; }
     div.stButton > button[kind="secondary"], div.stDownloadButton > button[kind="secondary"] { background-color: #ffffff !important; border-color: var(--pa-mist) !important; color: var(--pa-ink) !important; }
     div.stButton > button[kind="secondary"]:hover, div.stDownloadButton > button[kind="secondary"]:hover { border-color: var(--pa-slate-soft) !important; }
+    div.st-key-btn_sair button { background-color: #ffffff !important; border-color: #f3c6c6 !important; color: #c53030 !important; }
+    div.st-key-btn_sair button:hover { background-color: #fceaea !important; border-color: #c53030 !important; }
 
     .status-card { background: #ffffff; color: var(--pa-ink); padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; border-left: 5px solid var(--pa-verde); box-shadow: 0 1px 3px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; }
     .custom-error-red { background-color: #fceaea !important; color: #b3282d !important; padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #d8383d; }
@@ -169,25 +173,28 @@ if "gaveta_aberta" not in st.session_state:
 
 # 5. CABEÇALHO INTEGRADO
 with st.container(key="header_card"):
-    c1, c2, c3 = st.columns([1.5, 7.0, 1.5])
+    c1, c2, c3 = st.columns([3.2, 5.3, 1.5])
 
     with c1:
         if base64_logo:
             st.markdown(f'''
-                <div>
-                    <img src="data:image/png;base64,{base64_logo}" style="width:170px; display:block; margin:0;">
-                    <span class="brand-eyebrow">Coordenação de Suprimentos</span>
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <img src="data:image/png;base64,{base64_logo}" style="width:130px; display:block;">
+                    <div class="brand-text-block">
+                        <span class="brand-eyebrow">Coordenação de Suprimentos</span>
+                        <span class="brand-subtitle">Portal Gestão de Compras</span>
+                    </div>
                 </div>
             ''', unsafe_allow_html=True)
     with c2:
-        st.markdown('<div class="center-title-container"><p class="portal-title">Portal Gestão de Compras</p></div>', unsafe_allow_html=True)
+        pass
     with c3:
         if not st.session_state.autenticado:
             if st.button("🔐 Operador", use_container_width=True):
                 st.session_state.mostrar_popup_login = not st.session_state.mostrar_popup_login
                 st.rerun()
         else:
-            if st.button("🚪 Sair", use_container_width=True):
+            if st.button("🚪 Sair", use_container_width=True, key="btn_sair"):
                 st.session_state.autenticado = False
                 st.session_state.departamento_ativo = ""
                 st.session_state.mostrar_popup_login = False
