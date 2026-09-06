@@ -89,7 +89,9 @@ st.markdown("""
     div.st-key-btn_sair button { background-color: #ffffff !important; border-color: #f3c6c6 !important; color: #c53030 !important; }
     div.st-key-btn_sair button:hover { background-color: #fceaea !important; border-color: #c53030 !important; }
     div.st-key-salvar_wrap { display: flex !important; justify-content: flex-start !important; }
-    div.st-key-salvar_wrap div[data-testid="stVerticalBlock"] { align-items: flex-start !important; }
+    div.st-key-salvar_wrap div[data-testid="stVerticalBlock"] { align-items: flex-start !important; width: fit-content !important; }
+    div.st-key-salvar_wrap div.stButton { width: fit-content !important; flex: 0 0 auto !important; }
+    div.st-key-salvar_wrap div.stButton > button { width: auto !important; }
 
     .status-card { background: #ffffff; color: var(--pa-ink); padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; border-left: 5px solid var(--pa-verde); box-shadow: 0 1px 3px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; }
     .custom-error-red { background-color: #fceaea !important; color: #b3282d !important; padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #d8383d; }
