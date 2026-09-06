@@ -105,10 +105,15 @@ st.markdown("""
         color: var(--pa-ink) !important;
         border: 1px solid var(--pa-mist) !important;
         box-shadow: 0 10px 15px -3px rgba(28,36,32,.1) !important;
+        width: max-content !important;
+        min-width: 100% !important;
     }
     div[data-baseweb="menu"] li, ul[data-baseweb="menu"] li, div[role="option"] {
         background-color: #ffffff !important;
         color: var(--pa-ink) !important;
+        white-space: nowrap !important;
+        width: auto !important;
+        padding-right: 24px !important;
     }
     div[data-baseweb="menu"] li:hover, ul[data-baseweb="menu"] li:hover, div[role="option"]:hover {
         background-color: var(--pa-verde-soft) !important;
