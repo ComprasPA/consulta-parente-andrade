@@ -99,7 +99,8 @@ st.markdown("""
 
     .status-card { background: #ffffff; color: var(--pa-ink); padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; border-left: 5px solid var(--pa-verde); box-shadow: 0 1px 3px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; }
     .custom-error-red { background-color: #fceaea !important; color: #b3282d !important; padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #d8383d; }
-    .custom-welcome-salutation { background-color: #ffffff; color: var(--pa-ink); padding: 32px 24px; border-radius: 14px; font-weight: 600; font-size: 19px; text-align: center; border: 1px solid var(--pa-mist); box-shadow: 0 4px 6px -1px rgba(28,36,32,.02); margin-top: 20px; }
+    .custom-welcome-salutation, .custom-empty-state { background-color: #ffffff; color: var(--pa-ink); padding: 32px 24px; border-radius: 14px; font-weight: 600; font-size: 19px; text-align: center; border: 1px solid var(--pa-mist); box-shadow: 0 4px 6px -1px rgba(28,36,32,.02); margin-top: 20px; min-height: calc(100vh - 420px); display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+    .custom-empty-state.custom-error-red { background-color: #fceaea !important; color: #b3282d !important; border: none; border-left: 5px solid #d8383d; box-shadow: 0 4px 6px -1px rgba(28,36,32,.05); }
 
     div[data-testid="stDataFrame"] { background: #ffffff; padding: 16px; border-radius: 14px; box-shadow: 0 1px 2px rgba(28,36,32,.04), 0 10px 28px -14px rgba(28,36,32,.14); }
     div[data-testid="stDataFrame"] table th { font-family: 'Public Sans', sans-serif !important; font-weight: 700 !important; letter-spacing: .04em; text-transform: uppercase; font-size: 11px !important; color: var(--pa-slate-soft) !important; white-space: nowrap !important; min-width: max-content !important; background: var(--pa-paper) !important; }
@@ -547,7 +548,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
 
 if tem_busca_ativa:
     if df_pc.empty:
-        st.markdown('<div class="custom-error-red">⚠️ Base de dados vazia. Clique em "🔄 Atualizar Banco" nos Filtros Avançados.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="custom-error-red custom-empty-state">⚠️ Base de dados vazia. Clique em "🔄 Atualizar Banco" nos Filtros Avançados.</div>', unsafe_allow_html=True)
     else:
         df_final, colunas_normalizadas = aplicar_filtros(df_pc)
         col_status_verificacao = colunas_normalizadas.get("STATUS")
@@ -737,9 +738,9 @@ if tem_busca_ativa:
                             column_config=configuracao_colunas_tela
                         )
                 else:
-                    st.markdown('<div class="custom-error-red">⚠️ Nenhum registro correspondente encontrado com os filtros informados.</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="custom-error-red custom-empty-state">⚠️ Nenhum registro correspondente encontrado com os filtros informados.</div>', unsafe_allow_html=True)
             else:
-                st.markdown('<div class="custom-error-red">⚠️ Nenhum registro correspondente encontrado.</div>', unsafe_allow_html=True)
+                st.markdown('<div class="custom-error-red custom-empty-state">⚠️ Nenhum registro correspondente encontrado.</div>', unsafe_allow_html=True)
         except Exception as e:
             st.markdown(f'<div class="custom-error-red">⚠️ Erro ao processar os dados da busca: {e}</div>', unsafe_allow_html=True)
 else:
