@@ -40,6 +40,7 @@ st.markdown("""
         --pa-laranja-soft: #FDECD9;
         --pa-ink: #1C2420;
         --pa-paper: #FFFFFF;
+        --pa-input-bg: #F1F2EE;
         --pa-mist: #E4E7E0;
         --pa-slate: #5B6459;
         --pa-slate-soft: #8B9186;
@@ -59,7 +60,7 @@ st.markdown("""
     .brand-eyebrow { font-family: 'Public Sans', sans-serif; font-weight: 700; font-size: 15.75px; letter-spacing: .12em; text-transform: uppercase; color: var(--pa-laranja-deep); margin: 0; display: block; white-space: nowrap; }
     .brand-subtitle { font-family: 'Sora', sans-serif; font-weight: 700; font-size: 22.5px; color: var(--pa-slate); display: block; white-space: nowrap; }
     div[data-testid="stVerticalBlock"] > div:has(input), div[data-testid="stVerticalBlock"] > div:has(select), div[data-testid="stVerticalBlock"] > div:has(button) { background-color: transparent; padding: 2px 0 !important; border: none !important; box-shadow: none !important; width: 100%; }
-    div[data-testid="stTextInput"] input, div[data-testid="stDateInput"] input, div[data-baseweb="select"] > div, div[data-baseweb="base-input"] { background-color: var(--pa-paper) !important; border: none !important; border-radius: 9px !important; box-shadow: none !important; transition: background-color 0.2s; }
+    div[data-testid="stTextInput"] input, div[data-testid="stDateInput"] input, div[data-baseweb="select"] > div, div[data-baseweb="base-input"] { background-color: var(--pa-input-bg) !important; border: none !important; border-radius: 9px !important; box-shadow: none !important; transition: background-color 0.2s; }
     div[data-testid="stTextInput"] input:focus, div[data-testid="stDateInput"] input:focus, div[data-baseweb="select"] > div:focus-within, div[data-baseweb="base-input"]:focus-within { background-color: var(--pa-verde-soft) !important; }
     div[data-testid="stExpander"] { background-color: #ffffff !important; border: 1px solid var(--pa-mist) !important; border-radius: 16px !important; box-shadow: 0 1px 2px rgba(28,36,32,.04), 0 10px 28px -14px rgba(28,36,32,.14) !important; margin-bottom: 16px; }
     div[data-testid="stExpander"] > div, div[data-testid="stExpander"][data-open="true"], div[data-testid="stExpander"][data-open="false"], .stElementContainer:has(div[data-testid="stExpander"]) { background-color: transparent !important; border: none !important; border-width: 0px !important; box-shadow: none !important; outline: none !important; }
