@@ -58,7 +58,10 @@ st.markdown("""
     .brand-eyebrow { font-family: 'Public Sans', sans-serif; font-weight: 700; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--pa-laranja-deep); margin: 6px 0 0 2px; display: block; }
     div[data-testid="stVerticalBlock"] > div:has(input), div[data-testid="stVerticalBlock"] > div:has(select), div[data-testid="stVerticalBlock"] > div:has(button) { background-color: #ffffff; padding: 2px 6px !important; border-radius: 9px; border: 1px solid var(--pa-mist) !important; box-shadow: inset 0 2px 4px 0 rgba(28,36,32,.02); transition: border-color 0.2s; width: 100%; }
     div[data-testid="stVerticalBlock"] > div:has(input):focus-within, div[data-testid="stVerticalBlock"] > div:has(select):focus-within { border-color: var(--pa-verde) !important; }
-    div[data-testid="stExpander"], div[data-testid="stExpander"] > div, div[data-testid="stExpander"][data-open="true"], div[data-testid="stExpander"][data-open="false"], .stElementContainer:has(div[data-testid="stExpander"]) { background-color: transparent !important; border: none !important; border-width: 0px !important; box-shadow: none !important; outline: none !important; }
+    div[data-testid="stExpander"] { background-color: #ffffff !important; border: 1px solid var(--pa-mist) !important; border-radius: 16px !important; box-shadow: 0 1px 2px rgba(28,36,32,.04), 0 10px 28px -14px rgba(28,36,32,.14) !important; margin-bottom: 16px; }
+    div[data-testid="stExpander"] > div, div[data-testid="stExpander"][data-open="true"], div[data-testid="stExpander"][data-open="false"], .stElementContainer:has(div[data-testid="stExpander"]) { background-color: transparent !important; border: none !important; border-width: 0px !important; box-shadow: none !important; outline: none !important; }
+    div[data-testid="stExpander"] summary { padding: 14px 22px !important; }
+    div[data-testid="stExpander"] div[data-testid="stExpanderDetails"] { padding: 0 22px 22px !important; }
     div[data-testid="stExpander"] summary, div[data-testid="stExpander"] [role="button"], .streamlit-expanderHeader { background-color: transparent !important; border: none !important; border-width: 0px !important; box-shadow: none !important; display: inline-flex !important; justify-content: flex-end !important; flex-direction: row !important; float: right !important; text-align: right !important; gap: 8px !important; width: auto !important; }
     div[data-testid="stExpander"] summary svg { transition: transform 0.2s ease-in-out !important; margin: 0 !important; padding: 0 !important; }
     div[data-testid="stExpander"] summary p, div[data-testid="stExpander"] [data-open="true"] summary p, .streamlit-expanderHeader p, .streamlit-expanderHeader:focus p { font-family: 'Sora', sans-serif !important; color: var(--pa-ink) !important; font-weight: 700 !important; font-size: 15px !important; margin: 0 !important; }
@@ -67,8 +70,16 @@ st.markdown("""
     div[data-testid="stForm"] { border: none !important; padding: 0px !important; box-shadow: none !important; background-color: transparent !important; }
 
     div.stFormSubmitButton > button { width: 100% !important; min-height: 36px !important; max-height: 36px !important; font-size: 13px !important; font-weight: 600 !important; padding: 0px 8px !important; border-radius: 9px !important; }
-    div.stFormSubmitButton > button:first-child { background-color: var(--pa-verde) !important; border-color: var(--pa-verde) !important; }
-    div.stFormSubmitButton > button:first-child:hover { background-color: var(--pa-verde-deep) !important; border-color: var(--pa-verde-deep) !important; }
+    div.stFormSubmitButton > button[kind="primary"] { background-color: var(--pa-verde) !important; border-color: var(--pa-verde) !important; color: #fff !important; }
+    div.stFormSubmitButton > button[kind="primary"]:hover { background-color: var(--pa-verde-deep) !important; border-color: var(--pa-verde-deep) !important; }
+    div.stFormSubmitButton > button[kind="secondary"] { background-color: #ffffff !important; border-color: var(--pa-mist) !important; color: var(--pa-ink) !important; }
+    div.stFormSubmitButton > button[kind="secondary"]:hover { border-color: var(--pa-slate-soft) !important; }
+
+    div.stButton > button, div.stDownloadButton > button { border-radius: 9px !important; font-weight: 600 !important; }
+    div.stButton > button[kind="primary"], div.stDownloadButton > button[kind="primary"] { background-color: var(--pa-verde) !important; border-color: var(--pa-verde) !important; color: #fff !important; }
+    div.stButton > button[kind="primary"]:hover, div.stDownloadButton > button[kind="primary"]:hover { background-color: var(--pa-verde-deep) !important; border-color: var(--pa-verde-deep) !important; }
+    div.stButton > button[kind="secondary"], div.stDownloadButton > button[kind="secondary"] { background-color: #ffffff !important; border-color: var(--pa-mist) !important; color: var(--pa-ink) !important; }
+    div.stButton > button[kind="secondary"]:hover, div.stDownloadButton > button[kind="secondary"]:hover { border-color: var(--pa-slate-soft) !important; }
 
     .status-card { background: #ffffff; color: var(--pa-ink); padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; border-left: 5px solid var(--pa-verde); box-shadow: 0 1px 3px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; }
     .custom-error-red { background-color: #fceaea !important; color: #b3282d !important; padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #d8383d; }
@@ -199,7 +210,7 @@ if st.session_state.mostrar_popup_login and not st.session_state.autenticado:
         with pop_c3:
             st.write("")
             st.write("")
-            btn_confirmar = st.button("Confirmar Acesso", use_container_width=True)
+            btn_confirmar = st.button("Confirmar Acesso", use_container_width=True, type="primary")
             if btn_confirmar:
                 senhas = {
                     "compras": "compras@2026",
@@ -261,7 +272,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
         
         _, b1, b2, b3 = st.columns([4, 1.2, 1.2, 1.2])
         with b1:
-            btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True)
+            btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True, type="primary")
             if btn_pesquisar:
                 st.session_state.filtro_pc_val = filtro_pc
                 st.session_state.filtro_sc_val = filtro_sc
@@ -503,7 +514,7 @@ if tem_busca_ativa:
 
                     with c_down2:
                         if st.session_state.autenticado:
-                            btn_salvar_dados = st.button("💾 Salvar Alterações", use_container_width=True)
+                            btn_salvar_dados = st.button("💾 Salvar Alterações", use_container_width=True, type="primary")
                         else:
                             btn_salvar_dados = False
 
