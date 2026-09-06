@@ -496,8 +496,7 @@ if tem_busca_ativa:
                         "REJEITADO",
                         "APROVADO",
                         "BLOQUEADO",
-                        "PENDENTE DE APROVAÇÃO",
-                        "NÃO POSSUI CONTROLE DE APROVAÇÃO"
+                        "PENDENTE DE APROVAÇÃO"
                     ]
                     lista_historico_status = sorted(list(set(status_existentes + status_oficiais)))
 
