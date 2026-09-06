@@ -92,6 +92,7 @@ st.markdown("""
     div.st-key-salvar_wrap div[data-testid="stVerticalBlock"] { align-items: flex-start !important; width: fit-content !important; }
     div.st-key-salvar_wrap div.stButton { width: fit-content !important; flex: 0 0 auto !important; }
     div.st-key-salvar_wrap div.stButton > button { width: auto !important; }
+    div.st-key-linha_baixar_relatorio { margin-top: -16px !important; }
 
     .status-card { background: #ffffff; color: var(--pa-ink); padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; border-left: 5px solid var(--pa-verde); box-shadow: 0 1px 3px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; }
     .custom-error-red { background-color: #fceaea !important; color: #b3282d !important; padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #d8383d; }
@@ -537,7 +538,8 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                     st.session_state.mostrar_popup_login = False
                     st.rerun()
 
-    esp0b, esp1b, esp2b, esp3b, esp4b, rb = st.columns([1.6, 1, 1, 1, 1, 1])
+    linha_relatorio = st.container(key="linha_baixar_relatorio")
+    esp0b, esp1b, esp2b, esp3b, esp4b, rb = linha_relatorio.columns([1.6, 1, 1, 1, 1, 1])
     for _esp in (esp0b, esp1b, esp2b, esp3b, esp4b):
         with _esp:
             st.markdown("&nbsp;", unsafe_allow_html=True)
