@@ -92,7 +92,10 @@ st.markdown("""
     div.st-key-salvar_wrap div[data-testid="stVerticalBlock"] { align-items: flex-start !important; width: fit-content !important; }
     div.st-key-salvar_wrap div.stButton { width: fit-content !important; flex: 0 0 auto !important; }
     div.st-key-salvar_wrap div.stButton > button { width: auto !important; }
-    div.st-key-linha_baixar_relatorio { margin-top: -16px !important; }
+    div.st-key-baixar_relatorio_wrap { display: flex !important; justify-content: flex-start !important; margin-bottom: 10px; }
+    div.st-key-baixar_relatorio_wrap div[data-testid="stVerticalBlock"] { align-items: flex-start !important; width: fit-content !important; }
+    div.st-key-baixar_relatorio_wrap div.stDownloadButton { width: fit-content !important; flex: 0 0 auto !important; }
+    div.st-key-baixar_relatorio_wrap div.stDownloadButton > button { width: auto !important; }
 
     .status-card { background: #ffffff; color: var(--pa-ink); padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; border-left: 5px solid var(--pa-verde); box-shadow: 0 1px 3px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; }
     .custom-error-red { background-color: #fceaea !important; color: #b3282d !important; padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #d8383d; }
@@ -538,25 +541,9 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                     st.session_state.mostrar_popup_login = False
                     st.rerun()
 
-    linha_relatorio = st.container(key="linha_baixar_relatorio")
-    esp0b, rb, esp2b, esp3b, esp4b, esp5b = linha_relatorio.columns([1.6, 1, 1, 1, 1, 1])
-    for _esp in (esp0b, esp2b, esp3b, esp4b, esp5b):
-        with _esp:
-            st.markdown("&nbsp;", unsafe_allow_html=True)
-    with rb:
-        if relatorio_bytes:
-            st.download_button(
-                label="📥 Baixar Relatório",
-                data=relatorio_bytes,
-                file_name="Relatorio_Compras_Filtro.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                key="btn_baixar_relatorio",
-            )
-
 # 9. MOTOR DE BUSCA CASCATA
 # tem_busca_ativa e o relatorio ja foram calculados antes dos Filtros Avançados
-# (o botao de download mora la agora - ver secao 7).
+# (usados aqui embaixo, na contagem de registros).
 
 if tem_busca_ativa:
     if df_pc.empty:
@@ -572,6 +559,16 @@ if tem_busca_ativa:
                 if not df_painel.empty:
                     txt_status = f"🔍 Registros Localizados ({len(df_painel)} itens)"
                     st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
+
+                    if relatorio_bytes:
+                        with st.container(key="baixar_relatorio_wrap"):
+                            st.download_button(
+                                label="📥 Baixar Relatório",
+                                data=relatorio_bytes,
+                                file_name="Relatorio_Compras_Filtro.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                key="btn_baixar_relatorio",
+                            )
 
                     if st.session_state.autenticado:
                         with st.container(key="salvar_wrap"):
