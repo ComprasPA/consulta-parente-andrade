@@ -49,8 +49,9 @@ st.markdown("""
     .block-container { padding-top: 1rem !important; padding-bottom: 1rem !important; padding-left: 2rem !important; padding-right: 2rem !important; }
     html, body, .stApp, [class*="css"] { font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important; }
     .stApp { background-color: var(--pa-paper); }
-    .header-modern { background: #ffffff; padding: 16px 28px; border-radius: 14px; display: flex; align-items: center; justify-content: space-between; margin-top: 0px !important; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(28,36,32,.04), 0 10px 28px -14px rgba(28,36,32,.14); position: relative; overflow: hidden; }
-    .header-modern::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: linear-gradient(180deg, var(--pa-verde), var(--pa-laranja)); }
+    div.st-key-header_card { background: #ffffff; padding: 16px 28px; border-radius: 14px; margin-top: 0px !important; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(28,36,32,.04), 0 10px 28px -14px rgba(28,36,32,.14); position: relative; overflow: hidden; }
+    div.st-key-header_card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: linear-gradient(180deg, var(--pa-verde), var(--pa-laranja)); }
+    div.st-key-header_card > div { align-items: center; }
     div[data-testid="column"] { display: flex; align-items: center; justify-content: center; }
     .center-title-container { width: 100%; text-align: center; display: flex; justify-content: center; align-items: center; }
     .portal-title { font-family: 'Sora', sans-serif !important; color: var(--pa-ink) !important; font-size: 26px !important; font-weight: 700 !important; margin: 0 auto !important; letter-spacing: -0.01em; line-height: 1; white-space: nowrap; }
@@ -156,31 +157,30 @@ if "gaveta_aberta" not in st.session_state:
     st.session_state.gaveta_aberta = True
 
 # 5. CABEÇALHO INTEGRADO
-st.markdown('<div class="header-modern">', unsafe_allow_html=True)
-c1, c2, c3 = st.columns([1.5, 7.0, 1.5])
+with st.container(key="header_card"):
+    c1, c2, c3 = st.columns([1.5, 7.0, 1.5])
 
-with c1:
-    if base64_logo:
-        st.markdown(f'''
-            <div>
-                <img src="data:image/png;base64,{base64_logo}" style="width:170px; display:block; margin:0;">
-                <span class="brand-eyebrow">Coordenação de Suprimentos</span>
-            </div>
-        ''', unsafe_allow_html=True)
-with c2:
-    st.markdown('<div class="center-title-container"><p class="portal-title">Portal Gestão de Compras</p></div>', unsafe_allow_html=True)
-with c3:
-    if not st.session_state.autenticado:
-        if st.button("🔐 Operador", use_container_width=True):
-            st.session_state.mostrar_popup_login = not st.session_state.mostrar_popup_login
-            st.rerun()
-    else:
-        if st.button("🚪 Sair", use_container_width=True):
-            st.session_state.autenticado = False
-            st.session_state.departamento_ativo = ""
-            st.session_state.mostrar_popup_login = False
-            st.rerun()
-st.markdown('</div>', unsafe_allow_html=True)
+    with c1:
+        if base64_logo:
+            st.markdown(f'''
+                <div>
+                    <img src="data:image/png;base64,{base64_logo}" style="width:170px; display:block; margin:0;">
+                    <span class="brand-eyebrow">Coordenação de Suprimentos</span>
+                </div>
+            ''', unsafe_allow_html=True)
+    with c2:
+        st.markdown('<div class="center-title-container"><p class="portal-title">Portal Gestão de Compras</p></div>', unsafe_allow_html=True)
+    with c3:
+        if not st.session_state.autenticado:
+            if st.button("🔐 Operador", use_container_width=True):
+                st.session_state.mostrar_popup_login = not st.session_state.mostrar_popup_login
+                st.rerun()
+        else:
+            if st.button("🚪 Sair", use_container_width=True):
+                st.session_state.autenticado = False
+                st.session_state.departamento_ativo = ""
+                st.session_state.mostrar_popup_login = False
+                st.rerun()
 
 # 6. JANELA POPUP DISCRETA DE LOGIN
 if st.session_state.mostrar_popup_login and not st.session_state.autenticado:
