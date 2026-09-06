@@ -39,7 +39,7 @@ st.markdown("""
         --pa-laranja-deep: #CE6E10;
         --pa-laranja-soft: #FDECD9;
         --pa-ink: #1C2420;
-        --pa-paper: #F6F7F3;
+        --pa-paper: #FFFAF0;
         --pa-mist: #E4E7E0;
         --pa-slate: #5B6459;
         --pa-slate-soft: #8B9186;
