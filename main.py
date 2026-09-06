@@ -30,51 +30,74 @@ base64_logo = get_base64_logo()
 # 3. CSS MODERNIZADO
 st.markdown("""
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+    :root {
+        --pa-verde: #3E8E41;
+        --pa-verde-deep: #2E6B31;
+        --pa-verde-soft: #E7F3E6;
+        --pa-laranja: #F2861D;
+        --pa-laranja-deep: #CE6E10;
+        --pa-laranja-soft: #FDECD9;
+        --pa-ink: #1C2420;
+        --pa-paper: #F6F7F3;
+        --pa-mist: #E4E7E0;
+        --pa-slate: #5B6459;
+        --pa-slate-soft: #8B9186;
+    }
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
     div[data-testid="stElementToolbar"] { display: none !important; }
     .block-container { padding-top: 1rem !important; padding-bottom: 1rem !important; padding-left: 2rem !important; padding-right: 2rem !important; }
-    .stApp { background-color: #f8fafc; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-    .header-modern { background: #ffffff; padding: 16px 24px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; margin-top: 0px !important; margin-bottom: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); }
+    html, body, .stApp, [class*="css"] { font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important; }
+    .stApp { background-color: var(--pa-paper); }
+    .header-modern { background: #ffffff; padding: 16px 28px; border-radius: 14px; display: flex; align-items: center; justify-content: space-between; margin-top: 0px !important; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(28,36,32,.04), 0 10px 28px -14px rgba(28,36,32,.14); position: relative; overflow: hidden; }
+    .header-modern::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: linear-gradient(180deg, var(--pa-verde), var(--pa-laranja)); }
     div[data-testid="column"] { display: flex; align-items: center; justify-content: center; }
     .center-title-container { width: 100%; text-align: center; display: flex; justify-content: center; align-items: center; }
-    .portal-title { color: #1e293b !important; font-size: 38px !important; font-weight: 800 !important; margin: 0 auto !important; letter-spacing: -1px; line-height: 1; white-space: nowrap; }
-    div[data-testid="stVerticalBlock"] > div:has(input), div[data-testid="stVerticalBlock"] > div:has(select), div[data-testid="stVerticalBlock"] > div:has(button) { background-color: #ffffff; padding: 2px 6px !important; border-radius: 8px; border: 1px solid #e2e8f0 !important; box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02); transition: border-color 0.2s; width: 100%; }
-    div[data-testid="stVerticalBlock"] > div:has(input):focus-within, div[data-testid="stVerticalBlock"] > div:has(select):focus-within { border-color: #478c3b !important; }
+    .portal-title { font-family: 'Sora', sans-serif !important; color: var(--pa-ink) !important; font-size: 26px !important; font-weight: 700 !important; margin: 0 auto !important; letter-spacing: -0.01em; line-height: 1; white-space: nowrap; }
+    .brand-eyebrow { font-family: 'Public Sans', sans-serif; font-weight: 700; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--pa-laranja-deep); margin: 6px 0 0 2px; display: block; }
+    div[data-testid="stVerticalBlock"] > div:has(input), div[data-testid="stVerticalBlock"] > div:has(select), div[data-testid="stVerticalBlock"] > div:has(button) { background-color: #ffffff; padding: 2px 6px !important; border-radius: 9px; border: 1px solid var(--pa-mist) !important; box-shadow: inset 0 2px 4px 0 rgba(28,36,32,.02); transition: border-color 0.2s; width: 100%; }
+    div[data-testid="stVerticalBlock"] > div:has(input):focus-within, div[data-testid="stVerticalBlock"] > div:has(select):focus-within { border-color: var(--pa-verde) !important; }
     div[data-testid="stExpander"], div[data-testid="stExpander"] > div, div[data-testid="stExpander"][data-open="true"], div[data-testid="stExpander"][data-open="false"], .stElementContainer:has(div[data-testid="stExpander"]) { background-color: transparent !important; border: none !important; border-width: 0px !important; box-shadow: none !important; outline: none !important; }
     div[data-testid="stExpander"] summary, div[data-testid="stExpander"] [role="button"], .streamlit-expanderHeader { background-color: transparent !important; border: none !important; border-width: 0px !important; box-shadow: none !important; display: inline-flex !important; justify-content: flex-end !important; flex-direction: row !important; float: right !important; text-align: right !important; gap: 8px !important; width: auto !important; }
     div[data-testid="stExpander"] summary svg { transition: transform 0.2s ease-in-out !important; margin: 0 !important; padding: 0 !important; }
-    div[data-testid="stExpander"] summary p, div[data-testid="stExpander"] [data-open="true"] summary p, .streamlit-expanderHeader p, .streamlit-expanderHeader:focus p { color: #1e293b !important; font-weight: 700 !important; font-size: 16px !important; margin: 0 !important; }
-    div[data-testid="stExpander"] summary:hover p { color: #478c3b !important; }
+    div[data-testid="stExpander"] summary p, div[data-testid="stExpander"] [data-open="true"] summary p, .streamlit-expanderHeader p, .streamlit-expanderHeader:focus p { font-family: 'Sora', sans-serif !important; color: var(--pa-ink) !important; font-weight: 700 !important; font-size: 15px !important; margin: 0 !important; }
+    div[data-testid="stExpander"] summary:hover p { color: var(--pa-verde) !important; }
     div[data-testid="stDateInput"] { width: 100%; }
     div[data-testid="stForm"] { border: none !important; padding: 0px !important; box-shadow: none !important; background-color: transparent !important; }
-    
-    div.stFormSubmitButton > button { width: 100% !important; min-height: 36px !important; max-height: 36px !important; font-size: 13px !important; font-weight: 600 !important; padding: 0px 8px !important; }
 
-    .status-card { background: #ffffff; color: #1e293b; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; border-left: 5px solid #478c3b; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; }
-    .custom-error-red { background-color: #fee2e2 !important; color: #991b1b !important; padding: 16px 24px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #ef4444; }
-    .custom-welcome-salutation { background-color: #ffffff; color: #1e293b; padding: 32px 24px; border-radius: 12px; font-weight: 600; font-size: 20px; text-align: center; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); margin-top: 20px; }
-    
-    div[data-testid="stDataFrame"] { background: #ffffff; padding: 16px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-    div[data-testid="stDataFrame"] table th { white-space: nowrap !important; min-width: max-content !important; }
+    div.stFormSubmitButton > button { width: 100% !important; min-height: 36px !important; max-height: 36px !important; font-size: 13px !important; font-weight: 600 !important; padding: 0px 8px !important; border-radius: 9px !important; }
+    div.stFormSubmitButton > button:first-child { background-color: var(--pa-verde) !important; border-color: var(--pa-verde) !important; }
+    div.stFormSubmitButton > button:first-child:hover { background-color: var(--pa-verde-deep) !important; border-color: var(--pa-verde-deep) !important; }
+
+    .status-card { background: #ffffff; color: var(--pa-ink); padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; border-left: 5px solid var(--pa-verde); box-shadow: 0 1px 3px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; }
+    .custom-error-red { background-color: #fceaea !important; color: #b3282d !important; padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #d8383d; }
+    .custom-welcome-salutation { background-color: #ffffff; color: var(--pa-ink); padding: 32px 24px; border-radius: 14px; font-weight: 600; font-size: 19px; text-align: center; border: 1px solid var(--pa-mist); box-shadow: 0 4px 6px -1px rgba(28,36,32,.02); margin-top: 20px; }
+
+    div[data-testid="stDataFrame"] { background: #ffffff; padding: 16px; border-radius: 14px; box-shadow: 0 1px 2px rgba(28,36,32,.04), 0 10px 28px -14px rgba(28,36,32,.14); }
+    div[data-testid="stDataFrame"] table th { font-family: 'Public Sans', sans-serif !important; font-weight: 700 !important; letter-spacing: .04em; text-transform: uppercase; font-size: 11px !important; color: var(--pa-slate-soft) !important; white-space: nowrap !important; min-width: max-content !important; background: var(--pa-paper) !important; }
+    div[data-testid="stDataFrame"] table td { font-family: 'Public Sans', sans-serif !important; }
+
+    /* Cabecalho da tabela e area de filtros fixos; so a grade de dados rola */
+    div[data-testid="stDataFrame"] { max-height: calc(100vh - 420px) !important; overflow: auto !important; }
 
     /* ESTILIZAÇÃO DO DROPDOWN / LISTA SUSPENSA */
     div[data-baseweb="menu"], ul[data-baseweb="menu"], div[role="listbox"] {
         background-color: #ffffff !important;
-        color: #1e293b !important;
-        border: 1px solid #cbd5e1 !important;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+        color: var(--pa-ink) !important;
+        border: 1px solid var(--pa-mist) !important;
+        box-shadow: 0 10px 15px -3px rgba(28,36,32,.1) !important;
     }
     div[data-baseweb="menu"] li, ul[data-baseweb="menu"] li, div[role="option"] {
         background-color: #ffffff !important;
-        color: #1e293b !important;
+        color: var(--pa-ink) !important;
     }
     div[data-baseweb="menu"] li:hover, ul[data-baseweb="menu"] li:hover, div[role="option"]:hover {
-        background-color: #e2e8f0 !important;
-        color: #0f172a !important;
+        background-color: var(--pa-verde-soft) !important;
+        color: var(--pa-verde-deep) !important;
     }
 
-    .custom-footer-block { text-align: center !important; margin-top: 60px !important; border-top: 1px solid #e2e8f0 !important; padding-top: 24px !important; padding-bottom: 24px !important; position: static !important; clear: both !important; width: 100% !important; display: block !important; }
-    .signature-fixed { position: fixed; bottom: 12px; left: 20px; color: #94a3b8; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; z-index: 999999; pointer-events: none; }
+    .custom-footer-block { text-align: center !important; margin-top: 60px !important; border-top: 1px solid var(--pa-mist) !important; padding-top: 24px !important; padding-bottom: 24px !important; position: static !important; clear: both !important; width: 100% !important; display: block !important; }
+    .signature-fixed { position: fixed; bottom: 12px; left: 20px; color: var(--pa-slate-soft); font-size: 11px; font-weight: 700; letter-spacing: 0.5px; z-index: 999999; pointer-events: none; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -137,8 +160,13 @@ st.markdown('<div class="header-modern">', unsafe_allow_html=True)
 c1, c2, c3 = st.columns([1.5, 7.0, 1.5])
 
 with c1:
-    if base64_logo: 
-        st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:120px; display:block; margin:auto 0;">', unsafe_allow_html=True)
+    if base64_logo:
+        st.markdown(f'''
+            <div>
+                <img src="data:image/png;base64,{base64_logo}" style="width:170px; display:block; margin:0;">
+                <span class="brand-eyebrow">Coordenação de Suprimentos</span>
+            </div>
+        ''', unsafe_allow_html=True)
 with c2:
     st.markdown('<div class="center-title-container"><p class="portal-title">Portal Gestão de Compras</p></div>', unsafe_allow_html=True)
 with c3:
