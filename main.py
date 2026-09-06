@@ -67,6 +67,7 @@ st.markdown("""
     div[data-testid="stExpander"] > div, div[data-testid="stExpander"][data-open="true"], div[data-testid="stExpander"][data-open="false"], .stElementContainer:has(div[data-testid="stExpander"]) { background-color: transparent !important; border: none !important; border-width: 0px !important; box-shadow: none !important; outline: none !important; }
     div[data-testid="stExpander"] summary { padding: 14px 22px !important; }
     div[data-testid="stExpander"] div[data-testid="stExpanderDetails"] { padding: 0 22px 22px !important; }
+    div[data-testid="stExpander"] div[data-testid="stExpanderDetails"] > div[data-testid="stVerticalBlock"] { gap: 0.35rem !important; }
     div[data-testid="stExpander"] summary, div[data-testid="stExpander"] [role="button"], .streamlit-expanderHeader { background-color: transparent !important; border: none !important; border-width: 0px !important; box-shadow: none !important; display: inline-flex !important; justify-content: flex-end !important; flex-direction: row !important; float: right !important; text-align: right !important; gap: 8px !important; width: auto !important; }
     div[data-testid="stExpander"] summary svg { transition: transform 0.2s ease-in-out !important; margin: 0 !important; padding: 0 !important; }
     div[data-testid="stExpander"] summary p, div[data-testid="stExpander"] [data-open="true"] summary p, .streamlit-expanderHeader p, .streamlit-expanderHeader:focus p { font-family: 'Sora', sans-serif !important; color: var(--pa-ink) !important; font-weight: 700 !important; font-size: 15px !important; margin: 0 !important; }
@@ -87,6 +88,8 @@ st.markdown("""
     div.stButton > button[kind="secondary"]:hover, div.stDownloadButton > button[kind="secondary"]:hover { border-color: var(--pa-slate-soft) !important; }
     div.st-key-btn_sair button { background-color: #ffffff !important; border-color: #f3c6c6 !important; color: #c53030 !important; }
     div.st-key-btn_sair button:hover { background-color: #fceaea !important; border-color: #c53030 !important; }
+    div.st-key-salvar_wrap { display: flex !important; justify-content: flex-start !important; }
+    div.st-key-salvar_wrap div[data-testid="stVerticalBlock"] { align-items: flex-start !important; }
 
     .status-card { background: #ffffff; color: var(--pa-ink); padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; border-left: 5px solid var(--pa-verde); box-shadow: 0 1px 3px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; }
     .custom-error-red { background-color: #fceaea !important; color: #b3282d !important; padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #d8383d; }
@@ -486,7 +489,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
 
         st.write("") 
         
-        _, b1, b2, b3, b4 = st.columns([2.6, 1.2, 1.2, 1.2, 1.3])
+        _, b1, b2, b3, b4, _ = st.columns([1.6, 1, 1, 1, 1, 1])
         with b1:
             btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True, type="primary")
             if btn_pesquisar:
@@ -528,14 +531,17 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                     st.session_state.mostrar_popup_login = False
                     st.rerun()
 
-    if relatorio_bytes:
-        st.download_button(
-            label="📥 Baixar Relatório",
-            data=relatorio_bytes,
-            file_name="Relatorio_Compras_Filtro.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key="btn_baixar_relatorio",
-        )
+    _, _, _, _, _, rb = st.columns([1.6, 1, 1, 1, 1, 1])
+    with rb:
+        if relatorio_bytes:
+            st.download_button(
+                label="📥 Baixar Relatório",
+                data=relatorio_bytes,
+                file_name="Relatorio_Compras_Filtro.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key="btn_baixar_relatorio",
+            )
 
 # 9. MOTOR DE BUSCA CASCATA
 # tem_busca_ativa e o relatorio ja foram calculados antes dos Filtros Avançados
@@ -557,7 +563,8 @@ if tem_busca_ativa:
                     st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
 
                     if st.session_state.autenticado:
-                        btn_salvar_dados = st.button("💾 Salvar Alterações", type="primary")
+                        with st.container(key="salvar_wrap"):
+                            btn_salvar_dados = st.button("💾 Salvar Alterações", type="primary")
                     else:
                         btn_salvar_dados = False
 
