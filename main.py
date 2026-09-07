@@ -431,6 +431,58 @@ def montar_df_painel(df_final, colunas_normalizadas):
     return df_painel.dropna(how='all')
 
 
+def parse_data_br(valor):
+    """Converte um texto 'DD/MM/AAAA' (formato ja usado no painel) pra date. None se vazio/invalido/N/A."""
+    txt = str(valor).strip()
+    if not txt or txt.upper() in ("N/A", "NAN", "NONE"):
+        return None
+    try:
+        return datetime.strptime(txt, "%d/%m/%Y").date()
+    except ValueError:
+        return None
+
+
+def calcular_colunas_sla(df_painel):
+    """Calcula as colunas Sla Pagamento e Sla Entrega (dias corridos), regra
+    confirmada com o usuario a partir da planilha de follow up real:
+
+    - Sla Pagamento: so passa a contar depois que o STATUS chega em
+      'Enviado ao Financeiro' (Envio Pc -> hoje). Para de avançar assim que
+      o operador (almoxarifado/compras) preenche a Pagamento Pc - a partir
+      dai fica congelado em (Pagamento Pc - Envio Pc).
+    - Sla Entrega: conta desde a Envio Pc (hoje, contando todo dia) e para
+      assim que a Entrega e preenchida - manualmente pelo almoxarifado, ou
+      automaticamente pela importacao (DT Baixa/Dt. Dig.Nota, que cai no
+      mesmo campo Entrega) - congelando em (Entrega - Envio Pc).
+    """
+    hoje = datetime.now().date()
+    status_gatilho_sla_pgo = normalizar_status_import("Enviado ao Financeiro")
+
+    sla_pagamento = []
+    sla_entrega = []
+    for _, linha in df_painel.iterrows():
+        status_norm = normalizar_status_import(linha.get("Status", ""))
+        data_envio = parse_data_br(linha.get("Envio Pc", ""))
+        data_pagamento = parse_data_br(linha.get("Pagamento Pc", ""))
+        data_entrega = parse_data_br(linha.get("Entrega", ""))
+
+        if data_envio and data_pagamento:
+            sla_pagamento.append((data_pagamento - data_envio).days)
+        elif data_envio and status_norm == status_gatilho_sla_pgo:
+            sla_pagamento.append((hoje - data_envio).days)
+        else:
+            sla_pagamento.append("")
+
+        if data_envio:
+            sla_entrega.append(((data_entrega or hoje) - data_envio).days)
+        else:
+            sla_entrega.append("")
+
+    df_painel["Sla Pagamento"] = sla_pagamento
+    df_painel["Sla Entrega"] = sla_entrega
+    return df_painel
+
+
 def gerar_bytes_excel(df_painel):
     """Gera o .xlsx (bytes) do relatorio a partir do df_painel ja montado."""
     out = BytesIO()
@@ -851,6 +903,8 @@ if tem_busca_ativa and not df_pc.empty:
         if not _df_final_preview.empty:
             _df_painel_preview = montar_df_painel(_df_final_preview, _colunas_preview)
             if not _df_painel_preview.empty:
+                if st.session_state.autenticado and st.session_state.departamento_ativo in ("almoxarifado", "gestor"):
+                    _df_painel_preview = calcular_colunas_sla(_df_painel_preview)
                 relatorio_bytes = gerar_bytes_excel(_df_painel_preview)
     except Exception:
         relatorio_bytes = None
@@ -1008,6 +1062,11 @@ if tem_busca_ativa:
                     # na linha unificada de ações (ver seção 8.5) - btn_salvar_dados
                     # ja foi calculado por la.
 
+                    # SLA (Pagamento/Entrega) - visivel so pro almoxarifado e o gestor
+                    mostrar_sla = st.session_state.autenticado and st.session_state.departamento_ativo in ("almoxarifado", "gestor")
+                    if mostrar_sla:
+                        df_painel = calcular_colunas_sla(df_painel)
+
                     configuracao_colunas_tela = {}
                     
                     status_existentes = [str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""] if col_status_verificacao else []
@@ -1051,6 +1110,11 @@ if tem_busca_ativa:
                         larguras_colunas[nome_tela] = max(70, min(int(maior_len * 7.5) + 40, 380))
                     larguras_colunas["Logística"] = max(larguras_colunas.get("Logística", 0), max(len(o) for o in opcoes_logistica) * 7.5 + 40)
                     larguras_colunas["Status"] = max(larguras_colunas.get("Status", 0), max(len(o) for o in lista_historico_status) * 7.5 + 40) if lista_historico_status else larguras_colunas.get("Status", 120)
+                    if mostrar_sla:
+                        for nome_sla in ("Sla Pagamento", "Sla Entrega"):
+                            serie_txt = df_painel[nome_sla].astype(str)
+                            maior_len = max(int(serie_txt.map(len).max() or 0), len(nome_sla))
+                            larguras_colunas[nome_sla] = max(70, min(int(maior_len * 7.5) + 40, 380))
 
                     for col_config in DICIONARIO_COLUNAS_EXATAS:
                         nome_tela = col_config["tela"]
@@ -1096,6 +1160,13 @@ if tem_busca_ativa:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True, width=largura_px)
 
                     configuracao_colunas_tela["_row_idx"] = None
+
+                    if mostrar_sla:
+                        for nome_sla in ("Sla Pagamento", "Sla Entrega"):
+                            configuracao_colunas_tela[nome_sla] = st.column_config.Column(
+                                nome_sla, disabled=True, width=int(larguras_colunas.get(nome_sla, 90)),
+                                help="Dias corridos - calculado automaticamente"
+                            )
 
                     if st.session_state.autenticado:
                         if "df_original_cache" not in st.session_state or st.session_state.get("atualizar_cache_editor", True):
