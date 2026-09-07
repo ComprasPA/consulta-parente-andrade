@@ -135,7 +135,100 @@ st.markdown("""
 
 FILE_ID = "1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o"
 
-# 4. CARREGAMENTO SEGURO DIRETO DA ABA "Pedidos"
+# Sentinela de _row_idx pras linhas sinteticas "Em Cotação" (Solicitação sem
+# Pedido ainda) - bem acima de qualquer linha real possivel na aba Pedidos,
+# usado pra bloquear salvamento nelas (ver "SALVAMENTO PROCV" mais abaixo).
+SENTINELA_ROW_IDX_EM_COTACAO = 10_000_000
+
+
+def _ler_aba_como_df(spreadsheet, nome_aba):
+    """Le uma aba inteira e devolve um DataFrame de strings, mesma logica de
+    normalizacao (linhas curtas preenchidas com "") usada pra 'Pedidos'."""
+    try:
+        worksheet = spreadsheet.worksheet(nome_aba)
+    except Exception:
+        return pd.DataFrame()
+
+    dados = worksheet.get_all_values()
+    if not dados:
+        return pd.DataFrame()
+
+    cabecalho = [str(c).strip() for c in dados[0]]
+    linhas_normalizadas = []
+    for linha in dados[1:]:
+        linha = list(linha)
+        while len(linha) < len(cabecalho):
+            linha.append("")
+        linhas_normalizadas.append(linha[:len(cabecalho)])
+
+    return pd.DataFrame(linhas_normalizadas, columns=cabecalho, dtype=str).fillna('')
+
+
+def montar_linhas_em_cotacao(df_pc, df_sc):
+    """Solicitações sem PEDIDO proprio preenchido E sem nenhuma linha
+    correspondente (mesma Solicitação+Produto) na aba Pedidos - ainda não
+    viraram pedido. Devolve um DataFrame com as MESMAS colunas de df_pc,
+    STATUS="Em Cotação" e so os campos que fazem sentido pra uma Solicitação
+    preenchidos (Centro de Custo, Solicitação, Produto, Descrição, Um, Qtd);
+    o resto (Pedido, Fornecedor, datas, valores...) fica em branco. Some do
+    resultado sozinha assim que a importação do PC correspondente criar a
+    linha real na aba Pedidos - nao precisa de nenhum passo de "substituição"
+    manual, e so essa mesma verificação rodando de novo."""
+    colunas_normalizadas_pc = {c.upper().strip().replace('Í', 'I').replace('Ã', 'A').replace('Ç', 'C'): c for c in df_pc.columns}
+    col_solic_pc = colunas_normalizadas_pc.get("SOLICITAÇÃO") or colunas_normalizadas_pc.get("SOLICITACAO")
+    col_produto_pc = colunas_normalizadas_pc.get("PRODUTO")
+    col_status_pc = colunas_normalizadas_pc.get("STATUS")
+
+    if df_sc.empty or not col_solic_pc or not col_produto_pc:
+        return pd.DataFrame(columns=df_pc.columns)
+
+    chaves_com_pedido = set(zip(
+        df_pc[col_solic_pc].astype(str).str.strip(),
+        df_pc[col_produto_pc].astype(str).str.strip(),
+    ))
+
+    colunas_normalizadas_sc = {c.upper().strip().replace('Í', 'I').replace('Ã', 'A').replace('Ç', 'C'): c for c in df_sc.columns}
+    col_solic_sc = colunas_normalizadas_sc.get("SOLICITAÇÃO") or colunas_normalizadas_sc.get("SOLICITACAO")
+    col_pedido_sc = colunas_normalizadas_sc.get("PEDIDO")
+    col_produto_sc = colunas_normalizadas_sc.get("PRODUTO")
+
+    if not (col_solic_sc and col_pedido_sc and col_produto_sc):
+        return pd.DataFrame(columns=df_pc.columns)
+
+    sem_pedido = df_sc[df_sc[col_pedido_sc].astype(str).str.strip() == ""]
+    if sem_pedido.empty:
+        return pd.DataFrame(columns=df_pc.columns)
+
+    chaves_sc = list(zip(
+        sem_pedido[col_solic_sc].astype(str).str.strip(),
+        sem_pedido[col_produto_sc].astype(str).str.strip(),
+    ))
+    candidatas = sem_pedido[[chave not in chaves_com_pedido for chave in chaves_sc]]
+    if candidatas.empty:
+        return pd.DataFrame(columns=df_pc.columns)
+
+    linhas_cotacao = pd.DataFrame("", index=range(len(candidatas)), columns=df_pc.columns)
+    if col_status_pc:
+        linhas_cotacao[col_status_pc] = "Em Cotação"
+
+    mapa_sc_para_pc = {
+        "SOLICITACAO": col_solic_sc,
+        "PRODUTO": col_produto_sc,
+        "DESCRICAO": colunas_normalizadas_sc.get("DESCRICAO"),
+        "UM": colunas_normalizadas_sc.get("UM"),
+        "QTD": colunas_normalizadas_sc.get("QTD"),
+        "CENTRO DE CUSTO": colunas_normalizadas_sc.get("CENTRO DE CUSTO"),
+    }
+    for campo_pc, col_real_sc in mapa_sc_para_pc.items():
+        col_destino = colunas_normalizadas_pc.get(campo_pc)
+        if col_destino and col_real_sc:
+            linhas_cotacao[col_destino] = candidatas[col_real_sc].values
+
+    linhas_cotacao.index = range(SENTINELA_ROW_IDX_EM_COTACAO, SENTINELA_ROW_IDX_EM_COTACAO + len(linhas_cotacao))
+    return linhas_cotacao
+
+
+# 4. CARREGAMENTO SEGURO DIRETO DA ABA "Pedidos" (+ Solicitações sem pedido, como "Em Cotação")
 @st.cache_data(ttl=60)
 def carregar_dados_seguros():
     try:
@@ -146,27 +239,36 @@ def carregar_dados_seguros():
         creds_dict = dict(st.secrets["gcp_service_account"])
         creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
         client = gspread.authorize(creds)
-        
+
         spreadsheet = client.open_by_key(FILE_ID)
         try:
             worksheet = spreadsheet.worksheet("Pedidos")
         except:
             worksheet = spreadsheet.get_worksheet(0)
-        
+
         dados = worksheet.get_all_values()
         if not dados:
             return pd.DataFrame()
-            
+
         cabecalho = [str(c).strip() for c in dados[0]]
         linhas = dados[1:]
-        
+
         linhas_normalizadas = []
         for linha in linhas:
             while len(linha) < len(cabecalho):
                 linha.append("")
             linhas_normalizadas.append(linha[:len(cabecalho)])
-        
+
         df = pd.DataFrame(linhas_normalizadas, columns=cabecalho, dtype=str).fillna('')
+
+        try:
+            df_sc = _ler_aba_como_df(spreadsheet, "Solicitacoes")
+            linhas_cotacao = montar_linhas_em_cotacao(df, df_sc)
+            if not linhas_cotacao.empty:
+                df = pd.concat([df, linhas_cotacao])
+        except Exception:
+            pass  # "Em Cotação" e um extra - se der erro, so segue com os Pedidos normais
+
         return df
     except Exception as e:
         st.session_state.erro_tecnico = f"Erro Gspread: {str(e)}"
@@ -1095,7 +1197,7 @@ if tem_busca_ativa:
 
                     configuracao_colunas_tela = {}
                     
-                    status_existentes = [str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() != ""] if col_status_verificacao else []
+                    status_existentes = [str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() not in ("", "Em Cotação")] if col_status_verificacao else []
                     status_oficiais = [
                         "ENVIADO AO FORNECEDOR",
                         "ENVIADO AO FINANCEIRO",
@@ -1252,6 +1354,10 @@ if tem_busca_ativa:
                                         
                                         for idx in edited_df.index:
                                             linha_planilha = int(edited_df.loc[idx, "_row_idx"])
+                                            if linha_planilha >= SENTINELA_ROW_IDX_EM_COTACAO:
+                                                # Linha sintetica "Em Cotação" (Solicitação sem
+                                                # Pedido ainda) - nao existe na aba Pedidos, nunca salva.
+                                                continue
                                             for col in edited_df.columns:
                                                 if col == "_row_idx":
                                                     continue
