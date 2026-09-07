@@ -89,18 +89,16 @@ st.markdown("""
     div.stButton > button[kind="secondary"]:hover, div.stDownloadButton > button[kind="secondary"]:hover { border-color: var(--pa-slate-soft) !important; }
     div.st-key-btn_sair button { background-color: #ffffff !important; border-color: #f3c6c6 !important; color: #c53030 !important; }
     div.st-key-btn_sair button:hover { background-color: #fceaea !important; border-color: #c53030 !important; }
-    div.st-key-salvar_wrap { display: flex !important; justify-content: flex-start !important; }
-    div.st-key-salvar_wrap div[data-testid="stVerticalBlock"] { align-items: flex-start !important; width: fit-content !important; }
-    div.st-key-salvar_wrap div.stButton { width: fit-content !important; flex: 0 0 auto !important; }
-    div.st-key-salvar_wrap div.stButton > button { width: auto !important; }
-    div.st-key-baixar_relatorio_wrap { display: flex !important; justify-content: flex-start !important; margin-bottom: 10px; }
-    div.st-key-baixar_relatorio_wrap div[data-testid="stVerticalBlock"] { align-items: flex-start !important; width: fit-content !important; }
-    div.st-key-baixar_relatorio_wrap div.stDownloadButton { width: fit-content !important; flex: 0 0 auto !important; }
-    div.st-key-baixar_relatorio_wrap div.stDownloadButton > button { width: auto !important; }
+    div.st-key-acoes_tabela_wrap { flex-direction: row !important; align-items: center !important; justify-content: flex-start !important; gap: 12px !important; width: fit-content !important; margin-bottom: 10px; }
+    div.st-key-acoes_tabela_wrap div.stDownloadButton, div.st-key-acoes_tabela_wrap div.stButton { width: fit-content !important; flex: 0 0 auto !important; }
+    div.st-key-acoes_tabela_wrap div.stDownloadButton > button, div.st-key-acoes_tabela_wrap div.stButton > button { width: auto !important; }
+    div.st-key-importar_wrap { align-items: flex-start !important; justify-content: flex-start !important; width: fit-content !important; margin-bottom: 8px; }
+    div.st-key-importar_wrap div.stButton { width: fit-content !important; flex: 0 0 auto !important; }
+    div.st-key-importar_wrap div.stButton > button { width: auto !important; }
 
     .status-card { background: #ffffff; color: var(--pa-ink); padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; border-left: 5px solid var(--pa-verde); box-shadow: 0 1px 3px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; }
     .custom-error-red { background-color: #fceaea !important; color: #b3282d !important; padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #d8383d; }
-    .custom-welcome-salutation, .custom-empty-state { background-color: #ffffff; color: var(--pa-ink); padding: 32px 24px; border-radius: 14px; font-weight: 600; font-size: 19px; text-align: center; border: 1px solid var(--pa-mist); box-shadow: 0 4px 6px -1px rgba(28,36,32,.02); margin-top: 20px; min-height: calc(100vh - 420px); display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+    .custom-welcome-salutation, .custom-empty-state { background-color: #ffffff; color: var(--pa-ink); padding: 32px 24px; border-radius: 14px; font-weight: 600; font-size: 19px; text-align: center; border: 1px solid var(--pa-mist); box-shadow: 0 4px 6px -1px rgba(28,36,32,.02); margin-top: 20px; min-height: calc(100vh - 260px); display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
     .custom-empty-state.custom-error-red { background-color: #fceaea !important; color: #b3282d !important; border: none; border-left: 5px solid #d8383d; box-shadow: 0 4px 6px -1px rgba(28,36,32,.05); }
 
     div[data-testid="stDataFrame"] { background: #ffffff; padding: 16px; border-radius: 14px; box-shadow: 0 1px 2px rgba(28,36,32,.04), 0 10px 28px -14px rgba(28,36,32,.14); }
@@ -108,7 +106,7 @@ st.markdown("""
     div[data-testid="stDataFrame"] table td { font-family: 'Public Sans', sans-serif !important; }
 
     /* Cabecalho da tabela e area de filtros fixos; so a grade de dados rola */
-    div[data-testid="stDataFrame"] { max-height: calc(100vh - 420px) !important; overflow: auto !important; }
+    div[data-testid="stDataFrame"] { max-height: calc(100vh - 260px) !important; overflow: auto !important; }
 
     /* ESTILIZAÇÃO DO DROPDOWN / LISTA SUSPENSA */
     div[data-baseweb="menu"], ul[data-baseweb="menu"], div[role="listbox"] {
@@ -187,6 +185,8 @@ if "departamento_ativo" not in st.session_state:
     st.session_state.departamento_ativo = ""
 if "mostrar_popup_login" not in st.session_state:
     st.session_state.mostrar_popup_login = False
+if "mostrar_popup_importar" not in st.session_state:
+    st.session_state.mostrar_popup_importar = False
 if "gaveta_aberta" not in st.session_state:
     st.session_state.gaveta_aberta = True
 
@@ -928,22 +928,46 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
 
 # 8.5 IMPORTADOR PROTHEUS (upload direto no painel - roda 24h, sem depender de PC ligado)
 if st.session_state.autenticado and st.session_state.departamento_ativo == "compras":
-    with st.expander("📤 Importar Arquivo do Protheus (PC/SC)", expanded=False):
-        arquivo_importar = st.file_uploader(
-            "Selecione o arquivo exportado do Protheus (Listagem de Pedidos ou de Solicitações):",
-            type=["xlsx", "xls"],
-            key="uploader_protheus",
-        )
-        if arquivo_importar is not None:
-            if st.button("Processar Arquivo", type="primary", key="btn_processar_importacao"):
-                with st.spinner("Processando arquivo e gravando na planilha..."):
-                    ok, mensagem = processar_upload_protheus(arquivo_importar)
-                if ok:
-                    st.success(mensagem)
-                    st.cache_data.clear()
-                    st.session_state.dados_globais = carregar_dados_seguros()
-                else:
-                    st.error(mensagem)
+    with st.container(key="importar_wrap"):
+        if st.button("📤 Importar Arquivo", key="btn_abrir_importar"):
+            st.session_state.mostrar_popup_importar = not st.session_state.mostrar_popup_importar
+            st.rerun()
+
+    if st.session_state.mostrar_popup_importar:
+        with st.container():
+            st.markdown("""
+                <div style="background-color: #ffffff; padding: 20px; border-radius: 12px; border: 2px solid #478c3b; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                    <h3 style="color: #1e293b; margin-top: 0; font-size: 18px;">📤 Importar Arquivo do Protheus (PC/SC)</h3>
+                </div>
+            """, unsafe_allow_html=True)
+
+            pop_imp_c1, pop_imp_c2 = st.columns([5, 1])
+            with pop_imp_c1:
+                arquivo_importar = st.file_uploader(
+                    "Selecione o arquivo exportado do Protheus (Listagem de Pedidos ou de Solicitações):",
+                    type=["xlsx", "xls"],
+                    key="uploader_protheus",
+                )
+            with pop_imp_c2:
+                st.write("")
+                st.write("")
+                if st.button("✖ Fechar", use_container_width=True, key="btn_fechar_importar"):
+                    st.session_state.mostrar_popup_importar = False
+                    st.rerun()
+
+            if arquivo_importar is not None:
+                if st.button("Processar Arquivo", type="primary", key="btn_processar_importacao"):
+                    with st.spinner("Processando arquivo e gravando na planilha..."):
+                        ok, mensagem = processar_upload_protheus(arquivo_importar)
+                    if ok:
+                        st.toast(mensagem)
+                        st.cache_data.clear()
+                        st.session_state.dados_globais = carregar_dados_seguros()
+                        st.session_state.mostrar_popup_importar = False
+                        st.rerun()
+                    else:
+                        st.error(mensagem)
+            st.divider()
 
 # 9. MOTOR DE BUSCA CASCATA
 # tem_busca_ativa e o relatorio ja foram calculados antes dos Filtros Avançados
@@ -964,8 +988,8 @@ if tem_busca_ativa:
                     txt_status = f"🔍 Registros Localizados ({len(df_painel)} itens)"
                     st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
 
-                    if relatorio_bytes:
-                        with st.container(key="baixar_relatorio_wrap"):
+                    with st.container(key="acoes_tabela_wrap"):
+                        if relatorio_bytes:
                             st.download_button(
                                 label="📥 Baixar Relatório",
                                 data=relatorio_bytes,
@@ -973,12 +997,10 @@ if tem_busca_ativa:
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 key="btn_baixar_relatorio",
                             )
-
-                    if st.session_state.autenticado:
-                        with st.container(key="salvar_wrap"):
+                        if st.session_state.autenticado:
                             btn_salvar_dados = st.button("💾 Salvar Alterações", type="primary")
-                    else:
-                        btn_salvar_dados = False
+                        else:
+                            btn_salvar_dados = False
 
                     configuracao_colunas_tela = {}
                     
