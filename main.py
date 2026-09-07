@@ -621,6 +621,7 @@ def gerar_bytes_excel(df_painel):
     """Gera o .xlsx (bytes) do relatorio a partir do df_painel ja montado."""
     out = BytesIO()
     df_excel_export = df_painel.drop(columns=["_row_idx"], errors="ignore")
+    df_excel_export = df_excel_export.rename(columns=lambda c: c.replace(" Pc", " PC"))
     with pd.ExcelWriter(out, engine='xlsxwriter') as wr:
         df_excel_export.to_excel(wr, index=False, sheet_name="Relatório")
         worksheet = wr.sheets["Relatório"]
@@ -1254,44 +1255,45 @@ if tem_busca_ativa:
                         nome_tela = col_config["tela"]
                         tipo_campo = col_config["tipo"]
                         largura_px = int(larguras_colunas.get(nome_tela, 120))
+                        rotulo_tela = nome_tela.replace(" Pc", " PC")
 
                         if st.session_state.autenticado:
                             dep = st.session_state.departamento_ativo
                             if dep == "logistica":
                                 if nome_tela == "Logística":
                                     configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
-                                        nome_tela, options=opcoes_logistica, required=False, width=largura_px
+                                        rotulo_tela, options=opcoes_logistica, required=False, width=largura_px
                                     )
                                 else:
-                                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True, width=largura_px)
+                                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(rotulo_tela, disabled=True, width=largura_px)
                             elif dep == "gestor":
                                 # Gestor visualiza e edita tudo, sem restrição de campo
                                 if nome_tela == "Status":
                                     configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
-                                        nome_tela, options=lista_historico_status, required=True, width=largura_px
+                                        rotulo_tela, options=lista_historico_status, required=True, width=largura_px
                                     )
                                 elif nome_tela == "Logística":
                                     configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
-                                        nome_tela, options=opcoes_logistica, required=False, width=largura_px
+                                        rotulo_tela, options=opcoes_logistica, required=False, width=largura_px
                                     )
                                 else:
-                                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=False, width=largura_px)
+                                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(rotulo_tela, disabled=False, width=largura_px)
                             else:
                                 campos_permitidos_compras = ["Status", "Envio Pc", "Pagamento Pc", "Previsão De Entrega", "Entrega", "NF Remessa"]
                                 if nome_tela in campos_permitidos_compras:
                                     if nome_tela == "Status":
                                         configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
-                                            nome_tela, options=lista_historico_status, required=True, width=largura_px
+                                            rotulo_tela, options=lista_historico_status, required=True, width=largura_px
                                         )
                                     else:
-                                        configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=False, width=largura_px)
+                                        configuracao_colunas_tela[nome_tela] = st.column_config.Column(rotulo_tela, disabled=False, width=largura_px)
                                 else:
-                                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True, width=largura_px)
+                                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(rotulo_tela, disabled=True, width=largura_px)
                         else:
                             if nome_tela == "Status":
-                                configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center", width=largura_px)
+                                configuracao_colunas_tela[nome_tela] = st.column_config.Column(rotulo_tela, alignment="center", width=largura_px)
                             else:
-                                configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True, width=largura_px)
+                                configuracao_colunas_tela[nome_tela] = st.column_config.Column(rotulo_tela, disabled=True, width=largura_px)
 
                     configuracao_colunas_tela["_row_idx"] = None
 
