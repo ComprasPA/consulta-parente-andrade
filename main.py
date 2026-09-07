@@ -216,7 +216,7 @@ if st.session_state.mostrar_popup_login and not st.session_state.autenticado:
         
         pop_c1, pop_c2, pop_c3, pop_c4 = st.columns([2.5, 2.5, 2.0, 1.5])
         with pop_c1:
-            dep_escolhido = st.selectbox("Departamento:", ["compras", "almoxarifado", "logistica"], key="pop_dep")
+            dep_escolhido = st.selectbox("Departamento:", ["compras", "almoxarifado", "logistica", "gestor"], key="pop_dep")
         with pop_c2:
             senha_tentativa = st.text_input("Senha:", type="password", placeholder="Digite a senha...", key="pop_senha")
         with pop_c3:
@@ -227,7 +227,8 @@ if st.session_state.mostrar_popup_login and not st.session_state.autenticado:
                 senhas = {
                     "compras": "compras@2026",
                     "almoxarifado": "almox@2026",
-                    "logistica": "log@2026"
+                    "logistica": "log@2026",
+                    "gestor": "gestor@2026"
                 }
                 if senha_tentativa == senhas.get(dep_escolhido):
                     st.session_state.autenticado = True
@@ -1065,6 +1066,18 @@ if tem_busca_ativa:
                                     )
                                 else:
                                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True, width=largura_px)
+                            elif dep == "gestor":
+                                # Gestor visualiza e edita tudo, sem restrição de campo
+                                if nome_tela == "Status":
+                                    configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
+                                        nome_tela, options=lista_historico_status, required=True, width=largura_px
+                                    )
+                                elif nome_tela == "Logística":
+                                    configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
+                                        nome_tela, options=opcoes_logistica, required=False, width=largura_px
+                                    )
+                                else:
+                                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=False, width=largura_px)
                             else:
                                 campos_permitidos_compras = ["Status", "Envio Pc", "Pagamento Pc", "Previsão De Entrega", "Entrega", "NF Remessa"]
                                 if nome_tela in campos_permitidos_compras:
