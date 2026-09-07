@@ -89,16 +89,13 @@ st.markdown("""
     div.stButton > button[kind="secondary"]:hover, div.stDownloadButton > button[kind="secondary"]:hover { border-color: var(--pa-slate-soft) !important; }
     div.st-key-btn_sair button { background-color: #ffffff !important; border-color: #f3c6c6 !important; color: #c53030 !important; }
     div.st-key-btn_sair button:hover { background-color: #fceaea !important; border-color: #c53030 !important; }
-    div.st-key-acoes_tabela_wrap { flex-direction: row !important; align-items: center !important; justify-content: flex-start !important; gap: 12px !important; width: fit-content !important; margin-bottom: 10px; }
-    div.st-key-acoes_tabela_wrap div.stDownloadButton, div.st-key-acoes_tabela_wrap div.stButton { width: fit-content !important; flex: 0 0 auto !important; }
-    div.st-key-acoes_tabela_wrap div.stDownloadButton > button, div.st-key-acoes_tabela_wrap div.stButton > button { width: auto !important; }
-    div.st-key-importar_wrap { align-items: flex-start !important; justify-content: flex-start !important; width: fit-content !important; margin-bottom: 8px; }
-    div.st-key-importar_wrap div.stButton { width: fit-content !important; flex: 0 0 auto !important; }
-    div.st-key-importar_wrap div.stButton > button { width: auto !important; }
+    div.st-key-acoes_painel_wrap { flex-direction: row !important; align-items: center !important; justify-content: flex-start !important; gap: 12px !important; width: fit-content !important; margin-bottom: 10px; }
+    div.st-key-acoes_painel_wrap div.stDownloadButton, div.st-key-acoes_painel_wrap div.stButton { width: fit-content !important; flex: 0 0 auto !important; }
+    div.st-key-acoes_painel_wrap div.stDownloadButton > button, div.st-key-acoes_painel_wrap div.stButton > button { width: auto !important; }
 
     .status-card { background: #ffffff; color: var(--pa-ink); padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; border-left: 5px solid var(--pa-verde); box-shadow: 0 1px 3px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; }
     .custom-error-red { background-color: #fceaea !important; color: #b3282d !important; padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; border-left: 5px solid #d8383d; }
-    .custom-welcome-salutation, .custom-empty-state { background-color: #ffffff; color: var(--pa-ink); padding: 32px 24px; border-radius: 14px; font-weight: 600; font-size: 19px; text-align: center; border: 1px solid var(--pa-mist); box-shadow: 0 4px 6px -1px rgba(28,36,32,.02); margin-top: 20px; min-height: calc(100vh - 260px); display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+    .custom-welcome-salutation, .custom-empty-state { background-color: #ffffff; color: var(--pa-ink); padding: 32px 24px; border-radius: 14px; font-weight: 600; font-size: 19px; text-align: center; border: 1px solid var(--pa-mist); box-shadow: 0 4px 6px -1px rgba(28,36,32,.02); margin-top: 20px; min-height: calc(100vh - 220px); display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
     .custom-empty-state.custom-error-red { background-color: #fceaea !important; color: #b3282d !important; border: none; border-left: 5px solid #d8383d; box-shadow: 0 4px 6px -1px rgba(28,36,32,.05); }
 
     div[data-testid="stDataFrame"] { background: #ffffff; padding: 16px; border-radius: 14px; box-shadow: 0 1px 2px rgba(28,36,32,.04), 0 10px 28px -14px rgba(28,36,32,.14); }
@@ -106,7 +103,7 @@ st.markdown("""
     div[data-testid="stDataFrame"] table td { font-family: 'Public Sans', sans-serif !important; }
 
     /* Cabecalho da tabela e area de filtros fixos; so a grade de dados rola */
-    div[data-testid="stDataFrame"] { max-height: calc(100vh - 260px) !important; overflow: auto !important; }
+    div[data-testid="stDataFrame"] { max-height: calc(100vh - 220px) !important; overflow: auto !important; }
 
     /* ESTILIZAÇÃO DO DROPDOWN / LISTA SUSPENSA */
     div[data-baseweb="menu"], ul[data-baseweb="menu"], div[role="listbox"] {
@@ -926,13 +923,30 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                     st.session_state.mostrar_popup_login = False
                     st.rerun()
 
-# 8.5 IMPORTADOR PROTHEUS (upload direto no painel - roda 24h, sem depender de PC ligado)
-if st.session_state.autenticado and st.session_state.departamento_ativo == "compras":
-    with st.container(key="importar_wrap"):
+# 8.5 AÇÕES DO PAINEL (Importar Arquivo / Baixar Relatório / Salvar Alterações)
+# Unificadas numa linha so, no mesmo nivel (logo apos os Filtros Avançados),
+# pra sobrar mais espaço vertical pra tabela de amostra abaixo.
+with st.container(key="acoes_painel_wrap"):
+    if st.session_state.autenticado and st.session_state.departamento_ativo == "compras":
         if st.button("📤 Importar Arquivo", key="btn_abrir_importar"):
             st.session_state.mostrar_popup_importar = not st.session_state.mostrar_popup_importar
             st.rerun()
 
+    if relatorio_bytes:
+        st.download_button(
+            label="📥 Baixar Relatório",
+            data=relatorio_bytes,
+            file_name="Relatorio_Compras_Filtro.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="btn_baixar_relatorio",
+        )
+
+    if st.session_state.autenticado:
+        btn_salvar_dados = st.button("💾 Salvar Alterações", type="primary")
+    else:
+        btn_salvar_dados = False
+
+if st.session_state.autenticado and st.session_state.departamento_ativo == "compras":
     if st.session_state.mostrar_popup_importar:
         with st.container():
             st.markdown("""
@@ -987,20 +1001,9 @@ if tem_busca_ativa:
                 if not df_painel.empty:
                     txt_status = f"🔍 Registros Localizados ({len(df_painel)} itens)"
                     st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
-
-                    with st.container(key="acoes_tabela_wrap"):
-                        if relatorio_bytes:
-                            st.download_button(
-                                label="📥 Baixar Relatório",
-                                data=relatorio_bytes,
-                                file_name="Relatorio_Compras_Filtro.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                key="btn_baixar_relatorio",
-                            )
-                        if st.session_state.autenticado:
-                            btn_salvar_dados = st.button("💾 Salvar Alterações", type="primary")
-                        else:
-                            btn_salvar_dados = False
+                    # Baixar Relatório / Salvar Alterações renderizados la em cima,
+                    # na linha unificada de ações (ver seção 8.5) - btn_salvar_dados
+                    # ja foi calculado por la.
 
                     configuracao_colunas_tela = {}
                     
