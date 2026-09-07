@@ -408,10 +408,6 @@ def montar_df_painel(df_final, colunas_normalizadas):
                 df_painel.loc[mask_status, col_nome] = "N/A"
 
     if "Previsão De Entrega" in df_painel.columns and "Entrega" in df_painel.columns:
-        # Guarda o valor original (antes do preenchimento abaixo) - usado pelo
-        # calculo de Sla Entrega, que precisa saber se a Previsão De Entrega
-        # RAIZ estava vazia, nao a versao ja preenchida com a Entrega.
-        df_painel["_previsao_raw"] = df_painel["Previsão De Entrega"]
         mascara_vazia = (df_painel["Previsão De Entrega"] == "") | (df_painel["Previsão De Entrega"].isna())
         df_painel.loc[mascara_vazia, "Previsão De Entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
 
@@ -455,14 +451,15 @@ def calcular_colunas_sla(df_painel):
         ""; SE(C="";""; SE(D="";SE(H="";HOJE()-C;H-C);D-C))); "")
       (C=Envio Pc, D=Pagamento Pc, H=Entrega)
 
-    Sla Entrega (Excel):
-      =SEERRO(SE([@ENVIO2]="";""; SES(
-        B="REJEITADO PELO APROVADOR"; "";
-        B="recebido"; H-C;
-        [@[PREVISÃO DE ENTREGA]]=""; HOJE()-C
-      )); "")
-      (B=Status, C=Envio Pc, H=Entrega) - usa a Previsão De Entrega ORIGINAL
-      (_previsao_raw), de antes do preenchimento automatico com a Entrega.
+    Sla Entrega: atrelado a Envio Pc - conta todo dia (HOJE-Envio) e congela
+    em (Entrega-Envio) assim que a Entrega for inserida, seja manualmente
+    pelo almoxarifado ou via importação. Não depende do texto exato do
+    Status nem da Previsão De Entrega (o formulário original da planilha de
+    follow up usava status="recebido"/Previsão De Entrega, mas isso não
+    bate com os dados reais do painel - aqui o Status nunca é literalmente
+    "recebido" e a Previsão De Entrega quase sempre já vem preenchida via
+    o preenchimento automático a partir da Entrega, então a única regra que
+    realmente funciona é: Entrega preenchida -> congela; senão -> conta).
     """
     hoje = datetime.now().date()
 
@@ -471,7 +468,6 @@ def calcular_colunas_sla(df_painel):
     for _, linha in df_painel.iterrows():
         status_upper = str(linha.get("Status", "")).strip().upper()
         pagamento_raw = str(linha.get("Pagamento Pc", "")).strip()
-        previsao_raw = str(linha.get("_previsao_raw", linha.get("Previsão De Entrega", ""))).strip()
 
         data_envio = parse_data_br(linha.get("Envio Pc", ""))
         data_pagamento = parse_data_br(pagamento_raw)
@@ -495,12 +491,10 @@ def calcular_colunas_sla(df_painel):
             sla_entrega.append("")
         elif status_upper == "REJEITADO PELO APROVADOR":
             sla_entrega.append("")
-        elif status_upper == "RECEBIDO":
-            sla_entrega.append((data_entrega - data_envio).days if data_entrega else "")
-        elif not previsao_raw or previsao_raw.upper() == "N/A":
-            sla_entrega.append((hoje - data_envio).days)
+        elif data_entrega:
+            sla_entrega.append((data_entrega - data_envio).days)
         else:
-            sla_entrega.append("")
+            sla_entrega.append((hoje - data_envio).days)
 
     df_painel["Sla Pagamento"] = sla_pagamento
     df_painel["Sla Entrega"] = sla_entrega
@@ -518,7 +512,7 @@ def calcular_colunas_sla(df_painel):
 def gerar_bytes_excel(df_painel):
     """Gera o .xlsx (bytes) do relatorio a partir do df_painel ja montado."""
     out = BytesIO()
-    df_excel_export = df_painel.drop(columns=["_row_idx", "_previsao_raw"], errors="ignore")
+    df_excel_export = df_painel.drop(columns=["_row_idx"], errors="ignore")
     with pd.ExcelWriter(out, engine='xlsxwriter') as wr:
         df_excel_export.to_excel(wr, index=False, sheet_name="Relatório")
         worksheet = wr.sheets["Relatório"]
@@ -1192,8 +1186,6 @@ if tem_busca_ativa:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True, width=largura_px)
 
                     configuracao_colunas_tela["_row_idx"] = None
-                    if "_previsao_raw" in df_painel.columns:
-                        configuracao_colunas_tela["_previsao_raw"] = None
 
                     if mostrar_sla:
                         for nome_sla in ("Sla Pagamento", "Sla Entrega"):
@@ -1297,7 +1289,7 @@ if tem_busca_ativa:
                                             st.error(f"❌ Erro ao gravar: {e}")
                     else:
                         st.dataframe(
-                            df_painel.drop(columns=["_row_idx", "_previsao_raw"], errors="ignore"), 
+                            df_painel.drop(columns=["_row_idx"], errors="ignore"), 
                             use_container_width=True, 
                             hide_index=True, 
                             column_config=configuracao_colunas_tela
