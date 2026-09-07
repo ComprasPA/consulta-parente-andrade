@@ -209,7 +209,7 @@ def montar_linhas_em_cotacao(df_pc, df_sc):
 
     linhas_cotacao = pd.DataFrame("", index=range(len(candidatas)), columns=df_pc.columns)
     if col_status_pc:
-        linhas_cotacao[col_status_pc] = "Em Cotação"
+        linhas_cotacao[col_status_pc] = "EM COTAÇÃO"
 
     mapa_sc_para_pc = {
         "SOLICITACAO": col_solic_sc,
@@ -529,6 +529,12 @@ def montar_df_painel(df_final, colunas_normalizadas):
             df_painel[col_data] = df_painel[col_data].apply(
                 lambda x: x if str(x).upper() == "N/A" else formatar_para_dd_mm_aaaa(x)
             )
+
+    # Todo texto do painel em caixa alta
+    for col in df_painel.columns:
+        if col == "_row_idx":
+            continue
+        df_painel[col] = df_painel[col].astype(str).str.upper()
 
     return df_painel.dropna(how='all')
 
@@ -1197,7 +1203,7 @@ if tem_busca_ativa:
 
                     configuracao_colunas_tela = {}
                     
-                    status_existentes = [str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() not in ("", "Em Cotação")] if col_status_verificacao else []
+                    status_existentes = [str(x).strip() for x in df_pc[col_status_verificacao].unique() if str(x).strip() not in ("", "EM COTAÇÃO")] if col_status_verificacao else []
                     status_oficiais = [
                         "ENVIADO AO FORNECEDOR",
                         "ENVIADO AO FINANCEIRO",
@@ -1217,10 +1223,10 @@ if tem_busca_ativa:
                     lista_historico_status = sorted(list(set(status_existentes + status_oficiais)))
 
                     opcoes_logistica = [
-                        "Retirado do Almoxarifado Sede",
-                        "Entregue no PEA",
-                        "A caminho da Obra",
-                        "Entregue na obra"
+                        "RETIRADO DO ALMOXARIFADO SEDE",
+                        "ENTREGUE NO PEA",
+                        "A CAMINHO DA OBRA",
+                        "ENTREGUE NA OBRA"
                     ]
 
                     # Autosize: calcula a largura (px) de cada coluna a partir do
