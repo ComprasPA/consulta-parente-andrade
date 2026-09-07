@@ -76,13 +76,15 @@ st.markdown("""
     div[data-testid="stDateInput"] { width: 100%; }
     div[data-testid="stForm"] { border: none !important; padding: 0px !important; box-shadow: none !important; background-color: transparent !important; }
 
-    div.stFormSubmitButton > button { width: 100% !important; min-height: 27px !important; max-height: 27px !important; font-size: 10px !important; font-weight: 600 !important; padding: 0px 6px !important; border-radius: 7px !important; }
+    div.stFormSubmitButton > button { width: 100% !important; min-height: 27px !important; max-height: 27px !important; font-size: 10px !important; font-weight: 600 !important; padding: 0px 6px !important; border-radius: 7px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: clip !important; }
+    div.stFormSubmitButton > button p { white-space: nowrap !important; }
     div.stFormSubmitButton > button[kind="primary"] { background-color: var(--pa-verde) !important; border-color: var(--pa-verde) !important; color: #fff !important; }
     div.stFormSubmitButton > button[kind="primary"]:hover { background-color: var(--pa-verde-deep) !important; border-color: var(--pa-verde-deep) !important; }
     div.stFormSubmitButton > button[kind="secondary"] { background-color: #ffffff !important; border-color: var(--pa-mist) !important; color: var(--pa-ink) !important; }
     div.stFormSubmitButton > button[kind="secondary"]:hover { border-color: var(--pa-slate-soft) !important; }
 
-    div.stButton > button, div.stDownloadButton > button { border-radius: 7px !important; font-weight: 600 !important; min-height: 27px !important; font-size: 10px !important; padding: 0px 10px !important; }
+    div.stButton > button, div.stDownloadButton > button { border-radius: 7px !important; font-weight: 600 !important; min-height: 27px !important; font-size: 10px !important; padding: 0px 10px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: clip !important; }
+    div.stButton > button p, div.stDownloadButton > button p { white-space: nowrap !important; }
     div.stButton > button[kind="primary"], div.stDownloadButton > button[kind="primary"] { background-color: var(--pa-verde) !important; border-color: var(--pa-verde) !important; color: #fff !important; }
     div.stButton > button[kind="primary"]:hover, div.stDownloadButton > button[kind="primary"]:hover { background-color: var(--pa-verde-deep) !important; border-color: var(--pa-verde-deep) !important; }
     div.stButton > button[kind="secondary"], div.stDownloadButton > button[kind="secondary"] { background-color: #ffffff !important; border-color: var(--pa-mist) !important; color: var(--pa-ink) !important; }
@@ -1033,35 +1035,52 @@ if tem_busca_ativa:
                         "Entregue na obra"
                     ]
 
+                    # Autosize: calcula a largura (px) de cada coluna a partir do
+                    # conteudo REAL da busca atual (nao do heuristico do grid, que
+                    # so olha o cabecalho e pode ficar "grudado" numa largura
+                    # antiga entre reruns) - roda de novo a cada busca/edicao.
+                    larguras_colunas = {}
+                    for col_config in DICIONARIO_COLUNAS_EXATAS:
+                        nome_tela = col_config["tela"]
+                        if nome_tela not in df_painel.columns:
+                            continue
+                        serie_txt = df_painel[nome_tela].astype(str)
+                        maior_valor = serie_txt.map(len).max() if not serie_txt.empty else 0
+                        maior_len = max(int(maior_valor or 0), len(nome_tela))
+                        larguras_colunas[nome_tela] = max(70, min(int(maior_len * 7.5) + 40, 380))
+                    larguras_colunas["Logística"] = max(larguras_colunas.get("Logística", 0), max(len(o) for o in opcoes_logistica) * 7.5 + 40)
+                    larguras_colunas["Status"] = max(larguras_colunas.get("Status", 0), max(len(o) for o in lista_historico_status) * 7.5 + 40) if lista_historico_status else larguras_colunas.get("Status", 120)
+
                     for col_config in DICIONARIO_COLUNAS_EXATAS:
                         nome_tela = col_config["tela"]
                         tipo_campo = col_config["tipo"]
-                        
+                        largura_px = int(larguras_colunas.get(nome_tela, 120))
+
                         if st.session_state.autenticado:
                             dep = st.session_state.departamento_ativo
                             if dep == "logistica":
                                 if nome_tela == "Logística":
                                     configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
-                                        nome_tela, options=opcoes_logistica, required=False
+                                        nome_tela, options=opcoes_logistica, required=False, width=largura_px
                                     )
                                 else:
-                                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
+                                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True, width=largura_px)
                             else:
                                 campos_permitidos_compras = ["Status", "Envio Pc", "Pagamento Pc", "Previsão De Entrega", "Entrega", "NF Remessa"]
                                 if nome_tela in campos_permitidos_compras:
                                     if nome_tela == "Status":
                                         configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
-                                            nome_tela, options=lista_historico_status, required=True
+                                            nome_tela, options=lista_historico_status, required=True, width=largura_px
                                         )
                                     else:
-                                        configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=False)
+                                        configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=False, width=largura_px)
                                 else:
-                                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
+                                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True, width=largura_px)
                         else:
                             if nome_tela == "Status":
-                                configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center")
+                                configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, alignment="center", width=largura_px)
                             else:
-                                configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True)
+                                configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True, width=largura_px)
 
                     configuracao_colunas_tela["_row_idx"] = None
 
