@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import base64
 import re
+import unicodedata
 from datetime import datetime, timedelta
 from io import BytesIO
 import urllib.request
@@ -444,6 +445,389 @@ def gerar_bytes_excel(df_painel):
     return out.getvalue()
 
 
+# 6.5 IMPORTADOR PROTHEUS (upload direto no painel, mesma logica do agente local)
+# Fica hospedado aqui pra rodar 24h no Streamlit Cloud, sem depender do PC do
+# operador ligado. Mesmas regras do agente_importador.py: dedup por chave,
+# so preenche campo em branco (nunca sobrescreve o que ja tem valor), status
+# so muda quando esta "em espera" (branco/Em aprovação/Pendente).
+ABA_PEDIDOS_IMPORT = "Pedidos"
+ABA_SOLICITACOES_IMPORT = "Solicitacoes"
+COLUNAS_ASSINATURA_PC = "Dt. Dig.Nota"
+COLUNAS_ASSINATURA_SC = "Cod SC. SCM"
+
+MAPA_PEDIDOS_IMPORT = {
+    "SOLICITAÇÃO":        {"origem": "Numero da SC",   "tipo": "inteiro"},
+    "PEDIDO":             {"origem": "Numero",          "tipo": "inteiro"},
+    "CONDIÇÃO PAGAMENTO": {"origem": "Descricao",       "tipo": "texto"},
+    "PAGAMENTO":          {"origem": "Descricao",       "tipo": "pagamento_calc"},
+    "DATA PEDIDO":        {"origem": "Data Emissao",    "tipo": "data"},
+    "DATA LIBERAÇÃO":     {"origem": "Dt Lib. PC",      "tipo": "data"},
+    "PREVISÃO DE ENTREGA":{"origem": "Dt. Entrega",     "tipo": "data"},
+    "ENTREGA":            {"origem": "DT Baixa",        "tipo": "data"},
+    "NF REMESSA":         {"origem": "Num da Nota",     "tipo": "texto"},
+    "FORNECEDOR":         {"origem": "Nome Fornece",    "tipo": "texto"},
+    "GRUPO":              {"origem": "Grupo",           "tipo": "texto"},
+    "CENTRO DE CUSTO":    {"origem": "Centro Custo",    "tipo": "texto"},
+    "PRODUTO":            {"origem": "Produto",         "tipo": "produto"},
+    "DESCRICAO":          {"origem": "Descricao.1",     "tipo": "texto"},
+    "UM":                 {"origem": "Unidade",         "tipo": "texto"},
+    "QTD":                {"origem": "Quantidade",      "tipo": "numero"},
+    "PREÇO UNITÁRIO":     {"origem": "Prc Unitario",    "tipo": "decimal"},
+    "VALOR TOTAL":        {"origem": "Vlr.Total",       "tipo": "decimal"},
+}
+ALIASES_PEDIDOS_IMPORT = {
+    "SOLICITAÇÃO": ["SOLICITAÇÃO", "SOLICITACAO"],
+    "DATA LIBERAÇÃO": ["DATA LIBERAÇÃO", "DATA LIBERACAO"],
+    "PREÇO UNITÁRIO": ["PREÇO UNITÁRIO", "PRECO UNITARIO"],
+}
+CAMPOS_MANUAIS_PEDIDOS_IMPORT = ["STATUS", "ENVIO", "LOGISTICA"]
+CHAVE_PEDIDOS_IMPORT = ("PEDIDO", "PRODUTO")
+
+CABECALHO_SOLICITACOES_IMPORT = [
+    "SOLICITAÇÃO", "ITEM SC", "COTAÇÃO", "PEDIDO", "PRODUTO", "DESCRICAO",
+    "QTD", "UM", "CENTRO DE CUSTO", "DESC CENTRO DE CUSTO",
+    "DATA EMISSAO", "DATA APROVACAO", "FILIAL", "QTD EM PEDIDO",
+]
+MAPA_SOLICITACOES_IMPORT = {
+    "SOLICITAÇÃO":          {"origem": "Numero da SC", "tipo": "inteiro"},
+    "ITEM SC":              {"origem": "Item da SC",   "tipo": "texto"},
+    "COTAÇÃO":              {"origem": "Num. Cotacao", "tipo": "texto"},
+    "PEDIDO":               {"origem": "Num. Pedido",  "tipo": "inteiro"},
+    "PRODUTO":              {"origem": "Produto",      "tipo": "produto"},
+    "DESCRICAO":            {"origem": "Descricao",    "tipo": "texto"},
+    "QTD":                  {"origem": "Quantidade",   "tipo": "numero"},
+    "UM":                   {"origem": "Unid Medida",  "tipo": "texto"},
+    "CENTRO DE CUSTO":      {"origem": "C Custo",      "tipo": "texto"},
+    "DESC CENTRO DE CUSTO": {"origem": "Desc C.C.",    "tipo": "texto"},
+    "DATA EMISSAO":         {"origem": "DT Emissao",   "tipo": "data"},
+    "DATA APROVACAO":       {"origem": "Dt Aprovacao", "tipo": "data"},
+    "FILIAL":               {"origem": "Filial",       "tipo": "texto"},
+    "QTD EM PEDIDO":        {"origem": "Quant.em Ped", "tipo": "numero"},
+}
+CHAVE_SOLICITACOES_IMPORT = ("SOLICITAÇÃO", "ITEM SC")
+
+
+def normalizar_nome_import(nome) -> str:
+    return str(nome).upper().strip().replace("Í", "I").replace("Ã", "A")
+
+
+def normalizar_status_import(texto) -> str:
+    texto = str(texto or "").strip().upper()
+    texto = unicodedata.normalize("NFKD", texto)
+    return "".join(c for c in texto if not unicodedata.combining(c))
+
+
+def limpar_numero_texto_import(valor) -> str:
+    txt = str(valor).strip()
+    if txt.lower() in ("nan", "none", "nat", ""):
+        return ""
+    return re.sub(r"\.0$", "", txt)
+
+
+def valor_e_zero_ou_vazio_import(valor) -> bool:
+    txt = str(valor or "").strip()
+    return txt == "" or txt.lstrip("0") == ""
+
+
+def fmt_inteiro_import(valor) -> str:
+    if pd.isna(valor) or str(valor).strip() == "":
+        return ""
+    try:
+        return str(int(float(valor)))
+    except (ValueError, TypeError):
+        return limpar_numero_texto_import(valor)
+
+
+def fmt_texto_import(valor) -> str:
+    if pd.isna(valor):
+        return ""
+    return str(valor).strip()
+
+
+def fmt_produto_import(valor) -> str:
+    if pd.isna(valor) or str(valor).strip() == "":
+        return ""
+    return limpar_numero_texto_import(valor).strip().zfill(10)
+
+
+def fmt_numero_import(valor) -> str:
+    if pd.isna(valor) or str(valor).strip() == "":
+        return ""
+    try:
+        num = float(valor)
+        return str(int(num)) if num.is_integer() else str(num)
+    except (ValueError, TypeError):
+        return limpar_numero_texto_import(valor)
+
+
+def fmt_decimal_import(valor) -> str:
+    if pd.isna(valor) or str(valor).strip() == "":
+        return ""
+    try:
+        return f"{float(valor):.2f}"
+    except (ValueError, TypeError):
+        return limpar_numero_texto_import(valor)
+
+
+def fmt_data_import(valor) -> str:
+    if pd.isna(valor) or str(valor).strip() == "":
+        return ""
+    dt = pd.to_datetime(valor, errors="coerce", dayfirst=True)
+    if pd.isna(dt):
+        return ""
+    return dt.strftime("%d/%m/%Y")
+
+
+CONDICOES_PAGAMENTO_SEM_MARCADOR_IMPORT = {
+    "A VISTA", "ENT +1PARC", "ENT+3PARC", "ENTR + 1 PARC", "PAGO", "VENCIDO",
+}
+
+
+def fmt_pagamento_calc_import(valor) -> str:
+    condicao = fmt_texto_import(valor).upper()
+    if condicao == "":
+        return ""
+    if condicao in CONDICOES_PAGAMENTO_SEM_MARCADOR_IMPORT:
+        return ""
+    return "------"
+
+
+FORMATADORES_IMPORT = {
+    "inteiro": fmt_inteiro_import,
+    "texto": fmt_texto_import,
+    "produto": fmt_produto_import,
+    "numero": fmt_numero_import,
+    "decimal": fmt_decimal_import,
+    "data": fmt_data_import,
+    "pagamento_calc": fmt_pagamento_calc_import,
+}
+
+TEXTO_PENDENTE_APROVACAO_IMPORT = "Pendente de Aprovação"
+
+STATUS_GATILHO_SUBSTITUICAO_IMPORT = {
+    normalizar_status_import(""),
+    normalizar_status_import("Em aprovação"),
+    normalizar_status_import("Pendente"),
+    normalizar_status_import(TEXTO_PENDENTE_APROVACAO_IMPORT),
+}
+
+MAPA_STATUS_APROV_TEXTO_IMPORT = {
+    normalizar_status_import("Pendente"): TEXTO_PENDENTE_APROVACAO_IMPORT,
+    normalizar_status_import("Não possui controle de Aprovação"): "Aprovado",
+}
+
+
+def valor_status_origem_import(linha_origem) -> str:
+    bruto = fmt_texto_import(linha_origem.get("Status Aprov", ""))
+    valor = MAPA_STATUS_APROV_TEXTO_IMPORT.get(normalizar_status_import(bruto), bruto)
+    return valor.upper()
+
+
+def construir_lookup_campo_import(campos: list, aliases: dict) -> dict:
+    lookup = {}
+    for campo in campos:
+        for alt in [campo] + aliases.get(campo, []):
+            lookup[normalizar_nome_import(alt)] = campo
+    return lookup
+
+
+def resolver_coluna_real_import(cabecalho_real: list, campo: str, aliases: dict):
+    normalizado = {normalizar_nome_import(c): c for c in cabecalho_real}
+    for alt in [campo] + aliases.get(campo, []):
+        achado = normalizado.get(normalizar_nome_import(alt))
+        if achado:
+            return achado
+    return None
+
+
+def carregar_indice_existentes_import(worksheet, campos_chave, aliases):
+    valores = worksheet.get_all_values()
+    if not valores:
+        return {}, []
+    cabecalho_real = valores[0]
+    indices = {}
+    for campo in campos_chave:
+        col_real = resolver_coluna_real_import(cabecalho_real, campo, aliases)
+        if not col_real:
+            return {}, cabecalho_real
+        indices[campo] = cabecalho_real.index(col_real)
+
+    n_cols = len(cabecalho_real)
+    indice = {}
+    for i, linha in enumerate(valores[1:], start=2):
+        linha_pad = linha + [""] * (n_cols - len(linha))
+        partes = []
+        for campo in campos_chave:
+            valor = linha_pad[indices[campo]]
+            partes.append(limpar_numero_texto_import(valor).zfill(10) if campo == "PRODUTO" and valor.strip() else limpar_numero_texto_import(valor))
+        chave = tuple(partes)
+        if not all(chave):
+            continue
+        indice[chave] = {"row_num": i, "valores": dict(zip(cabecalho_real, linha_pad))}
+    return indice, cabecalho_real
+
+
+def detectar_tipo_arquivo_import(arquivo):
+    arquivo.seek(0)
+    try:
+        amostra = pd.read_excel(arquivo, header=1, nrows=1)
+    except Exception:
+        return None
+    finally:
+        arquivo.seek(0)
+    colunas = set(amostra.columns.astype(str))
+    if COLUNAS_ASSINATURA_PC in colunas:
+        return "PC"
+    if COLUNAS_ASSINATURA_SC in colunas:
+        return "SC"
+    return None
+
+
+def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_manuais,
+                             campos_chave, indice_existentes, campo_status=None,
+                             calcular_status=None, gatilho_status=None, campos_obrigatorios=()):
+    lookup_campo = construir_lookup_campo_import(list(mapa.keys()) + campos_manuais, aliases)
+    col_status = resolver_coluna_real_import(cabecalho_destino, campo_status, {}) if campo_status else None
+
+    novas_linhas = []
+    atualizacoes = []
+    chaves_deste_arquivo = set()
+    duplicadas = 0
+    linhas_atualizadas = 0
+
+    for _, linha_origem in df_origem.iterrows():
+        valores_por_campo = {
+            campo_tela: FORMATADORES_IMPORT[config["tipo"]](linha_origem.get(config["origem"], ""))
+            for campo_tela, config in mapa.items()
+        }
+
+        if any(valor_e_zero_ou_vazio_import(valores_por_campo.get(c, "")) for c in campos_obrigatorios):
+            duplicadas += 1
+            continue
+
+        chave = tuple(valores_por_campo.get(c, "") for c in campos_chave)
+        if not all(chave) or chave in chaves_deste_arquivo:
+            duplicadas += 1
+            continue
+
+        if chave in indice_existentes:
+            chaves_deste_arquivo.add(chave)
+            info = indice_existentes[chave]
+            valores_atuais = info["valores"]
+            alterou = False
+
+            for campo_tela in mapa:
+                col_real = resolver_coluna_real_import(cabecalho_destino, campo_tela, aliases)
+                if not col_real or valores_atuais.get(col_real, "").strip():
+                    continue
+                novo_valor = valores_por_campo.get(campo_tela, "")
+                if novo_valor:
+                    atualizacoes.append((info["row_num"], cabecalho_destino.index(col_real) + 1, novo_valor))
+                    alterou = True
+
+            if col_status and calcular_status:
+                atual_status = normalizar_status_import(valores_atuais.get(col_status, ""))
+                if atual_status in gatilho_status:
+                    novo_status = calcular_status(linha_origem)
+                    if novo_status and normalizar_status_import(novo_status) != atual_status:
+                        atualizacoes.append((info["row_num"], cabecalho_destino.index(col_status) + 1, novo_status))
+                        alterou = True
+
+            if alterou:
+                linhas_atualizadas += 1
+            else:
+                duplicadas += 1
+            continue
+
+        chaves_deste_arquivo.add(chave)
+        linha_final = [valores_por_campo.get(lookup_campo.get(normalizar_nome_import(c)), "") for c in cabecalho_destino]
+        if col_status and calcular_status:
+            novo_status = calcular_status(linha_origem)
+            if novo_status:
+                linha_final[cabecalho_destino.index(col_status)] = novo_status
+        novas_linhas.append(linha_final)
+
+    return novas_linhas, atualizacoes, duplicadas, linhas_atualizadas
+
+
+def aplicar_no_google_sheets_import(worksheet, novas_linhas, atualizacoes):
+    if novas_linhas:
+        worksheet.append_rows(novas_linhas, value_input_option="RAW")
+    if atualizacoes:
+        celulas = [gspread.Cell(row, col, valor) for row, col, valor in atualizacoes]
+        worksheet.update_cells(celulas, value_input_option="RAW")
+
+
+def obter_ou_criar_aba_import(spreadsheet, nome_aba, cabecalho_padrao=None):
+    try:
+        return spreadsheet.worksheet(nome_aba)
+    except gspread.WorksheetNotFound:
+        aba = spreadsheet.add_worksheet(title=nome_aba, rows=1000, cols=max(20, len(cabecalho_padrao or [])))
+        if cabecalho_padrao:
+            aba.update([cabecalho_padrao], "A1")
+        return aba
+
+
+def processar_arquivo_pc_import(arquivo, spreadsheet):
+    worksheet = obter_ou_criar_aba_import(spreadsheet, ABA_PEDIDOS_IMPORT)
+    indice_existentes, cabecalho_real = carregar_indice_existentes_import(worksheet, CHAVE_PEDIDOS_IMPORT, ALIASES_PEDIDOS_IMPORT)
+    if not cabecalho_real:
+        raise RuntimeError(f"Aba '{ABA_PEDIDOS_IMPORT}' está vazia (sem cabeçalho). Configure o cabeçalho antes de importar.")
+
+    arquivo.seek(0)
+    df = pd.read_excel(arquivo, header=1)
+    novas_linhas, atualizacoes, duplicadas, atualizadas = processar_linhas_import(
+        df, MAPA_PEDIDOS_IMPORT, cabecalho_real, ALIASES_PEDIDOS_IMPORT, CAMPOS_MANUAIS_PEDIDOS_IMPORT,
+        CHAVE_PEDIDOS_IMPORT, indice_existentes,
+        campo_status="STATUS", calcular_status=valor_status_origem_import, gatilho_status=STATUS_GATILHO_SUBSTITUICAO_IMPORT,
+        campos_obrigatorios=("SOLICITAÇÃO",),
+    )
+    aplicar_no_google_sheets_import(worksheet, novas_linhas, atualizacoes)
+    return len(novas_linhas), duplicadas, atualizadas
+
+
+def processar_arquivo_sc_import(arquivo, spreadsheet):
+    worksheet = obter_ou_criar_aba_import(spreadsheet, ABA_SOLICITACOES_IMPORT, CABECALHO_SOLICITACOES_IMPORT)
+    indice_existentes, cabecalho_real = carregar_indice_existentes_import(worksheet, CHAVE_SOLICITACOES_IMPORT, {})
+    if not cabecalho_real:
+        cabecalho_real = CABECALHO_SOLICITACOES_IMPORT
+
+    arquivo.seek(0)
+    df = pd.read_excel(arquivo, header=1)
+    novas_linhas, atualizacoes, duplicadas, atualizadas = processar_linhas_import(
+        df, MAPA_SOLICITACOES_IMPORT, cabecalho_real, {}, [], CHAVE_SOLICITACOES_IMPORT, indice_existentes,
+    )
+    aplicar_no_google_sheets_import(worksheet, novas_linhas, atualizacoes)
+    return len(novas_linhas), duplicadas, atualizadas
+
+
+def processar_upload_protheus(arquivo):
+    """Recebe um arquivo enviado via st.file_uploader, descobre se e PC ou SC
+    e aplica a mesma logica do agente local direto no Google Sheets. Devolve
+    (ok: bool, mensagem: str)."""
+    try:
+        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        creds_dict = dict(st.secrets["gcp_service_account"])
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+        client = gspread.authorize(creds)
+        spreadsheet = client.open_by_key(FILE_ID)
+    except Exception as e:
+        return False, f"❌ Erro ao conectar no Google Sheets: {e}"
+
+    try:
+        tipo = detectar_tipo_arquivo_import(arquivo)
+        if tipo == "PC":
+            novos, dup, atualizadas = processar_arquivo_pc_import(arquivo, spreadsheet)
+            return True, f"✅ Pedidos: {novos} linha(s) nova(s), {atualizadas} atualizada(s) (campos em branco/status), {dup} sem nenhuma alteração."
+        elif tipo == "SC":
+            novos, dup, atualizadas = processar_arquivo_sc_import(arquivo, spreadsheet)
+            return True, f"✅ Solicitações: {novos} linha(s) nova(s), {atualizadas} atualizada(s), {dup} sem nenhuma alteração."
+        else:
+            return False, "❌ Layout do arquivo não reconhecido (não parece Listagem de Pedidos nem de Solicitações do Protheus)."
+    except Exception as e:
+        return False, f"❌ Erro ao processar o arquivo: {e}"
+
+
 # 7. FILTROS E LÓGICA DE GAVETA
 if "filtro_pc_val" not in st.session_state:
     st.session_state.filtro_pc_val = ""
@@ -541,6 +925,25 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                     st.session_state.departamento_ativo = ""
                     st.session_state.mostrar_popup_login = False
                     st.rerun()
+
+# 8.5 IMPORTADOR PROTHEUS (upload direto no painel - roda 24h, sem depender de PC ligado)
+if st.session_state.autenticado and st.session_state.departamento_ativo == "compras":
+    with st.expander("📤 Importar Arquivo do Protheus (PC/SC)", expanded=False):
+        arquivo_importar = st.file_uploader(
+            "Selecione o arquivo exportado do Protheus (Listagem de Pedidos ou de Solicitações):",
+            type=["xlsx", "xls"],
+            key="uploader_protheus",
+        )
+        if arquivo_importar is not None:
+            if st.button("Processar Arquivo", type="primary", key="btn_processar_importacao"):
+                with st.spinner("Processando arquivo e gravando na planilha..."):
+                    ok, mensagem = processar_upload_protheus(arquivo_importar)
+                if ok:
+                    st.success(mensagem)
+                    st.cache_data.clear()
+                    st.session_state.dados_globais = carregar_dados_seguros()
+                else:
+                    st.error(mensagem)
 
 # 9. MOTOR DE BUSCA CASCATA
 # tem_busca_ativa e o relatorio ja foram calculados antes dos Filtros Avançados
