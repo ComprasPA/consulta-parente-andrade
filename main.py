@@ -408,6 +408,10 @@ def montar_df_painel(df_final, colunas_normalizadas):
                 df_painel.loc[mask_status, col_nome] = "N/A"
 
     if "Previsão De Entrega" in df_painel.columns and "Entrega" in df_painel.columns:
+        # Guarda o valor original (antes do preenchimento abaixo) - usado pelo
+        # calculo de Sla Entrega, que precisa saber se a Previsão De Entrega
+        # RAIZ estava vazia, nao a versao ja preenchida com a Entrega.
+        df_painel["_previsao_raw"] = df_painel["Previsão De Entrega"]
         mascara_vazia = (df_painel["Previsão De Entrega"] == "") | (df_painel["Previsão De Entrega"].isna())
         df_painel.loc[mascara_vazia, "Previsão De Entrega"] = df_painel.loc[mascara_vazia, "Entrega"]
 
@@ -443,50 +447,78 @@ def parse_data_br(valor):
 
 
 def calcular_colunas_sla(df_painel):
-    """Calcula as colunas Sla Pagamento e Sla Entrega (dias corridos), regra
-    confirmada com o usuario a partir da planilha de follow up real:
+    """Calcula as colunas Sla Pagamento e Sla Entrega (dias corridos),
+    portadas diretamente das formulas reais da planilha de follow up:
 
-    - Sla Pagamento: so passa a contar depois que o STATUS chega em
-      'Enviado ao Financeiro' (Envio Pc -> hoje). Para de avançar assim que
-      o operador (almoxarifado/compras) preenche a Pagamento Pc - a partir
-      dai fica congelado em (Pagamento Pc - Envio Pc).
-    - Sla Entrega: conta desde a Envio Pc (hoje, contando todo dia) e para
-      assim que a Entrega e preenchida - manualmente pelo almoxarifado, ou
-      automaticamente pela importacao (DT Baixa/Dt. Dig.Nota, que cai no
-      mesmo campo Entrega) - congelando em (Entrega - Envio Pc).
+    Sla Pagamento (Excel):
+      =SEERRO(SE(OU([@STATUS]="rejeitado pelo aprovador";[@STATUS]="Cancelado";D="------");
+        ""; SE(C="";""; SE(D="";SE(H="";HOJE()-C;H-C);D-C))); "")
+      (C=Envio Pc, D=Pagamento Pc, H=Entrega)
+
+    Sla Entrega (Excel):
+      =SEERRO(SE([@ENVIO2]="";""; SES(
+        B="REJEITADO PELO APROVADOR"; "";
+        B="recebido"; H-C;
+        [@[PREVISÃO DE ENTREGA]]=""; HOJE()-C
+      )); "")
+      (B=Status, C=Envio Pc, H=Entrega) - usa a Previsão De Entrega ORIGINAL
+      (_previsao_raw), de antes do preenchimento automatico com a Entrega.
     """
     hoje = datetime.now().date()
-    status_gatilho_sla_pgo = normalizar_status_import("Enviado ao Financeiro")
 
     sla_pagamento = []
     sla_entrega = []
     for _, linha in df_painel.iterrows():
-        status_norm = normalizar_status_import(linha.get("Status", ""))
+        status_upper = str(linha.get("Status", "")).strip().upper()
+        pagamento_raw = str(linha.get("Pagamento Pc", "")).strip()
+        previsao_raw = str(linha.get("_previsao_raw", linha.get("Previsão De Entrega", ""))).strip()
+
         data_envio = parse_data_br(linha.get("Envio Pc", ""))
-        data_pagamento = parse_data_br(linha.get("Pagamento Pc", ""))
+        data_pagamento = parse_data_br(pagamento_raw)
         data_entrega = parse_data_br(linha.get("Entrega", ""))
 
-        if data_envio and data_pagamento:
-            sla_pagamento.append((data_pagamento - data_envio).days)
-        elif data_envio and status_norm == status_gatilho_sla_pgo:
-            sla_pagamento.append((hoje - data_envio).days)
-        else:
+        # --- Sla Pagamento ---
+        if status_upper in ("REJEITADO PELO APROVADOR", "CANCELADO") or pagamento_raw.upper() in ("------", "N/A"):
             sla_pagamento.append("")
+        elif not data_envio:
+            sla_pagamento.append("")
+        elif not data_pagamento:
+            if not data_entrega:
+                sla_pagamento.append((hoje - data_envio).days)
+            else:
+                sla_pagamento.append((data_entrega - data_envio).days)
+        else:
+            sla_pagamento.append((data_pagamento - data_envio).days)
 
-        if data_envio:
-            sla_entrega.append(((data_entrega or hoje) - data_envio).days)
+        # --- Sla Entrega ---
+        if not data_envio:
+            sla_entrega.append("")
+        elif status_upper == "REJEITADO PELO APROVADOR":
+            sla_entrega.append("")
+        elif status_upper == "RECEBIDO":
+            sla_entrega.append((data_entrega - data_envio).days if data_entrega else "")
+        elif not previsao_raw or previsao_raw.upper() == "N/A":
+            sla_entrega.append((hoje - data_envio).days)
         else:
             sla_entrega.append("")
 
     df_painel["Sla Pagamento"] = sla_pagamento
     df_painel["Sla Entrega"] = sla_entrega
-    return df_painel
+
+    # Reordena pra bater com a planilha de follow up: ... Pagamento Pc, Sla
+    # Pagamento, Previsão De Entrega, Sla Entrega, Entrega, ...
+    cols = [c for c in df_painel.columns if c not in ("Sla Pagamento", "Sla Entrega")]
+    pos_pagamento = cols.index("Pagamento Pc") + 1 if "Pagamento Pc" in cols else len(cols)
+    cols.insert(pos_pagamento, "Sla Pagamento")
+    pos_previsao = cols.index("Previsão De Entrega") + 1 if "Previsão De Entrega" in cols else len(cols)
+    cols.insert(pos_previsao, "Sla Entrega")
+    return df_painel[cols]
 
 
 def gerar_bytes_excel(df_painel):
     """Gera o .xlsx (bytes) do relatorio a partir do df_painel ja montado."""
     out = BytesIO()
-    df_excel_export = df_painel.drop(columns=["_row_idx"], errors="ignore")
+    df_excel_export = df_painel.drop(columns=["_row_idx", "_previsao_raw"], errors="ignore")
     with pd.ExcelWriter(out, engine='xlsxwriter') as wr:
         df_excel_export.to_excel(wr, index=False, sheet_name="Relatório")
         worksheet = wr.sheets["Relatório"]
@@ -984,7 +1016,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
 # Unificadas numa linha so, no mesmo nivel (logo apos os Filtros Avançados),
 # pra sobrar mais espaço vertical pra tabela de amostra abaixo.
 with st.container(key="acoes_painel_wrap"):
-    if st.session_state.autenticado and st.session_state.departamento_ativo == "compras":
+    if st.session_state.autenticado and st.session_state.departamento_ativo in ("compras", "gestor"):
         if st.button("📤 Importar Arquivo", key="btn_abrir_importar"):
             st.session_state.mostrar_popup_importar = not st.session_state.mostrar_popup_importar
             st.rerun()
@@ -1003,7 +1035,7 @@ with st.container(key="acoes_painel_wrap"):
     else:
         btn_salvar_dados = False
 
-if st.session_state.autenticado and st.session_state.departamento_ativo == "compras":
+if st.session_state.autenticado and st.session_state.departamento_ativo in ("compras", "gestor"):
     if st.session_state.mostrar_popup_importar:
         with st.container():
             st.markdown("""
@@ -1160,6 +1192,8 @@ if tem_busca_ativa:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(nome_tela, disabled=True, width=largura_px)
 
                     configuracao_colunas_tela["_row_idx"] = None
+                    if "_previsao_raw" in df_painel.columns:
+                        configuracao_colunas_tela["_previsao_raw"] = None
 
                     if mostrar_sla:
                         for nome_sla in ("Sla Pagamento", "Sla Entrega"):
@@ -1263,7 +1297,7 @@ if tem_busca_ativa:
                                             st.error(f"❌ Erro ao gravar: {e}")
                     else:
                         st.dataframe(
-                            df_painel.drop(columns=["_row_idx"], errors="ignore"), 
+                            df_painel.drop(columns=["_row_idx", "_previsao_raw"], errors="ignore"), 
                             use_container_width=True, 
                             hide_index=True, 
                             column_config=configuracao_colunas_tela
