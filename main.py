@@ -206,10 +206,10 @@ def aplicar_filtros(df_pc):
             df_final = df_final[df_final[col_sc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(sc_termo, na=False)]
 
     if st.session_state.filtro_cc_val:
-        cc_termo = st.session_state.filtro_cc_val.strip().lower()
         col_cc = colunas_normalizadas.get("CENTRO DE CUSTO")
         if col_cc:
-            df_final = df_final[df_final[col_cc].astype(str).str.lower().str.contains(cc_termo, na=False)]
+            selecionados_cc = set(st.session_state.filtro_cc_val)
+            df_final = df_final[df_final[col_cc].astype(str).str.strip().isin(selecionados_cc)]
 
     col_status_verificacao = colunas_normalizadas.get("STATUS")
     if st.session_state.filtro_status_val != "Todos" and col_status_verificacao:
@@ -772,7 +772,7 @@ if "filtro_pc_val" not in st.session_state:
 if "filtro_sc_val" not in st.session_state:
     st.session_state.filtro_sc_val = ""
 if "filtro_cc_val" not in st.session_state:
-    st.session_state.filtro_cc_val = ""
+    st.session_state.filtro_cc_val = []
 if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
@@ -795,6 +795,9 @@ if tem_busca_ativa and not df_pc.empty:
     except Exception:
         relatorio_bytes = None
 
+col_cc_bruto = next((c for c in df_pc.columns if c.upper().strip() == "CENTRO DE CUSTO"), None) if not df_pc.empty else None
+OPCOES_CENTRO_CUSTO = sorted({str(v).strip() for v in df_pc[col_cc_bruto] if str(v).strip()}) if col_cc_bruto else []
+
 rotulo_seta = "Filtros Avançados ▲" if st.session_state.gaveta_aberta else "Filtros Avançados ▼"
 
 with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
@@ -806,7 +809,8 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
         with f2:
             filtro_sc = st.text_input("Solicitação (SC):", value=st.session_state.filtro_sc_val, placeholder="Nº da SC...")
         with f3:
-            filtro_cc = st.text_input("Centro de Custo:", value=st.session_state.filtro_cc_val, placeholder="Centro de custo...")
+            valor_padrao_cc = [v for v in st.session_state.filtro_cc_val if v in OPCOES_CENTRO_CUSTO]
+            filtro_cc = st.multiselect("Centro de Custo:", options=OPCOES_CENTRO_CUSTO, default=valor_padrao_cc, placeholder="Selecione um ou mais...")
         with f4:
             col_status_verificacao = next((c for c in df_pc.columns if "STATUS" in c.upper()), None) if not df_pc.empty else None
             if col_status_verificacao:
@@ -841,10 +845,10 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
             if btn_limpar:
                 st.session_state.filtro_pc_val = ""
                 st.session_state.filtro_sc_val = ""
-                st.session_state.filtro_cc_val = ""
+                st.session_state.filtro_cc_val = []
                 st.session_state.filtro_status_val = "Todos"
                 st.session_state.filtro_data_val = ()
-                st.session_state.gaveta_aberta = True  
+                st.session_state.gaveta_aberta = True
                 st.rerun()
                 
         with b3:

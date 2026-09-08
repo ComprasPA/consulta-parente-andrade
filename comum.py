@@ -190,7 +190,11 @@ def aplicar_estilos():
 
 
 def renderizar_cabecalho(subtitulo="Portal Gestão de Compras"):
-    base64_logo = get_base64_logo()
+    # Logo tem o texto "PARENTE ANDRADE" em preto puro - ilegível no header
+    # escuro. logo_escuro é a mesma imagem com so esse texto trocado pra
+    # branco (ícone P/A colorido intacto).
+    nome_arquivo_logo = "logo_escuro" if _tema_ativo() == "escuro" else "logo"
+    base64_logo = get_base64_logo(nome_arquivo_logo)
     with st.container(key="header_card"):
         c1, c2, c3 = st.columns([1.5, 6.0, 1.5])
         with c1:
