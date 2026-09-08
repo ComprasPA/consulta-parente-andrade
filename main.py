@@ -191,7 +191,7 @@ DICIONARIO_COLUNAS_EXATAS = [
 def aplicar_filtros(df_pc):
     """Aplica os filtros ativos (lidos do session_state) e devolve (df_final, colunas_normalizadas)."""
     df_final = df_pc.copy()
-    colunas_normalizadas = {c.upper().strip().replace('Í', 'I').replace('Ã', 'A'): c for c in df_final.columns}
+    colunas_normalizadas = {c.upper().strip().replace('Í', 'I').replace('Ã', 'A').replace('Ç', 'C'): c for c in df_final.columns}
 
     if st.session_state.filtro_pc_val:
         pc_termo = str(st.session_state.filtro_pc_val).strip()
@@ -235,9 +235,9 @@ def montar_df_painel(df_final, colunas_normalizadas):
 
         col_real = None
         for alt in col_config["planilha"]:
-            alt_clean = alt.upper().strip().replace('Í', 'I').replace('Ã', 'A')
+            alt_clean = alt.upper().strip().replace('Í', 'I').replace('Ã', 'A').replace('Ç', 'C')
             for c_up in colunas_normalizadas:
-                c_up_clean = c_up.replace('Í', 'I').replace('Ã', 'A')
+                c_up_clean = c_up.replace('Í', 'I').replace('Ã', 'A').replace('Ç', 'C')
                 if c_up_clean == alt_clean:
                     col_real = colunas_normalizadas[c_up]
                     break
@@ -1106,7 +1106,7 @@ if tem_busca_ativa:
                                         
                                         dados_planilha = worksheet.get_all_values()
                                         cabecalho_bruto = dados_planilha[0]
-                                        cabecalho_map = {c.upper().strip().replace('Í', 'I').replace('Ã', 'A'): i + 1 for i, c in enumerate(cabecalho_bruto)}
+                                        cabecalho_map = {c.upper().strip().replace('Í', 'I').replace('Ã', 'A').replace('Ç', 'C'): i + 1 for i, c in enumerate(cabecalho_bruto)}
                                         
                                         for idx in edited_df.index:
                                             linha_planilha = int(edited_df.loc[idx, "_row_idx"])
@@ -1126,7 +1126,7 @@ if tem_busca_ativa:
                                                     if col_config_item:
                                                         col_index = None
                                                         for alt in col_config_item["planilha"]:
-                                                            alt_clean = alt.upper().strip().replace('Í', 'I').replace('Ã', 'A')
+                                                            alt_clean = alt.upper().strip().replace('Í', 'I').replace('Ã', 'A').replace('Ç', 'C')
                                                             col_index = cabecalho_map.get(alt_clean)
                                                             if col_index:
                                                                 break
