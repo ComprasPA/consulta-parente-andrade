@@ -382,7 +382,7 @@ COLUNAS_ASSINATURA_PC = "Dt. Dig.Nota"
 COLUNAS_ASSINATURA_SC = "Cod SC. SCM"
 
 MAPA_PEDIDOS_IMPORT = {
-    "SOLICITAÇÃO":        {"origem": "Numero da SC",   "tipo": "inteiro"},
+    "SOLICITAÇÃO":        {"origem": "Numero da SC",   "tipo": "solicitacao"},
     "PEDIDO":             {"origem": "Numero",          "tipo": "inteiro"},
     "CONDIÇÃO PAGAMENTO": {"origem": "Descricao",       "tipo": "texto"},
     "PAGAMENTO":          {"origem": "Descricao",       "tipo": "pagamento_calc"},
@@ -415,7 +415,7 @@ CABECALHO_SOLICITACOES_IMPORT = [
     "DATA EMISSAO", "DATA APROVACAO", "FILIAL", "QTD EM PEDIDO",
 ]
 MAPA_SOLICITACOES_IMPORT = {
-    "SOLICITAÇÃO":          {"origem": "Numero da SC", "tipo": "inteiro"},
+    "SOLICITAÇÃO":          {"origem": "Numero da SC", "tipo": "solicitacao"},
     "ITEM SC":              {"origem": "Item da SC",   "tipo": "texto"},
     "COTAÇÃO":              {"origem": "Num. Cotacao", "tipo": "texto"},
     "PEDIDO":               {"origem": "Num. Pedido",  "tipo": "inteiro"},
@@ -476,6 +476,15 @@ def fmt_produto_import(valor) -> str:
     return limpar_numero_texto_import(valor).strip().zfill(10)
 
 
+def fmt_solicitacao_import(valor) -> str:
+    """Numero da Solicitação sempre tem 6 digitos - algumas filiais usam
+    numeração baixa com zeros à esquerda (ex: 003419), que um tipo 'inteiro'
+    normal perderia ao converter pra int."""
+    if pd.isna(valor) or str(valor).strip() == "":
+        return ""
+    return limpar_numero_texto_import(valor).strip().zfill(6)
+
+
 def fmt_numero_import(valor) -> str:
     if pd.isna(valor) or str(valor).strip() == "":
         return ""
@@ -522,6 +531,7 @@ FORMATADORES_IMPORT = {
     "inteiro": fmt_inteiro_import,
     "texto": fmt_texto_import,
     "produto": fmt_produto_import,
+    "solicitacao": fmt_solicitacao_import,
     "numero": fmt_numero_import,
     "decimal": fmt_decimal_import,
     "data": fmt_data_import,
@@ -585,7 +595,12 @@ def carregar_indice_existentes_import(worksheet, campos_chave, aliases):
         partes = []
         for campo in campos_chave:
             valor = linha_pad[indices[campo]]
-            partes.append(limpar_numero_texto_import(valor).zfill(10) if campo == "PRODUTO" and valor.strip() else limpar_numero_texto_import(valor))
+            valor_limpo = limpar_numero_texto_import(valor)
+            if campo == "PRODUTO" and valor.strip():
+                valor_limpo = valor_limpo.zfill(10)
+            elif campo == "SOLICITAÇÃO" and valor.strip():
+                valor_limpo = valor_limpo.zfill(6)
+            partes.append(valor_limpo)
         chave = tuple(partes)
         if not all(chave):
             continue
