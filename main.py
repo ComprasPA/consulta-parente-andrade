@@ -390,7 +390,8 @@ MAPA_PEDIDOS_IMPORT = {
     "DATA LIBERAÇÃO":     {"origem": "Dt Lib. PC",      "tipo": "data"},
     "PREVISÃO DE ENTREGA":{"origem": "Dt. Entrega",     "tipo": "data"},
     "ENTREGA":            {"origem": "DT Baixa",        "tipo": "data"},
-    "NF REMESSA":         {"origem": "Num da Nota",     "tipo": "texto"},
+    # NF REMESSA fica de fora de proposito - o operador insere manualmente,
+    # a importação nunca deve preencher/sobrescrever esse campo.
     "FORNECEDOR":         {"origem": "Nome Fornece",    "tipo": "texto"},
     "GRUPO":              {"origem": "Grupo",           "tipo": "texto"},
     "CENTRO DE CUSTO":    {"origem": "Centro Custo",    "tipo": "centro_custo"},
