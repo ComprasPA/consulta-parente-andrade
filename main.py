@@ -266,7 +266,7 @@ def montar_df_painel(df_final, colunas_normalizadas):
 
     col_status_tela = colunas_normalizadas.get("STATUS")
     if col_status_tela:
-        termos_excecao = ["SERVIÇO", "CANCELADO PELO SOLICITANTE", "REJEITADO PELO APROVADOR", "COMPRA DIRETA"]
+        termos_excecao = ["SERVIÇO", "CANCELADO PELO SOLICITANTE", "REJEITADO PELO APROVADOR", "COMPRA DIRETA", STATUS_EXCLUIDO_TOTVS_IMPORT]
         mask_status = df_painel["Status"].astype(str).str.upper().apply(
             lambda s: any(t in s for t in termos_excecao)
         )
@@ -336,7 +336,7 @@ def calcular_colunas_sla(df_painel):
         data_entrega = parse_data_br(linha.get("Entrega", ""))
 
         # --- Sla Pagamento ---
-        if status_upper in ("REJEITADO PELO APROVADOR", "CANCELADO") or pagamento_raw.upper() in ("------", "N/A"):
+        if status_upper in ("REJEITADO PELO APROVADOR", "CANCELADO", STATUS_EXCLUIDO_TOTVS_IMPORT) or pagamento_raw.upper() in ("------", "N/A"):
             sla_pagamento.append("")
         elif not data_envio:
             sla_pagamento.append("")
@@ -351,7 +351,7 @@ def calcular_colunas_sla(df_painel):
         # --- Sla Entrega ---
         if not data_envio:
             sla_entrega.append("")
-        elif status_upper == "REJEITADO PELO APROVADOR":
+        elif status_upper in ("REJEITADO PELO APROVADOR", STATUS_EXCLUIDO_TOTVS_IMPORT):
             sla_entrega.append("")
         elif data_entrega:
             sla_entrega.append((data_entrega - data_envio).days)
@@ -564,6 +564,19 @@ MAPA_STATUS_APROV_TEXTO_IMPORT = {
     normalizar_status_import("Não possui controle de Aprovação"): "Aprovado",
 }
 
+# Pedido some do relatorio mais recente do Totvs = provavelmente foi excluido
+# la, mas a importacao nunca remove linha da base - sem isso o pedido ficaria
+# preso pra sempre com o status antigo, parecendo ainda em aberto.
+STATUS_EXCLUIDO_TOTVS_IMPORT = "EXCLUÍDO DO TOTVS"
+DIAS_JANELA_EXCLUSAO_TOTVS_IMPORT = 30
+STATUS_TERMINAIS_SEM_REALERTA_IMPORT = {
+    normalizar_status_import(STATUS_EXCLUIDO_TOTVS_IMPORT),
+    normalizar_status_import("Cancelado"),
+    normalizar_status_import("Cancelado Pelo Solicitante"),
+    normalizar_status_import("Rejeitado Pelo Aprovador"),
+    normalizar_status_import("Rejeitado"),
+}
+
 
 def valor_status_origem_import(linha_origem) -> str:
     bruto = fmt_texto_import(linha_origem.get("Status Aprov", ""))
@@ -700,7 +713,41 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
                 linha_final[cabecalho_destino.index(col_status)] = novo_status
         novas_linhas.append(linha_final)
 
-    return novas_linhas, atualizacoes, duplicadas, linhas_atualizadas
+    return novas_linhas, atualizacoes, duplicadas, linhas_atualizadas, chaves_deste_arquivo
+
+
+def detectar_pedidos_excluidos_import(indice_existentes, chaves_deste_arquivo, cabecalho_real):
+    """Varre a base atual de Pedidos e marca como STATUS_EXCLUIDO_TOTVS_IMPORT
+    quem: (1) tem Emissão Pc dentro da janela dos ultimos N dias, (2) ainda
+    nao tem Entrega preenchida (senao sumir do relatorio de pedidos em aberto
+    e esperado, nao indicio de exclusao), (3) o status atual nao e ja um
+    status terminal, e (4) nao veio no arquivo importado agora."""
+    col_status = resolver_coluna_real_import(cabecalho_real, "STATUS", {})
+    col_data_pedido = resolver_coluna_real_import(cabecalho_real, "DATA PEDIDO", {})
+    col_entrega = resolver_coluna_real_import(cabecalho_real, "ENTREGA", {})
+    if not col_status or not col_data_pedido:
+        return []
+
+    hoje = datetime.now().date()
+    atualizacoes = []
+    for chave, info in indice_existentes.items():
+        if chave in chaves_deste_arquivo:
+            continue
+
+        valores = info["valores"]
+        if col_entrega and limpar_numero_texto_import(valores.get(col_entrega, "")).strip():
+            continue
+
+        status_atual = normalizar_status_import(valores.get(col_status, ""))
+        if status_atual in STATUS_TERMINAIS_SEM_REALERTA_IMPORT:
+            continue
+
+        data_pedido = parse_data_br(valores.get(col_data_pedido, ""))
+        if not data_pedido or (hoje - data_pedido).days > DIAS_JANELA_EXCLUSAO_TOTVS_IMPORT:
+            continue
+
+        atualizacoes.append((info["row_num"], cabecalho_real.index(col_status) + 1, STATUS_EXCLUIDO_TOTVS_IMPORT))
+    return atualizacoes
 
 
 def aplicar_no_google_sheets_import(worksheet, novas_linhas, atualizacoes):
@@ -729,14 +776,15 @@ def processar_arquivo_pc_import(arquivo, spreadsheet):
 
     arquivo.seek(0)
     df = pd.read_excel(arquivo, header=1)
-    novas_linhas, atualizacoes, duplicadas, atualizadas = processar_linhas_import(
+    novas_linhas, atualizacoes, duplicadas, atualizadas, chaves_deste_arquivo = processar_linhas_import(
         df, MAPA_PEDIDOS_IMPORT, cabecalho_real, ALIASES_PEDIDOS_IMPORT, CAMPOS_MANUAIS_PEDIDOS_IMPORT,
         CHAVE_PEDIDOS_IMPORT, indice_existentes,
         campo_status="STATUS", calcular_status=valor_status_origem_import, gatilho_status=STATUS_GATILHO_SUBSTITUICAO_IMPORT,
         campos_obrigatorios=("SOLICITAÇÃO",),
     )
-    aplicar_no_google_sheets_import(worksheet, novas_linhas, atualizacoes)
-    return len(novas_linhas), duplicadas, atualizadas
+    atualizacoes_exclusao = detectar_pedidos_excluidos_import(indice_existentes, chaves_deste_arquivo, cabecalho_real)
+    aplicar_no_google_sheets_import(worksheet, novas_linhas, atualizacoes + atualizacoes_exclusao)
+    return len(novas_linhas), duplicadas, atualizadas, len(atualizacoes_exclusao)
 
 
 def processar_arquivo_sc_import(arquivo, spreadsheet):
@@ -747,7 +795,7 @@ def processar_arquivo_sc_import(arquivo, spreadsheet):
 
     arquivo.seek(0)
     df = pd.read_excel(arquivo, header=1)
-    novas_linhas, atualizacoes, duplicadas, atualizadas = processar_linhas_import(
+    novas_linhas, atualizacoes, duplicadas, atualizadas, _ = processar_linhas_import(
         df, MAPA_SOLICITACOES_IMPORT, cabecalho_real, {}, [], CHAVE_SOLICITACOES_IMPORT, indice_existentes,
     )
     aplicar_no_google_sheets_import(worksheet, novas_linhas, atualizacoes)
@@ -767,8 +815,9 @@ def processar_upload_protheus(arquivo):
     try:
         tipo = detectar_tipo_arquivo_import(arquivo)
         if tipo == "PC":
-            novos, dup, atualizadas = processar_arquivo_pc_import(arquivo, spreadsheet)
-            return True, f"✅ Pedidos: {novos} linha(s) nova(s), {atualizadas} atualizada(s) (campos em branco/status), {dup} sem nenhuma alteração."
+            novos, dup, atualizadas, excluidos = processar_arquivo_pc_import(arquivo, spreadsheet)
+            msg_excluidos = f", {excluidos} marcado(s) como '{STATUS_EXCLUIDO_TOTVS_IMPORT}' (sumiram do relatório)" if excluidos else ""
+            return True, f"✅ Pedidos: {novos} linha(s) nova(s), {atualizadas} atualizada(s) (campos em branco/status){msg_excluidos}, {dup} sem nenhuma alteração."
         elif tipo == "SC":
             novos, dup, atualizadas = processar_arquivo_sc_import(arquivo, spreadsheet)
             return True, f"✅ Solicitações: {novos} linha(s) nova(s), {atualizadas} atualizada(s), {dup} sem nenhuma alteração."
