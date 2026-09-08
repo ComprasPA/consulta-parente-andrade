@@ -393,7 +393,7 @@ MAPA_PEDIDOS_IMPORT = {
     "NF REMESSA":         {"origem": "Num da Nota",     "tipo": "texto"},
     "FORNECEDOR":         {"origem": "Nome Fornece",    "tipo": "texto"},
     "GRUPO":              {"origem": "Grupo",           "tipo": "texto"},
-    "CENTRO DE CUSTO":    {"origem": "Centro Custo",    "tipo": "texto"},
+    "CENTRO DE CUSTO":    {"origem": "Centro Custo",    "tipo": "centro_custo"},
     "PRODUTO":            {"origem": "Produto",         "tipo": "produto"},
     "DESCRICAO":          {"origem": "Descricao.1",     "tipo": "texto"},
     "UM":                 {"origem": "Unidade",         "tipo": "texto"},
@@ -423,7 +423,7 @@ MAPA_SOLICITACOES_IMPORT = {
     "DESCRICAO":            {"origem": "Descricao",    "tipo": "texto"},
     "QTD":                  {"origem": "Quantidade",   "tipo": "numero"},
     "UM":                   {"origem": "Unid Medida",  "tipo": "texto"},
-    "CENTRO DE CUSTO":      {"origem": "C Custo",      "tipo": "texto"},
+    "CENTRO DE CUSTO":      {"origem": "C Custo",      "tipo": "centro_custo"},
     "DESC CENTRO DE CUSTO": {"origem": "Desc C.C.",    "tipo": "texto"},
     "DATA EMISSAO":         {"origem": "DT Emissao",   "tipo": "data"},
     "DATA APROVACAO":       {"origem": "Dt Aprovacao", "tipo": "data"},
@@ -485,6 +485,16 @@ def fmt_solicitacao_import(valor) -> str:
     return limpar_numero_texto_import(valor).strip().zfill(6)
 
 
+def fmt_centro_custo_import(valor) -> str:
+    """Centro de Custo tem 4 digitos - o Excel as vezes exporta a coluna
+    como numero (float), o que vira "1223.0" num tipo 'texto' comum. So
+    limpa o ".0" (sem zfill - nao converte pra int, pra nao arriscar
+    derrubar um eventual zero a esquerda de verdade)."""
+    if pd.isna(valor) or str(valor).strip() == "":
+        return ""
+    return limpar_numero_texto_import(valor).strip()
+
+
 def fmt_numero_import(valor) -> str:
     if pd.isna(valor) or str(valor).strip() == "":
         return ""
@@ -532,6 +542,7 @@ FORMATADORES_IMPORT = {
     "texto": fmt_texto_import,
     "produto": fmt_produto_import,
     "solicitacao": fmt_solicitacao_import,
+    "centro_custo": fmt_centro_custo_import,
     "numero": fmt_numero_import,
     "decimal": fmt_decimal_import,
     "data": fmt_data_import,
