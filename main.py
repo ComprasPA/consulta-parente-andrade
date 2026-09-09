@@ -898,7 +898,8 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.filtro_cc_val = filtro_cc
                 st.session_state.filtro_status_val = filtro_status
                 st.session_state.filtro_data_val = filtro_data
-                st.session_state.gaveta_aberta = False  
+                st.session_state.gaveta_aberta = False
+                st.session_state.atualizar_cache_editor = True
                 st.rerun()
 
         with b2:
@@ -910,6 +911,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.filtro_status_val = "Todos"
                 st.session_state.filtro_data_val = ()
                 st.session_state.gaveta_aberta = True
+                st.session_state.atualizar_cache_editor = True
                 st.rerun()
                 
         with b3:
@@ -917,6 +919,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
             if btn_atualizar:
                 st.session_state.dados_globais = carregar_dados_seguros()
                 st.session_state.gaveta_aberta = True
+                st.session_state.atualizar_cache_editor = True
                 st.rerun()
 
         with b4:
@@ -1204,6 +1207,13 @@ if tem_busca_ativa:
                                         else:
                                             st.info("ℹ️ Nenhuma alteração foi realizada para salvar.")
                                             
+                                    except KeyError:
+                                        # df_original_cache ficou fora de sincronia com a busca atual
+                                        # (base foi atualizada ou pesquisa mudou) - forca reconstrucao
+                                        # do cache e pede pra tentar de novo, em vez de mostrar so o
+                                        # indice numerico interno que gerou o erro.
+                                        st.session_state.atualizar_cache_editor = True
+                                        st.error("❌ A tela estava com um snapshot desatualizado dessa busca. Já corrigido - clique em **Pesquisar** de novo e repita a alteração.")
                                     except Exception as e:
                                         erro_str = str(e)
                                         if "403" in erro_str or "permission" in erro_str.lower():
