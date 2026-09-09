@@ -1154,20 +1154,29 @@ if tem_busca_ativa:
                                 alteracoes_detectadas = 0
                                 data_invalida_encontrada = False
                                 
-                                # Verifica se alguma data alterada está fora do formato DD/MM/AAAA
+                                # Datas fora do formato DD/MM/AAAA (ex: "5/6/2026", "05/06/26") sao
+                                # corrigidas automaticamente antes de salvar - so bloqueia o save se
+                                # o texto digitado nem der pra reconhecer como data nenhuma.
                                 colunas_de_data_tela = ["Emissão Pc", "Aprovação Pc", "Envio Pc", "Previsão De Entrega", "Entrega"]
+                                campo_data_invalido = None
                                 for idx in edited_df.index:
                                     for col_dt in colunas_de_data_tela:
                                         if col_dt in edited_df.columns:
                                             val_novo_dt = str(edited_df.loc[idx, col_dt])
                                             if not validar_formato_data(val_novo_dt):
-                                                data_invalida_encontrada = True
-                                                break
+                                                val_corrigido = formatar_para_dd_mm_aaaa(val_novo_dt)
+                                                if validar_formato_data(val_corrigido):
+                                                    edited_df.loc[idx, col_dt] = val_corrigido
+                                                else:
+                                                    data_invalida_encontrada = True
+                                                    campo_data_invalido = (col_dt, val_novo_dt)
+                                                    break
                                     if data_invalida_encontrada:
                                         break
 
                                 if data_invalida_encontrada:
-                                    st.markdown('<div class="custom-error-red">⚠️ Erro: Há campos de data preenchidos fora do formato obrigatório <b>DD/MM/AAAA</b>. Nenhuma alteração foi salva. Por favor, corrija antes de salvar.</div>', unsafe_allow_html=True)
+                                    col_dt, valor_ruim = campo_data_invalido
+                                    st.markdown(f'<div class="custom-error-red">⚠️ Erro: O campo <b>{col_dt}</b> tem o valor "<b>{valor_ruim}</b>", que não é reconhecível como data. Nenhuma alteração foi salva. Corrija para o formato <b>DD/MM/AAAA</b> antes de salvar.</div>', unsafe_allow_html=True)
                                 else:
                                     try:
                                         client, creds_dict = obter_client_gspread()
