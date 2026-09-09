@@ -384,9 +384,12 @@ def calcular_colunas_sla(df_painel):
 
 # 6.5 IMPORTADOR PROTHEUS (upload direto no painel, mesma logica do agente local)
 # Fica hospedado aqui pra rodar 24h no Streamlit Cloud, sem depender do PC do
-# operador ligado. Mesmas regras do agente_importador.py: dedup por chave,
-# so preenche campo em branco (nunca sobrescreve o que ja tem valor), status
-# so muda quando esta "em espera" (branco/Em aprovação/Pendente).
+# operador ligado. Mesmas regras do agente_importador.py: dedup por chave;
+# campo de data prevalece o que vier no arquivo (mesmo que ja tenha valor -
+# o arquivo mais recente do Totvs e a fonte de verdade), os demais campos so
+# preenchem em branco (nunca sobrescrevem o que ja tem valor); status so
+# muda quando esta "em espera" (branco/Em aprovação/Pendente) - EXCETO que
+# ENTREGA ganhar uma data sempre forca o Status pra "ATENDIDO".
 ABA_PEDIDOS_IMPORT = "Pedidos"
 ABA_SOLICITACOES_IMPORT = "Solicitacoes"
 COLUNAS_ASSINATURA_PC = "Dt. Dig.Nota"
@@ -400,7 +403,7 @@ MAPA_PEDIDOS_IMPORT = {
     "DATA PEDIDO":        {"origem": "Data Emissao",    "tipo": "data"},
     "DATA LIBERAÇÃO":     {"origem": "Dt Lib. PC",      "tipo": "data"},
     "PREVISÃO DE ENTREGA":{"origem": "Dt. Entrega",     "tipo": "data"},
-    "ENTREGA":            {"origem": "DT Baixa",        "tipo": "data"},
+    "ENTREGA":            {"origem": "Dt. Dig.Nota",    "tipo": "data"},
     # NF REMESSA fica de fora de proposito - o operador insere manualmente,
     # a importação nunca deve preencher/sobrescrever esse campo.
     "FORNECEDOR":         {"origem": "Nome Fornece",    "tipo": "texto"},
@@ -580,6 +583,9 @@ MAPA_STATUS_APROV_TEXTO_IMPORT = {
 # preso pra sempre com o status antigo, parecendo ainda em aberto.
 STATUS_EXCLUIDO_TOTVS_IMPORT = STATUS_EXCLUIDO_TOTVS
 DIAS_JANELA_EXCLUSAO_TOTVS_IMPORT = 30
+# ENTREGA ganhando data (na importacao) sempre forca esse status - decisao
+# explicita do usuario, sem excecao mesmo pra status como EXCLUÍDO DO TOTVS.
+STATUS_ATENDIDO_IMPORT = "ATENDIDO"
 STATUS_TERMINAIS_SEM_REALERTA_IMPORT = {
     normalizar_status_import(STATUS_EXCLUIDO_TOTVS_IMPORT),
     normalizar_status_import("Cancelado"),
@@ -692,15 +698,32 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
             info = indice_existentes[chave]
             valores_atuais = info["valores"]
             alterou = False
+            entrega_valor_final = None
 
-            for campo_tela in mapa:
+            for campo_tela, config_campo in mapa.items():
                 col_real = resolver_coluna_real_import(cabecalho_destino, campo_tela, aliases)
-                if not col_real or valores_atuais.get(col_real, "").strip():
+                if not col_real:
                     continue
+                valor_atual = valores_atuais.get(col_real, "").strip()
                 novo_valor = valores_por_campo.get(campo_tela, "")
-                if novo_valor:
-                    atualizacoes.append((info["row_num"], cabecalho_destino.index(col_real) + 1, novo_valor))
-                    alterou = True
+                if config_campo["tipo"] == "data":
+                    # Campo de data: o arquivo mais recente do Totvs e a fonte de
+                    # verdade - prevalece mesmo se a celula ja tiver um valor
+                    # diferente (nao so quando esta em branco).
+                    if novo_valor and novo_valor != valor_atual:
+                        atualizacoes.append((info["row_num"], cabecalho_destino.index(col_real) + 1, novo_valor))
+                        alterou = True
+                        valor_final_deste_campo = novo_valor
+                    else:
+                        valor_final_deste_campo = valor_atual
+                    if campo_tela == "ENTREGA":
+                        entrega_valor_final = valor_final_deste_campo
+                else:
+                    if valor_atual:
+                        continue
+                    if novo_valor:
+                        atualizacoes.append((info["row_num"], cabecalho_destino.index(col_real) + 1, novo_valor))
+                        alterou = True
 
             if col_status and calcular_status:
                 atual_status = normalizar_status_import(valores_atuais.get(col_status, ""))
@@ -709,6 +732,16 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
                     if novo_status and normalizar_status_import(novo_status) != atual_status:
                         atualizacoes.append((info["row_num"], cabecalho_destino.index(col_status) + 1, novo_status))
                         alterou = True
+
+            # ENTREGA com data (recem-chegada ou ja de antes) sempre significa
+            # pedido atendido - forca o Status, tomando precedencia sobre
+            # qualquer atualizacao acima (auto-cura se o Status tiver ficado
+            # dessincronizado por qualquer motivo).
+            if col_status and entrega_valor_final:
+                atual_status_norm = normalizar_status_import(valores_atuais.get(col_status, ""))
+                if atual_status_norm != normalizar_status_import(STATUS_ATENDIDO_IMPORT):
+                    atualizacoes.append((info["row_num"], cabecalho_destino.index(col_status) + 1, STATUS_ATENDIDO_IMPORT))
+                    alterou = True
 
             if alterou:
                 linhas_atualizadas += 1
@@ -722,6 +755,8 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
             novo_status = calcular_status(linha_origem)
             if novo_status:
                 linha_final[cabecalho_destino.index(col_status)] = novo_status
+        if col_status and valores_por_campo.get("ENTREGA", ""):
+            linha_final[cabecalho_destino.index(col_status)] = STATUS_ATENDIDO_IMPORT
         novas_linhas.append(linha_final)
 
     return novas_linhas, atualizacoes, duplicadas, linhas_atualizadas, chaves_deste_arquivo
