@@ -40,6 +40,13 @@ aplicar_estilos()
 # usado pra bloquear salvamento nelas (ver "SALVAMENTO PROCV" mais abaixo).
 SENTINELA_ROW_IDX_EM_COTACAO = 10_000_000
 
+# Pedido marcado assim (ver detectar_pedidos_excluidos_import) sumiu do
+# relatorio do Totvs - a linha fica na planilha (base = fonte de verdade),
+# mas nao deve aparecer nem ser considerada em nenhum painel/calculo/consulta
+# (decisao explicita do usuario). Filtrado logo na leitura, o mais cedo
+# possivel, pra nenhum calculo/filtro/exportacao rio abaixo enxergar essa linha.
+STATUS_EXCLUIDO_TOTVS = "EXCLUÍDO DO TOTVS"
+
 
 def montar_linhas_em_cotacao(df_pc, df_sc):
     """Solicitações sem PEDIDO proprio preenchido E sem nenhuma linha
@@ -131,6 +138,10 @@ def carregar_dados_seguros():
             linhas_normalizadas.append(linha[:len(cabecalho)])
 
         df = pd.DataFrame(linhas_normalizadas, columns=cabecalho, dtype=str).fillna('')
+
+        col_status_bruto = next((c for c in df.columns if c.upper().strip() == "STATUS"), None)
+        if col_status_bruto:
+            df = df[df[col_status_bruto].astype(str).str.strip().str.upper() != STATUS_EXCLUIDO_TOTVS].reset_index(drop=True)
 
         try:
             df_sc = _ler_aba_como_df(spreadsheet, "Solicitacoes")
@@ -567,7 +578,7 @@ MAPA_STATUS_APROV_TEXTO_IMPORT = {
 # Pedido some do relatorio mais recente do Totvs = provavelmente foi excluido
 # la, mas a importacao nunca remove linha da base - sem isso o pedido ficaria
 # preso pra sempre com o status antigo, parecendo ainda em aberto.
-STATUS_EXCLUIDO_TOTVS_IMPORT = "EXCLUÍDO DO TOTVS"
+STATUS_EXCLUIDO_TOTVS_IMPORT = STATUS_EXCLUIDO_TOTVS
 DIAS_JANELA_EXCLUSAO_TOTVS_IMPORT = 30
 STATUS_TERMINAIS_SEM_REALERTA_IMPORT = {
     normalizar_status_import(STATUS_EXCLUIDO_TOTVS_IMPORT),
