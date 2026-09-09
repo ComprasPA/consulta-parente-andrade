@@ -1109,7 +1109,9 @@ if tem_busca_ativa:
                                 else:
                                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(rotulo_tela, disabled=False, width=largura_px)
                             else:
-                                campos_permitidos_compras = ["Status", "Envio Pc", "Pagamento Pc", "Previsão De Entrega", "Entrega", "NF Remessa"]
+                                # "Entrega" fica de fora de proposito - so a base (import do Totvs)
+                                # preenche esse campo agora, o operador nao digita mais na mao.
+                                campos_permitidos_compras = ["Status", "Envio Pc", "Pagamento Pc", "Previsão De Entrega", "NF Remessa"]
                                 if nome_tela in campos_permitidos_compras:
                                     if nome_tela == "Status":
                                         configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
