@@ -862,7 +862,7 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
             info = indice_existentes[chave]
             valores_atuais = info["valores"]
             alterou = False
-            entrega_valor_final = None
+            entrega_definida_agora = False
 
             for campo_tela, config_campo in mapa.items():
                 col_real = resolver_coluna_real_import(cabecalho_destino, campo_tela, aliases)
@@ -870,19 +870,20 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
                     continue
                 valor_atual = valores_atuais.get(col_real, "").strip()
                 novo_valor = valores_por_campo.get(campo_tela, "")
-                if config_campo["tipo"] == "data":
-                    # Campo de data: o arquivo mais recente do Totvs e a fonte de
-                    # verdade - prevalece mesmo se a celula ja tiver um valor
-                    # diferente (nao so quando esta em branco).
+                if campo_tela == "ENTREGA":
+                    # Unico campo que o arquivo do Totvs sempre prevalece, mesmo
+                    # se ja tiver um valor diferente - nao e mais editavel a mao
+                    # (ver campos_permitidos_compras), entao nao ha risco de
+                    # sobrescrever uma correcao manual do operador.
                     if novo_valor and novo_valor != valor_atual:
                         atualizacoes.append((info["row_num"], cabecalho_destino.index(col_real) + 1, novo_valor))
                         alterou = True
-                        valor_final_deste_campo = novo_valor
-                    else:
-                        valor_final_deste_campo = valor_atual
-                    if campo_tela == "ENTREGA":
-                        entrega_valor_final = valor_final_deste_campo
+                        entrega_definida_agora = True
                 else:
+                    # Todo o resto (incl. os demais campos de data, como
+                    # Previsão De Entrega, que o operador ainda edita a mao) so
+                    # preenche quando esta em branco - nunca sobrescreve o que
+                    # ja tem valor.
                     if valor_atual:
                         continue
                     if novo_valor:
@@ -897,11 +898,11 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
                         atualizacoes.append((info["row_num"], cabecalho_destino.index(col_status) + 1, novo_status))
                         alterou = True
 
-            # ENTREGA com data (recem-chegada ou ja de antes) sempre significa
-            # pedido atendido - forca o Status, tomando precedencia sobre
-            # qualquer atualizacao acima (auto-cura se o Status tiver ficado
-            # dessincronizado por qualquer motivo).
-            if col_status and entrega_valor_final:
+            # So forca o Status quando ENTREGA acabou de ser gravada NESTA
+            # importacao (nao a cada ciclo) - senao um Status corrigido a mao
+            # pelo gestor seria desfeito no proximo import so por causa de um
+            # ENTREGA antigo que nunca mudou.
+            if col_status and entrega_definida_agora:
                 atual_status_norm = normalizar_status_import(valores_atuais.get(col_status, ""))
                 if atual_status_norm != normalizar_status_import(STATUS_ATENDIDO_IMPORT):
                     atualizacoes.append((info["row_num"], cabecalho_destino.index(col_status) + 1, STATUS_ATENDIDO_IMPORT))
