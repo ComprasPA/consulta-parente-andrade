@@ -1397,20 +1397,34 @@ if tem_busca_ativa:
                                         dados_planilha = worksheet.get_all_values()
                                         cabecalho_bruto = dados_planilha[0]
                                         cabecalho_map = {c.upper().strip().replace('Í', 'I').replace('Ã', 'A').replace('Ç', 'C'): i + 1 for i, c in enumerate(cabecalho_bruto)}
-                                        
+
+                                        # Compara por _row_idx (numero real da linha na planilha),
+                                        # nunca pelo indice do pandas - a tabela permite ordenar
+                                        # clicando no cabecalho da coluna, e isso reordena o
+                                        # DataFrame devolvido por st.data_editor, que deixa de bater
+                                        # com a ordem original de df_original_cache. Comparar pelo
+                                        # indice nesse caso compara a linha errada e silenciosamente
+                                        # nao detecta a alteração real (ou grava na linha errada).
+                                        df_orig_por_row_idx = {
+                                            int(row["_row_idx"]): row for _, row in df_orig.iterrows()
+                                        }
+
                                         for idx in edited_df.index:
                                             linha_planilha = int(edited_df.loc[idx, "_row_idx"])
                                             if linha_planilha >= SENTINELA_ROW_IDX_EM_COTACAO:
                                                 # Linha sintetica "Em Cotação" (Solicitação sem
                                                 # Pedido ainda) - nao existe na aba Pedidos, nunca salva.
                                                 continue
+                                            linha_orig = df_orig_por_row_idx.get(linha_planilha)
+                                            if linha_orig is None:
+                                                continue
                                             for col in edited_df.columns:
                                                 if col == "_row_idx":
                                                     continue
-                                                
-                                                valor_antigo = str(df_orig.loc[idx, col])
+
+                                                valor_antigo = str(linha_orig[col])
                                                 valor_novo = str(edited_df.loc[idx, col])
-                                                
+
                                                 if valor_antigo != valor_novo:
                                                     col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
                                                     if col_config_item:
