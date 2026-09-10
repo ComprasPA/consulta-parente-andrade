@@ -193,17 +193,23 @@ def abrir_popup_dados_bancarios():
                 cadastro = buscar_cadastro_fornecedor_bancario(fornecedor)
                 if not cadastro:
                     st.warning(f"Fornecedor **{fornecedor}** ainda não tem dados bancários cadastrados.")
-                components.html(
-                    renderizar_card_dados_bancarios(
-                        pedido=re.sub(r"\.0$", "", numero_pedido_popup.strip()), fornecedor=fornecedor,
-                        cnpj=cadastro.get("CNPJ", ""), banco=cadastro.get("BANCO", ""), agencia=cadastro.get("AGENCIA", ""),
-                        conta=cadastro.get("CONTA", ""), pix=cadastro.get("PIX", ""), email=cadastro.get("EMAIL", ""),
-                        contato=cadastro.get("CONTATO", ""), vendedor=cadastro.get("VENDEDOR", ""),
-                        valor_formatado=formatar_moeda_br(valor_total),
-                    ),
-                    height=490, scrolling=False,
-                )
-                st.caption(f"{qtd_itens} item(ns) somados deste pedido.")
+                    st.link_button(
+                        "🏦 Inserir Dados Bancários",
+                        "https://dados-bancarios-fornecedores.streamlit.app/",
+                        type="primary",
+                    )
+                else:
+                    components.html(
+                        renderizar_card_dados_bancarios(
+                            pedido=re.sub(r"\.0$", "", numero_pedido_popup.strip()), fornecedor=fornecedor,
+                            cnpj=cadastro.get("CNPJ", ""), banco=cadastro.get("BANCO", ""), agencia=cadastro.get("AGENCIA", ""),
+                            conta=cadastro.get("CONTA", ""), pix=cadastro.get("PIX", ""), email=cadastro.get("EMAIL", ""),
+                            contato=cadastro.get("CONTATO", ""), vendedor=cadastro.get("VENDEDOR", ""),
+                            valor_formatado=formatar_moeda_br(valor_total),
+                        ),
+                        height=490, scrolling=False,
+                    )
+                    st.caption(f"{qtd_itens} item(ns) somados deste pedido.")
 
 
 def montar_linhas_em_cotacao(df_pc, df_sc):
