@@ -1356,7 +1356,19 @@ if tem_busca_ativa:
                             )
 
                     if st.session_state.autenticado:
-                        chave_editor = f"editor_painel_compras_{st.session_state.editor_key_counter}"
+                        # A key inclui uma "impressao digital" das linhas realmente
+                        # exibidas (hash dos _row_idx) - nao so o contador manual.
+                        # Descobri um bug real assim: se o usuario pesquisa A (15
+                        # linhas), depois pesquisa B (1 linha) SEM que o contador
+                        # mude por algum motivo, o widget (mesma key) pode manter
+                        # de um render pro outro um edited_rows["posicao 0"] que
+                        # pertencia a uma linha de A, e aplicar essa edicao na
+                        # linha ERRADA que agora esta na posicao 0 de B. Com a
+                        # impressao digital, qualquer mudanca no CONJUNTO de linhas
+                        # exibidas (nova busca, nova ordenacao, novo import) sempre
+                        # forca uma key nova e portanto um widget "zerado".
+                        fingerprint_linhas = hash(tuple(df_painel["_row_idx"].tolist()))
+                        chave_editor = f"editor_painel_compras_{fingerprint_linhas}_{st.session_state.editor_key_counter}"
                         edited_df = st.data_editor(
                             df_painel,
                             use_container_width=True,
