@@ -1472,7 +1472,7 @@ if tem_busca_ativa:
                                         elif alteracoes_detectadas > 0:
                                             lista_detalhes = "\n".join(f"- {item}" for item in detalhes_gravados)
                                             st.session_state.msg_salvar_sucesso = (
-                                                f"✅ {alteracoes_detectadas} alteração(ões) gravada(s) com sucesso na planilha!\n\n{lista_detalhes}"
+                                                f"✅ [build-verify-01] {alteracoes_detectadas} alteração(ões) gravada(s) e CONFERIDA(S) na planilha!\n\n{lista_detalhes}"
                                             )
                                             st.session_state.editor_key_counter += 1
                                             st.cache_data.clear()
