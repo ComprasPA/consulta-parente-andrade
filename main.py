@@ -1427,6 +1427,7 @@ if tem_busca_ativa:
 
                                         alteracoes_detectadas = 0
                                         detalhes_gravados = []
+                                        divergencias = []
                                         for posicao, mudancas in edited_rows.items():
                                             linha_df = df_painel.iloc[int(posicao)]
                                             linha_planilha = int(linha_df["_row_idx"])
@@ -1448,16 +1449,38 @@ if tem_busca_ativa:
 
                                                 if col_index:
                                                     worksheet.update_cell(linha_planilha, col_index, str(valor_novo))
-                                                    alteracoes_detectadas += 1
-                                                    detalhes_gravados.append(f"Pedido {pedido_num} — {col}: **{valor_novo}**")
+                                                    # Confere na hora se realmente ficou gravado - sem
+                                                    # isso o painel podia dizer "sucesso" mesmo que a
+                                                    # escrita nao tivesse pego por algum motivo.
+                                                    valor_conferido = worksheet.cell(linha_planilha, col_index).value
+                                                    if str(valor_conferido or "").strip() != str(valor_novo).strip():
+                                                        divergencias.append(
+                                                            f"Pedido {pedido_num} — {col}: tentei gravar **{valor_novo}**, "
+                                                            f"mas a planilha ainda mostra \"{valor_conferido}\" (linha {linha_planilha})"
+                                                        )
+                                                    else:
+                                                        alteracoes_detectadas += 1
+                                                        detalhes_gravados.append(f"Pedido {pedido_num} — {col}: **{valor_novo}**")
 
-                                        if alteracoes_detectadas > 0:
+                                        if divergencias:
+                                            st.markdown(
+                                                '<div class="custom-error-red">⚠️ A gravação não foi confirmada na planilha:<br>'
+                                                + "<br>".join(divergencias)
+                                                + '<br>Tente novamente e avise o suporte se persistir.</div>',
+                                                unsafe_allow_html=True,
+                                            )
+                                        elif alteracoes_detectadas > 0:
                                             lista_detalhes = "\n".join(f"- {item}" for item in detalhes_gravados)
                                             st.session_state.msg_salvar_sucesso = (
                                                 f"✅ {alteracoes_detectadas} alteração(ões) gravada(s) com sucesso na planilha!\n\n{lista_detalhes}"
                                             )
                                             st.session_state.editor_key_counter += 1
                                             st.cache_data.clear()
+                                            # Sem isso a tabela continuava mostrando o valor ANTIGO
+                                            # apos salvar - limpar so o cache do decorador nao bastava,
+                                            # dados_globais e guardado a parte na sessao e so recarrega
+                                            # se estiver ausente/vazio.
+                                            del st.session_state.dados_globais
                                             st.rerun()
                                         else:
                                             st.info("ℹ️ Nenhuma alteração foi realizada para salvar.")
