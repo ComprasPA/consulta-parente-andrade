@@ -1233,6 +1233,15 @@ if tem_busca_ativa:
                 if not df_painel.empty:
                     txt_status = f"🔍 Registros Localizados ({len(df_painel)} itens)"
                     st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
+
+                    # Confirmação de gravação persistida - o st.success() antigo
+                    # aparecia e sumia no mesmo instante por causa do st.rerun()
+                    # logo em seguida, entao o operador quase nunca chegava a
+                    # ver a mensagem. Agora ela fica guardada e é mostrada aqui,
+                    # de forma visível, ate a proxima acao (nova busca ou save).
+                    if "msg_salvar_sucesso" in st.session_state:
+                        st.success(st.session_state.pop("msg_salvar_sucesso"))
+
                     # Baixar Relatório / Salvar Alterações renderizados la em cima,
                     # na linha unificada de ações (ver seção 8.5) - btn_salvar_dados
                     # ja foi calculado por la.
@@ -1417,6 +1426,7 @@ if tem_busca_ativa:
                                         cabecalho_map = {c.upper().strip().replace('Í', 'I').replace('Ã', 'A').replace('Ç', 'C'): i + 1 for i, c in enumerate(cabecalho_bruto)}
 
                                         alteracoes_detectadas = 0
+                                        detalhes_gravados = []
                                         for posicao, mudancas in edited_rows.items():
                                             linha_df = df_painel.iloc[int(posicao)]
                                             linha_planilha = int(linha_df["_row_idx"])
@@ -1424,6 +1434,7 @@ if tem_busca_ativa:
                                                 # Linha sintetica "Em Cotação" (Solicitação sem
                                                 # Pedido ainda) - nao existe na aba Pedidos, nunca salva.
                                                 continue
+                                            pedido_num = str(linha_df.get("Pedido", "")).strip()
                                             for col, valor_novo in mudancas.items():
                                                 col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
                                                 if not col_config_item:
@@ -1438,9 +1449,13 @@ if tem_busca_ativa:
                                                 if col_index:
                                                     worksheet.update_cell(linha_planilha, col_index, str(valor_novo))
                                                     alteracoes_detectadas += 1
+                                                    detalhes_gravados.append(f"Pedido {pedido_num} — {col}: **{valor_novo}**")
 
                                         if alteracoes_detectadas > 0:
-                                            st.success(f"✅ {alteracoes_detectadas} alteração(ões) gravada(s) com sucesso na planilha!")
+                                            lista_detalhes = "\n".join(f"- {item}" for item in detalhes_gravados)
+                                            st.session_state.msg_salvar_sucesso = (
+                                                f"✅ {alteracoes_detectadas} alteração(ões) gravada(s) com sucesso na planilha!\n\n{lista_detalhes}"
+                                            )
                                             st.session_state.editor_key_counter += 1
                                             st.cache_data.clear()
                                             st.rerun()
