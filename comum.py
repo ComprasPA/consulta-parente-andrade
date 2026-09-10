@@ -132,12 +132,12 @@ CSS_GLOBAL = """
     div.stFormSubmitButton > button[kind^="secondary"] { background-color: var(--pa-card) !important; border-color: var(--pa-mist) !important; color: var(--pa-ink) !important; }
     div.stFormSubmitButton > button[kind^="secondary"]:hover { border-color: var(--pa-slate-soft) !important; }
 
-    div.stButton > button, div.stDownloadButton > button { border-radius: 7px !important; font-weight: 600 !important; min-height: 27px !important; font-size: 10px !important; padding: 0px 10px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: clip !important; }
-    div.stButton > button p, div.stDownloadButton > button p { white-space: nowrap !important; }
+    div.stButton > button, div.stDownloadButton > button, div.stLinkButton > a { border-radius: 7px !important; font-weight: 600 !important; min-height: 27px !important; max-height: 27px !important; font-size: 10px !important; padding: 0px 10px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: clip !important; box-sizing: border-box !important; }
+    div.stButton > button p, div.stDownloadButton > button p, div.stLinkButton > a p { white-space: nowrap !important; font-size: 10px !important; }
     div.stButton > button[kind^="primary"], div.stDownloadButton > button[kind^="primary"] { background-color: var(--pa-verde) !important; border-color: var(--pa-verde) !important; color: #fff !important; }
     div.stButton > button[kind^="primary"]:hover, div.stDownloadButton > button[kind^="primary"]:hover { background-color: var(--pa-verde-deep) !important; border-color: var(--pa-verde-deep) !important; }
-    div.stButton > button[kind^="secondary"], div.stDownloadButton > button[kind^="secondary"] { background-color: var(--pa-card) !important; border-color: var(--pa-mist) !important; color: var(--pa-ink) !important; }
-    div.stButton > button[kind^="secondary"]:hover, div.stDownloadButton > button[kind^="secondary"]:hover { border-color: var(--pa-slate-soft) !important; }
+    div.stButton > button[kind^="secondary"], div.stDownloadButton > button[kind^="secondary"], div.stLinkButton > a { background-color: var(--pa-card) !important; border-color: var(--pa-mist) !important; color: var(--pa-ink) !important; }
+    div.stButton > button[kind^="secondary"]:hover, div.stDownloadButton > button[kind^="secondary"]:hover, div.stLinkButton > a:hover { border-color: var(--pa-slate-soft) !important; }
     div.st-key-btn_sair button { background-color: var(--pa-card) !important; border-color: #f3c6c6 !important; color: #c53030 !important; }
     div.st-key-btn_sair button:hover { background-color: var(--pa-error-bg) !important; border-color: #c53030 !important; }
     div.st-key-acoes_painel_wrap { flex-direction: row !important; align-items: center !important; justify-content: flex-start !important; gap: 12px !important; width: fit-content !important; margin-bottom: 10px; }
