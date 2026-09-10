@@ -1421,6 +1421,21 @@ if tem_busca_ativa:
                                         except:
                                             worksheet = spreadsheet.get_worksheet(0)
 
+                                        # DIAGNOSTICO TEMPORARIO - registra cada tentativa de save
+                                        # numa aba a parte, pra investigar um caso de escrita sendo
+                                        # revertida logo em seguida. Remover depois de resolvido.
+                                        try:
+                                            aba_debug = spreadsheet.worksheet("_DebugSalvar")
+                                        except gspread.WorksheetNotFound:
+                                            aba_debug = spreadsheet.add_worksheet(title="_DebugSalvar", rows=2000, cols=6)
+                                            aba_debug.append_row(["timestamp", "editor_key_counter", "edited_rows_raw", "session_id"])
+                                        aba_debug.append_row([
+                                            datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"),
+                                            st.session_state.editor_key_counter,
+                                            repr(edited_rows),
+                                            str(id(st.session_state)),
+                                        ], value_input_option="RAW")
+
                                         dados_planilha = worksheet.get_all_values()
                                         cabecalho_bruto = dados_planilha[0]
                                         cabecalho_map = {c.upper().strip().replace('Í', 'I').replace('Ã', 'A').replace('Ç', 'C'): i + 1 for i, c in enumerate(cabecalho_bruto)}
@@ -1453,6 +1468,11 @@ if tem_busca_ativa:
                                                     # isso o painel podia dizer "sucesso" mesmo que a
                                                     # escrita nao tivesse pego por algum motivo.
                                                     valor_conferido = worksheet.cell(linha_planilha, col_index).value
+                                                    aba_debug.append_row([
+                                                        datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"),
+                                                        f"ESCREVEU linha={linha_planilha} col={col_index} valor={valor_novo!r} conferido={valor_conferido!r}",
+                                                        "", "",
+                                                    ], value_input_option="RAW")
                                                     if str(valor_conferido or "").strip() != str(valor_novo).strip():
                                                         divergencias.append(
                                                             f"Pedido {pedido_num} — {col}: tentei gravar **{valor_novo}**, "
