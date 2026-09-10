@@ -1049,6 +1049,12 @@ if "filtro_status_val" not in st.session_state:
     st.session_state.filtro_status_val = "Todos"
 if "filtro_data_val" not in st.session_state:
     st.session_state.filtro_data_val = ()
+if "editor_key_counter" not in st.session_state:
+    # Muda a key do st.data_editor a cada nova pesquisa/limpeza/atualizacao de
+    # banco e a cada salvamento bem-sucedido - forca o widget a "zerar" (nao
+    # reaplicar edicoes antigas em cima de linhas novas) e evita depender de
+    # comparar dataframes entre reruns (ver SALVAMENTO mais abaixo).
+    st.session_state.editor_key_counter = 0
 
 # Pré-cálculo do relatório (pra habilitar o botão Baixar Relatório dentro dos Filtros Avançados,
 # com o resultado da busca mais recente - sem isso o botão mostraria dado de uma busca anterior)
@@ -1110,7 +1116,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.filtro_status_val = filtro_status
                 st.session_state.filtro_data_val = filtro_data
                 st.session_state.gaveta_aberta = False
-                st.session_state.atualizar_cache_editor = True
+                st.session_state.editor_key_counter += 1
                 st.rerun()
 
         with b2:
@@ -1122,15 +1128,15 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
                 st.session_state.filtro_status_val = "Todos"
                 st.session_state.filtro_data_val = ()
                 st.session_state.gaveta_aberta = True
-                st.session_state.atualizar_cache_editor = True
+                st.session_state.editor_key_counter += 1
                 st.rerun()
-                
+
         with b3:
             btn_atualizar = st.form_submit_button("🔄 Atualizar Banco", use_container_width=True)
             if btn_atualizar:
                 st.session_state.dados_globais = carregar_dados_seguros()
                 st.session_state.gaveta_aberta = True
-                st.session_state.atualizar_cache_editor = True
+                st.session_state.editor_key_counter += 1
                 st.rerun()
 
         with b4:
@@ -1341,42 +1347,54 @@ if tem_busca_ativa:
                             )
 
                     if st.session_state.autenticado:
-                        if "df_original_cache" not in st.session_state or st.session_state.get("atualizar_cache_editor", True):
-                            st.session_state.df_original_cache = df_painel.copy()
-                            st.session_state.atualizar_cache_editor = False
-
+                        chave_editor = f"editor_painel_compras_{st.session_state.editor_key_counter}"
                         edited_df = st.data_editor(
-                            df_painel, 
-                            use_container_width=True, 
-                            hide_index=True, 
+                            df_painel,
+                            use_container_width=True,
+                            hide_index=True,
                             column_config=configuracao_colunas_tela,
-                            key="editor_painel_compras"
+                            key=chave_editor
                         )
-                        
-                        # SALVAMENTO PROCV COM VALIDAÇÃO RÍGIDA DE DATAS (DD/MM/AAAA)
+
+                        # SALVAMENTO - le direto do estado interno do widget
+                        # (session_state[chave_editor]["edited_rows"]), NAO do
+                        # dataframe "edited_df" devolvido por st.data_editor.
+                        # E um bug conhecido e documentado do Streamlit
+                        # (streamlit/streamlit#7749, #7868, #7354): o dataframe
+                        # devolvido fica "um ciclo atrasado" quando a edicao e
+                        # seguida rapido por outro widget (o botao Salvar),
+                        # reportando falsamente "nenhuma alteracao" mesmo com
+                        # uma edicao real na tela. O dict edited_rows nao sofre
+                        # desse atraso - e a fonte que o proprio Streamlit usa
+                        # pra reconstruir o dataframe devolvido, entao ler
+                        # direto daqui e mais confiavel. Bonus: as chaves de
+                        # edited_rows sao a POSIÇÃO na tabela como foi passada
+                        # pro editor (df_painel), imune a qualquer ordenacao
+                        # que o usuario aplique clicando num cabecalho de coluna.
                         if btn_salvar_dados:
-                            if "df_original_cache" in st.session_state:
-                                df_orig = st.session_state.df_original_cache
-                                alteracoes_detectadas = 0
-                                data_invalida_encontrada = False
-                                
+                            estado_editor = st.session_state.get(chave_editor, {})
+                            edited_rows = estado_editor.get("edited_rows", {})
+
+                            if not edited_rows:
+                                st.info("ℹ️ Nenhuma alteração foi realizada para salvar.")
+                            else:
                                 # Datas fora do formato DD/MM/AAAA (ex: "5/6/2026", "05/06/26") sao
                                 # corrigidas automaticamente antes de salvar - so bloqueia o save se
                                 # o texto digitado nem der pra reconhecer como data nenhuma.
                                 colunas_de_data_tela = ["Emissão Pc", "Aprovação Pc", "Envio Pc", "Previsão De Entrega", "Entrega"]
+                                data_invalida_encontrada = False
                                 campo_data_invalido = None
-                                for idx in edited_df.index:
+                                for mudancas in edited_rows.values():
                                     for col_dt in colunas_de_data_tela:
-                                        if col_dt in edited_df.columns:
-                                            val_novo_dt = str(edited_df.loc[idx, col_dt])
+                                        if col_dt in mudancas:
+                                            val_novo_dt = str(mudancas[col_dt])
                                             if not validar_formato_data(val_novo_dt):
                                                 val_corrigido = formatar_para_dd_mm_aaaa(val_novo_dt)
                                                 if validar_formato_data(val_corrigido):
-                                                    edited_df.loc[idx, col_dt] = val_corrigido
+                                                    mudancas[col_dt] = val_corrigido
                                                 else:
                                                     data_invalida_encontrada = True
                                                     campo_data_invalido = (col_dt, val_novo_dt)
-                                                    break
                                     if data_invalida_encontrada:
                                         break
 
@@ -1393,67 +1411,42 @@ if tem_busca_ativa:
                                             worksheet = spreadsheet.worksheet("Pedidos")
                                         except:
                                             worksheet = spreadsheet.get_worksheet(0)
-                                        
+
                                         dados_planilha = worksheet.get_all_values()
                                         cabecalho_bruto = dados_planilha[0]
                                         cabecalho_map = {c.upper().strip().replace('Í', 'I').replace('Ã', 'A').replace('Ç', 'C'): i + 1 for i, c in enumerate(cabecalho_bruto)}
 
-                                        # Compara por _row_idx (numero real da linha na planilha),
-                                        # nunca pelo indice do pandas - a tabela permite ordenar
-                                        # clicando no cabecalho da coluna, e isso reordena o
-                                        # DataFrame devolvido por st.data_editor, que deixa de bater
-                                        # com a ordem original de df_original_cache. Comparar pelo
-                                        # indice nesse caso compara a linha errada e silenciosamente
-                                        # nao detecta a alteração real (ou grava na linha errada).
-                                        df_orig_por_row_idx = {
-                                            int(row["_row_idx"]): row for _, row in df_orig.iterrows()
-                                        }
-
-                                        for idx in edited_df.index:
-                                            linha_planilha = int(edited_df.loc[idx, "_row_idx"])
+                                        alteracoes_detectadas = 0
+                                        for posicao, mudancas in edited_rows.items():
+                                            linha_df = df_painel.iloc[int(posicao)]
+                                            linha_planilha = int(linha_df["_row_idx"])
                                             if linha_planilha >= SENTINELA_ROW_IDX_EM_COTACAO:
                                                 # Linha sintetica "Em Cotação" (Solicitação sem
                                                 # Pedido ainda) - nao existe na aba Pedidos, nunca salva.
                                                 continue
-                                            linha_orig = df_orig_por_row_idx.get(linha_planilha)
-                                            if linha_orig is None:
-                                                continue
-                                            for col in edited_df.columns:
-                                                if col == "_row_idx":
+                                            for col, valor_novo in mudancas.items():
+                                                col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
+                                                if not col_config_item:
                                                     continue
+                                                col_index = None
+                                                for alt in col_config_item["planilha"]:
+                                                    alt_clean = alt.upper().strip().replace('Í', 'I').replace('Ã', 'A').replace('Ç', 'C')
+                                                    col_index = cabecalho_map.get(alt_clean)
+                                                    if col_index:
+                                                        break
 
-                                                valor_antigo = str(linha_orig[col])
-                                                valor_novo = str(edited_df.loc[idx, col])
+                                                if col_index:
+                                                    worksheet.update_cell(linha_planilha, col_index, str(valor_novo))
+                                                    alteracoes_detectadas += 1
 
-                                                if valor_antigo != valor_novo:
-                                                    col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
-                                                    if col_config_item:
-                                                        col_index = None
-                                                        for alt in col_config_item["planilha"]:
-                                                            alt_clean = alt.upper().strip().replace('Í', 'I').replace('Ã', 'A').replace('Ç', 'C')
-                                                            col_index = cabecalho_map.get(alt_clean)
-                                                            if col_index:
-                                                                break
-                                                        
-                                                        if col_index:
-                                                            worksheet.update_cell(linha_planilha, col_index, valor_novo)
-                                                            alteracoes_detectadas += 1
-                                                            
                                         if alteracoes_detectadas > 0:
                                             st.success(f"✅ {alteracoes_detectadas} alteração(ões) gravada(s) com sucesso na planilha!")
-                                            st.session_state.df_original_cache = edited_df.copy()
+                                            st.session_state.editor_key_counter += 1
                                             st.cache_data.clear()
                                             st.rerun()
                                         else:
                                             st.info("ℹ️ Nenhuma alteração foi realizada para salvar.")
-                                            
-                                    except KeyError:
-                                        # df_original_cache ficou fora de sincronia com a busca atual
-                                        # (base foi atualizada ou pesquisa mudou) - forca reconstrucao
-                                        # do cache e pede pra tentar de novo, em vez de mostrar so o
-                                        # indice numerico interno que gerou o erro.
-                                        st.session_state.atualizar_cache_editor = True
-                                        st.error("❌ A tela estava com um snapshot desatualizado dessa busca. Já corrigido - clique em **Pesquisar** de novo e repita a alteração.")
+
                                     except Exception as e:
                                         erro_str = str(e)
                                         if "403" in erro_str or "permission" in erro_str.lower():
