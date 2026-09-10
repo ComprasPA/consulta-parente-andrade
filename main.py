@@ -2,10 +2,12 @@ import streamlit as st
 import pandas as pd
 import re
 import unicodedata
+import html as html_lib
 from datetime import datetime, timedelta
 from io import BytesIO
 import urllib.request
 import gspread
+import streamlit.components.v1 as components
 
 from comum import (
     FILE_ID,
@@ -46,6 +48,162 @@ SENTINELA_ROW_IDX_EM_COTACAO = 10_000_000
 # (decisao explicita do usuario). Filtrado logo na leitura, o mais cedo
 # possivel, pra nenhum calculo/filtro/exportacao rio abaixo enxergar essa linha.
 STATUS_EXCLUIDO_TOTVS = "EXCLUÍDO DO TOTVS"
+
+# ------------------------------------------------------------------
+# POPUP DE DADOS BANCÁRIOS (busca por Pedido) - lê as mesmas abas
+# "Pedidos" e "CadastroFornecedores" que o app companheiro
+# dados-bancarios-fornecedores.streamlit.app usa e mantém, então mostra o
+# mesmo card aqui dentro do portal sem precisar abrir o outro app.
+ABA_CADASTRO_FORNECEDORES = "CadastroFornecedores"
+CABECALHO_CADASTRO_FORNECEDORES = ["FORNECEDOR", "CNPJ", "BANCO", "AGENCIA", "CONTA", "PIX", "EMAIL", "CONTATO", "VENDEDOR"]
+
+
+@st.cache_data(ttl=120)
+def buscar_pedido_fornecedor_valor(numero_pedido: str):
+    """Devolve (fornecedor, valor_total, qtd_itens) ou None se o pedido não
+    existir (ou só existir marcado como EXCLUÍDO DO TOTVS)."""
+    client, _ = obter_client_gspread()
+    spreadsheet = client.open_by_key(FILE_ID)
+    df = _ler_aba_como_df(spreadsheet, "Pedidos")
+    if df.empty or "PEDIDO" not in df.columns:
+        return None
+    termo = re.sub(r"\.0$", "", str(numero_pedido).strip())
+    col_pedido = df["PEDIDO"].astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
+    linhas = df[col_pedido == termo]
+    if "STATUS" in df.columns:
+        linhas = linhas[linhas["STATUS"].astype(str).str.strip().str.upper() != STATUS_EXCLUIDO_TOTVS]
+    if linhas.empty:
+        return None
+    fornecedor = str(linhas.iloc[0].get("FORNECEDOR", "")).strip().upper()
+    valor_total = sum(converter_para_numerico(v) for v in linhas.get("VALOR TOTAL", []))
+    return fornecedor, valor_total, len(linhas)
+
+
+def buscar_cadastro_fornecedor_bancario(nome_fornecedor: str) -> dict:
+    client, _ = obter_client_gspread()
+    spreadsheet = client.open_by_key(FILE_ID)
+    df = _ler_aba_como_df(spreadsheet, ABA_CADASTRO_FORNECEDORES)
+    if df.empty or "FORNECEDOR" not in df.columns:
+        return {}
+    chave = str(nome_fornecedor or "").strip().upper()
+    linhas = df[df["FORNECEDOR"].astype(str).str.strip().str.upper() == chave]
+    if linhas.empty:
+        return {}
+    return {col: str(linhas.iloc[0].get(col, "")) for col in CABECALHO_CADASTRO_FORNECEDORES}
+
+
+def renderizar_card_dados_bancarios(pedido, fornecedor, cnpj, banco, agencia, conta, pix, email, contato, vendedor, valor_formatado):
+    """Mesmo card visual (fundo branco/cinza claro, formato de tabela) do
+    app dados-bancarios-fornecedores, embutido aqui pra mostrar no popup
+    sem sair do portal."""
+
+    def esc(valor):
+        return html_lib.escape(str(valor)) if valor else ""
+
+    linhas = [
+        ("CNPJ", cnpj), ("BANCO", banco), ("AGÊNCIA", agencia), ("CONTA", conta),
+        ("PIX", pix), ("E-MAIL", email), ("CONTATO", contato), ("VENDEDOR", vendedor),
+        ("R$", valor_formatado),
+    ]
+    linhas_html = "".join(f'<tr><td class="rotulo">{rot}</td><td class="valor">{esc(val)}</td></tr>' for rot, val in linhas)
+    pedido_esc = esc(pedido)
+    nome_arquivo = f"dados_bancarios_pedido_{re.sub(r'[^0-9A-Za-z_-]', '', str(pedido))}.jpg"
+
+    return f"""
+    <div id="wrap">
+      <div id="ficha-card">
+        <table>
+          <tr><td colspan="2" class="cabecalho">
+            <span class="rotulo-cabecalho">Pedido de Compras;</span>
+            <span class="numero-cabecalho">{pedido_esc}</span>
+          </td></tr>
+          <tr><td class="rotulo">FORNECEDOR</td><td class="valor">{esc(fornecedor)}</td></tr>
+          {linhas_html}
+        </table>
+      </div>
+      <div id="botoes">
+        <button id="btn-copiar" onclick="copiarImagem()">📋 Copiar Imagem</button>
+        <button id="btn-baixar" onclick="baixarImagem()">⬇️ Baixar JPG</button>
+        <span id="status"></span>
+      </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script>
+    function gerarCanvas() {{
+        return html2canvas(document.getElementById('ficha-card'), {{backgroundColor: '#ffffff'}});
+    }}
+    function baixarImagem() {{
+        var status = document.getElementById('status');
+        gerarCanvas().then(function(canvas) {{
+            var link = document.createElement('a');
+            link.download = '{nome_arquivo}';
+            link.href = canvas.toDataURL('image/jpeg', 0.95);
+            link.click();
+            status.textContent = '✅ Baixado.';
+        }});
+    }}
+    function copiarImagem() {{
+        var status = document.getElementById('status');
+        gerarCanvas().then(function(canvas) {{
+            canvas.toBlob(function(blob) {{
+                if (navigator.clipboard && window.ClipboardItem) {{
+                    navigator.clipboard.write([new ClipboardItem({{'image/png': blob}})]).then(function() {{
+                        status.textContent = '✅ Copiado! Já pode colar (Ctrl+V) em outro lugar.';
+                    }}).catch(function() {{
+                        status.textContent = '⚠️ Não deu pra copiar automaticamente - use Baixar JPG.';
+                    }});
+                }} else {{
+                    status.textContent = '⚠️ Este navegador não suporta copiar imagem - use Baixar JPG.';
+                }}
+            }});
+        }});
+    }}
+    </script>
+    <style>
+    body {{ margin:0; padding-bottom:16px; font-family: 'Segoe UI', Arial, sans-serif; background:#ffffff; }}
+    #wrap {{ width: 100%; max-width: 600px; margin: 0 auto; }}
+    #ficha-card {{ width: 100%; height: 400px; box-sizing: border-box; border: 5px solid #B8B8B8; background:#ffffff; overflow: hidden; }}
+    table {{ width: 100%; height: 100%; border-collapse: collapse; table-layout: auto; }}
+    td {{ border: 1px solid #9A9A9A; padding: 5px 18px; font-size: 14px; line-height:1.15; color: #1c1c3a; }}
+    td.cabecalho {{ background:#D3D3D3; border-bottom: 3px solid #9A9A9A; padding: 10px 18px; }}
+    .rotulo-cabecalho {{ font-weight:700; font-size:17px; }}
+    .numero-cabecalho {{ font-weight:800; font-size:22px; float:right; }}
+    td.rotulo {{ width:1%; white-space:nowrap; background:#D3D3D3; font-weight:700; padding-left:10px; padding-right:6px; }}
+    td.valor {{ background:#ffffff; }}
+    #botoes {{ margin-top:22px; display:flex; align-items:center; flex-wrap:wrap; gap:10px; }}
+    #botoes button {{ background:#00C2D6; color:#06212E; border:none; padding:10px 16px; border-radius:6px; cursor:pointer; font-weight:600; font-size:13px; }}
+    #botoes button:hover {{ background:#00A8B8; }}
+    #status {{ font-size:13px; color:#5B6459; }}
+    </style>
+    """
+
+
+@st.dialog("🏦 Dados Bancários do Fornecedor")
+def abrir_popup_dados_bancarios():
+    numero_pedido_popup = st.text_input("Número do Pedido de Compras", key="popup_num_pedido", placeholder="Ex: 179723")
+    if st.button("🔍 Buscar", key="popup_btn_buscar", type="primary"):
+        if not numero_pedido_popup.strip():
+            st.warning("Digite um número de pedido.")
+        else:
+            resultado = buscar_pedido_fornecedor_valor(numero_pedido_popup)
+            if not resultado:
+                st.error(f"Nenhum pedido ativo encontrado com o número {numero_pedido_popup.strip()}.")
+            else:
+                fornecedor, valor_total, qtd_itens = resultado
+                cadastro = buscar_cadastro_fornecedor_bancario(fornecedor)
+                if not cadastro:
+                    st.warning(f"Fornecedor **{fornecedor}** ainda não tem dados bancários cadastrados.")
+                components.html(
+                    renderizar_card_dados_bancarios(
+                        pedido=re.sub(r"\.0$", "", numero_pedido_popup.strip()), fornecedor=fornecedor,
+                        cnpj=cadastro.get("CNPJ", ""), banco=cadastro.get("BANCO", ""), agencia=cadastro.get("AGENCIA", ""),
+                        conta=cadastro.get("CONTA", ""), pix=cadastro.get("PIX", ""), email=cadastro.get("EMAIL", ""),
+                        contato=cadastro.get("CONTATO", ""), vendedor=cadastro.get("VENDEDOR", ""),
+                        valor_formatado=formatar_moeda_br(valor_total),
+                    ),
+                    height=490, scrolling=False,
+                )
+                st.caption(f"{qtd_itens} item(ns) somados deste pedido.")
 
 
 def montar_linhas_em_cotacao(df_pc, df_sc):
@@ -1004,7 +1162,8 @@ with st.container(key="acoes_painel_wrap"):
         btn_salvar_dados = False
 
     if st.session_state.autenticado and st.session_state.departamento_ativo == "compras":
-        st.link_button("🏦 Dados Bancários", "https://dados-bancarios-fornecedores.streamlit.app/")
+        if st.button("🏦 Dados Bancários", key="btn_abrir_dados_bancarios"):
+            abrir_popup_dados_bancarios()
 
 if st.session_state.autenticado and st.session_state.departamento_ativo in ("compras", "gestor"):
     if st.session_state.mostrar_popup_importar:
