@@ -1003,6 +1003,9 @@ with st.container(key="acoes_painel_wrap"):
     else:
         btn_salvar_dados = False
 
+    if st.session_state.autenticado and st.session_state.departamento_ativo == "compras":
+        st.link_button("🏦 Dados Bancários", "https://dados-bancarios-fornecedores.streamlit.app/")
+
 if st.session_state.autenticado and st.session_state.departamento_ativo in ("compras", "gestor"):
     if st.session_state.mostrar_popup_importar:
         with st.container():

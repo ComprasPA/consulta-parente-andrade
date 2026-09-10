@@ -141,8 +141,8 @@ CSS_GLOBAL = """
     div.st-key-btn_sair button { background-color: var(--pa-card) !important; border-color: #f3c6c6 !important; color: #c53030 !important; }
     div.st-key-btn_sair button:hover { background-color: var(--pa-error-bg) !important; border-color: #c53030 !important; }
     div.st-key-acoes_painel_wrap { flex-direction: row !important; align-items: center !important; justify-content: flex-start !important; gap: 12px !important; width: fit-content !important; margin-bottom: 10px; }
-    div.st-key-acoes_painel_wrap div.stDownloadButton, div.st-key-acoes_painel_wrap div.stButton { width: fit-content !important; flex: 0 0 auto !important; }
-    div.st-key-acoes_painel_wrap div.stDownloadButton > button, div.st-key-acoes_painel_wrap div.stButton > button { width: auto !important; }
+    div.st-key-acoes_painel_wrap div.stDownloadButton, div.st-key-acoes_painel_wrap div.stButton, div.st-key-acoes_painel_wrap div.stLinkButton { width: fit-content !important; flex: 0 0 auto !important; }
+    div.st-key-acoes_painel_wrap div.stDownloadButton > button, div.st-key-acoes_painel_wrap div.stButton > button, div.st-key-acoes_painel_wrap div.stLinkButton > a { width: auto !important; white-space: nowrap !important; }
 
     .status-card { background: var(--pa-card); color: var(--pa-ink); padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; border-left: 5px solid var(--pa-verde); box-shadow: 0 1px 3px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; }
     .custom-error-red { background-color: var(--pa-error-bg) !important; color: var(--pa-error-text) !important; padding: 16px 24px; border-radius: 10px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(28,36,32,.05); margin-bottom: 16px; width: 100%; border-left: 5px solid var(--pa-error-border); }
