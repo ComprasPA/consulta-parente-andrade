@@ -305,7 +305,15 @@ def carregar_dados_seguros():
 
         col_status_bruto = next((c for c in df.columns if c.upper().strip() == "STATUS"), None)
         if col_status_bruto:
-            df = df[df[col_status_bruto].astype(str).str.strip().str.upper() != STATUS_EXCLUIDO_TOTVS].reset_index(drop=True)
+            # NUNCA resetar o index aqui: o _row_idx (linha física da planilha,
+            # usado pra gravar via worksheet.update_cell) é calculado em
+            # montar_df_painel como index+2, contando com que o index do df
+            # continue sendo a posição ORIGINAL na aba "Pedidos" (antes de
+            # qualquer filtro). Um reset_index(drop=True) depois de excluir as
+            # linhas "EXCLUÍDO DO TOTVS" fazia todo pedido abaixo de uma linha
+            # excluída calcular um _row_idx errado (deslocado pela quantidade
+            # de linhas excluídas acima dele) e gravar na linha física errada.
+            df = df[df[col_status_bruto].astype(str).str.strip().str.upper() != STATUS_EXCLUIDO_TOTVS]
 
         try:
             df_sc = _ler_aba_como_df(spreadsheet, "Solicitacoes")
@@ -1433,21 +1441,6 @@ if tem_busca_ativa:
                                         except:
                                             worksheet = spreadsheet.get_worksheet(0)
 
-                                        # DIAGNOSTICO TEMPORARIO - registra cada tentativa de save
-                                        # numa aba a parte, pra investigar um caso de escrita sendo
-                                        # revertida logo em seguida. Remover depois de resolvido.
-                                        try:
-                                            aba_debug = spreadsheet.worksheet("_DebugSalvar")
-                                        except gspread.WorksheetNotFound:
-                                            aba_debug = spreadsheet.add_worksheet(title="_DebugSalvar", rows=2000, cols=6)
-                                            aba_debug.append_row(["timestamp", "editor_key_counter", "edited_rows_raw", "session_id"])
-                                        aba_debug.append_row([
-                                            datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"),
-                                            st.session_state.editor_key_counter,
-                                            repr(edited_rows),
-                                            str(id(st.session_state)),
-                                        ], value_input_option="RAW")
-
                                         dados_planilha = worksheet.get_all_values()
                                         cabecalho_bruto = dados_planilha[0]
                                         cabecalho_map = {c.upper().strip().replace('Í', 'I').replace('Ã', 'A').replace('Ç', 'C'): i + 1 for i, c in enumerate(cabecalho_bruto)}
@@ -1480,11 +1473,6 @@ if tem_busca_ativa:
                                                     # isso o painel podia dizer "sucesso" mesmo que a
                                                     # escrita nao tivesse pego por algum motivo.
                                                     valor_conferido = worksheet.cell(linha_planilha, col_index).value
-                                                    aba_debug.append_row([
-                                                        datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"),
-                                                        f"ESCREVEU linha={linha_planilha} col={col_index} valor={valor_novo!r} conferido={valor_conferido!r}",
-                                                        "", "",
-                                                    ], value_input_option="RAW")
                                                     if str(valor_conferido or "").strip() != str(valor_novo).strip():
                                                         divergencias.append(
                                                             f"Pedido {pedido_num} — {col}: tentei gravar **{valor_novo}**, "
@@ -1504,7 +1492,7 @@ if tem_busca_ativa:
                                         elif alteracoes_detectadas > 0:
                                             lista_detalhes = "\n".join(f"- {item}" for item in detalhes_gravados)
                                             st.session_state.msg_salvar_sucesso = (
-                                                f"✅ [build-verify-01] {alteracoes_detectadas} alteração(ões) gravada(s) e CONFERIDA(S) na planilha!\n\n{lista_detalhes}\n\n_conta de serviço: {email_servico}_"
+                                                f"✅ {alteracoes_detectadas} alteração(ões) gravada(s) e conferida(s) na planilha!\n\n{lista_detalhes}"
                                             )
                                             st.session_state.editor_key_counter += 1
                                             st.cache_data.clear()
