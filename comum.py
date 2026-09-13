@@ -349,6 +349,15 @@ def validar_formato_data(txt):
 
 
 def formatar_para_dd_mm_aaaa(valor):
+    # Um datetime/Timestamp real ja e inequivoco - formata direto, sem
+    # passar por str()+reparse (que e o que causava o bug de dia/mes
+    # trocados: str(Timestamp) vira "AAAA-MM-DD HH:MM:SS" e cai no
+    # dayfirst=True abaixo como se fosse ambiguo).
+    if isinstance(valor, (datetime, pd.Timestamp)):
+        if pd.isna(valor):
+            return ""
+        return valor.strftime('%d/%m/%Y')
+
     txt = str(valor).strip()
     if txt == "" or txt.lower() in ["nan", "none", "0", "n/a"]:
         return txt
@@ -357,7 +366,11 @@ def formatar_para_dd_mm_aaaa(valor):
             dt = datetime(1899, 12, 30) + timedelta(days=int(txt))
             return dt.strftime('%d/%m/%Y')
 
-        dt = pd.to_datetime(txt, errors='coerce', format='mixed', dayfirst=True)
+        # Uma string ja em formato ISO (AAAA-MM-DD) e inequivoca - dayfirst
+        # so deve se aplicar a formatos tipo DD/MM/AAAA, onde de fato ha
+        # ambiguidade quando dia e mes sao <=12.
+        dayfirst = re.match(r'^\d{4}-\d{2}-\d{2}', txt) is None
+        dt = pd.to_datetime(txt, errors='coerce', format='mixed', dayfirst=dayfirst)
         if pd.isna(dt):
             return txt
         return dt.strftime('%d/%m/%Y')

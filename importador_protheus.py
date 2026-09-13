@@ -169,7 +169,16 @@ def fmt_decimal_import(valor) -> str:
 def fmt_data_import(valor) -> str:
     if pd.isna(valor) or str(valor).strip() == "":
         return ""
-    dt = pd.to_datetime(valor, errors="coerce", dayfirst=True)
+    # Um datetime/Timestamp real (caminho normal - pd.read_excel devolve
+    # Timestamp pra celula de data tipada) ja e inequivoco - formata direto.
+    if isinstance(valor, (datetime, pd.Timestamp)):
+        return valor.strftime("%d/%m/%Y")
+    # Uma string ja em formato ISO (AAAA-MM-DD) tambem e inequivoca -
+    # dayfirst=True so faz sentido pra formatos tipo DD/MM/AAAA, onde ha
+    # ambiguidade real quando dia e mes sao <=12.
+    txt = str(valor).strip()
+    dayfirst = re.match(r'^\d{4}-\d{2}-\d{2}', txt) is None
+    dt = pd.to_datetime(valor, errors="coerce", dayfirst=dayfirst)
     if pd.isna(dt):
         return ""
     return dt.strftime("%d/%m/%Y")

@@ -101,21 +101,20 @@ class TestFormatadores:
     def test_fmt_data_formata_dd_mm_aaaa(self):
         # Entrada real e sempre um valor de data ja tipado (pd.Timestamp),
         # como o pandas devolve ao ler uma celula de data do Excel via
-        # pd.read_excel - nao uma string ISO (ver nota de bug em
-        # test_ambiguidade_dayfirst_em_string_iso abaixo).
+        # pd.read_excel - nao uma string ISO (ver
+        # test_string_iso_nao_inverte_dia_mes abaixo).
         assert ip.fmt_data_import(pd.Timestamp("2026-09-05")) == "05/09/2026"
         assert ip.fmt_data_import("") == ""
 
-    def test_ambiguidade_dayfirst_em_string_iso(self):
-        """Bug latente conhecido (nao corrigido aqui - fora do escopo desta
-        tarefa de testes): fmt_data_import usa pd.to_datetime(..., dayfirst=
-        True), que forca leitura dia-primeiro mesmo numa string ISO
-        (AAAA-MM-DD) ja inequivoca, trocando dia/mes quando ambos sao <=12.
-        Esse teste documenta o comportamento ATUAL (nao o desejado) - se
-        virar um problema real (fonte de dados passar a entregar string ISO
-        em vez de Timestamp/serial do Excel), a correcao é usar
-        dayfirst=False quando o formato já é claramente ISO."""
-        assert ip.fmt_data_import("2026-09-05") == "09/05/2026"
+    def test_string_iso_nao_inverte_dia_mes(self):
+        """Uma string ISO (AAAA-MM-DD) e inequivoca - nao deve passar pelo
+        dayfirst=True (que e so pra formatos tipo DD/MM/AAAA). Cobre o bug
+        antigo onde fmt_data_import trocava dia/mes quando ambos eram <=12."""
+        assert ip.fmt_data_import("2026-09-05") == "05/09/2026"
+
+    def test_string_dd_mm_aaaa_continua_dayfirst(self):
+        # Formato BR ambiguo (dia/mes ambos <=12) continua lido dia-primeiro.
+        assert ip.fmt_data_import("05/09/2026") == "05/09/2026"
 
     def test_fmt_pagamento_calc(self):
         assert ip.fmt_pagamento_calc_import("A VISTA") == ""

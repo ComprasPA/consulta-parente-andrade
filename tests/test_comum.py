@@ -47,17 +47,18 @@ class TestFormatarParaDdMmAaaa:
         # (e assim que a base fica salva no Google Sheets) - sem ambiguidade.
         assert comum.formatar_para_dd_mm_aaaa("05/09/2026") == "05/09/2026"
 
-    def test_bug_conhecido_timestamp_vira_string_iso_e_inverte_dia_mes(self):
-        """Bug latente (nao corrigido aqui - fora do escopo desta tarefa de
-        testes): a funcao faz str(valor) ANTES de reparsear, entao um
-        pd.Timestamp real (ex: vindo direto de um pd.read_excel, sem passar
-        pelo Google Sheets como string) vira "2026-09-05 00:00:00" e cai na
-        mesma ambiguidade de dayfirst=True que fmt_data_import - trocando
-        dia e mes sempre que os dois forem <=12. Hoje isso so nao aparece
-        porque, no fluxo real, a data ja chega como string DD/MM/AAAA (lida
-        de volta do Sheets) antes de passar por aqui - mas qualquer chamada
-        futura com um valor de data "cru" (Timestamp/datetime) esbarra nisso."""
-        assert comum.formatar_para_dd_mm_aaaa(pd.Timestamp("2026-09-05")) == "09/05/2026"
+    def test_timestamp_cru_nao_inverte_dia_mes(self):
+        """Um pd.Timestamp real (ex: vindo direto de um pd.read_excel, sem
+        passar pelo Google Sheets como string) e formatado direto, sem
+        round-trip por str() - que e o que causava o bug antigo de trocar
+        dia/mes (str(Timestamp) vira "2026-09-05 00:00:00", ambiguo pro
+        dayfirst=True)."""
+        assert comum.formatar_para_dd_mm_aaaa(pd.Timestamp("2026-09-05")) == "05/09/2026"
+
+    def test_string_iso_nao_inverte_dia_mes(self):
+        # Mesma logica pra uma string ISO (AAAA-MM-DD) digitada/copiada -
+        # e inequivoca, nao deve caber no dayfirst=True.
+        assert comum.formatar_para_dd_mm_aaaa("2026-09-05") == "05/09/2026"
 
     def test_numero_serial_excel(self):
         # 45900 = serial do Excel (base 30/12/1899) - so garante que nao
