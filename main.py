@@ -469,7 +469,8 @@ def montar_df_painel(df_final, colunas_normalizadas):
             (~condicao_normalizada.str.contains("A VISTA", na=False)) &
             (~condicao_normalizada.str.contains("ENT", na=False)) &
             (~condicao_normalizada.str.contains("VENCIDO", na=False)) &
-            (~condicao_normalizada.str.contains("PAGO", na=False))
+            (~condicao_normalizada.str.contains("PAGO", na=False)) &
+            (~condicao_normalizada.str.contains("50%", na=False, regex=False))
         )
         df_painel.loc[mascara_na, "Pagamento Pc"] = "N/A"
 
