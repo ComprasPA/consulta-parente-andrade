@@ -365,10 +365,12 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": ["DESCRICAO"], "tela": "Descrição", "tipo": "texto"},
     {"planilha": ["UM"], "tela": "Um", "tipo": "texto"},
     {"planilha": ["QTD"], "tela": "Qtd", "tipo": "numero"},
+    {"planilha": ["QTD ENTREGUE"], "tela": "Qtd Entregue", "tipo": "numero"},
     {"planilha": ["PREÇO UNITÁRIO", "PRECO UNITARIO"], "tela": "Preço Unitário", "tipo": "moeda"},
     {"planilha": ["VALOR TOTAL"], "tela": "Valor Total", "tipo": "moeda"},
     {"planilha": ["NF REMESSA"], "tela": "NF Remessa", "tipo": "texto"},
-    {"planilha": ["LOGISTICA"], "tela": "Logística", "tipo": "logistica"}
+    {"planilha": ["LOGISTICA"], "tela": "Logística", "tipo": "logistica"},
+    {"planilha": ["DATA LOGISTICA"], "tela": "Data Logística", "tipo": "data"}
 ]
 
 def aplicar_filtros(df_pc):
@@ -1321,6 +1323,8 @@ if tem_busca_ativa:
                                     configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
                                         rotulo_tela, options=opcoes_logistica, required=False, width=largura_px
                                     )
+                                elif nome_tela in ("Qtd Entregue", "Data Logística"):
+                                    configuracao_colunas_tela[nome_tela] = st.column_config.Column(rotulo_tela, disabled=False, width=largura_px)
                                 else:
                                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(rotulo_tela, disabled=True, width=largura_px)
                             elif dep == "gestor":
@@ -1410,7 +1414,7 @@ if tem_busca_ativa:
                                 # Datas fora do formato DD/MM/AAAA (ex: "5/6/2026", "05/06/26") sao
                                 # corrigidas automaticamente antes de salvar - so bloqueia o save se
                                 # o texto digitado nem der pra reconhecer como data nenhuma.
-                                colunas_de_data_tela = ["Emissão Pc", "Aprovação Pc", "Envio Pc", "Previsão De Entrega", "Entrega"]
+                                colunas_de_data_tela = ["Emissão Pc", "Aprovação Pc", "Envio Pc", "Previsão De Entrega", "Entrega", "Data Logística"]
                                 data_invalida_encontrada = False
                                 campo_data_invalido = None
                                 for mudancas in edited_rows.values():
