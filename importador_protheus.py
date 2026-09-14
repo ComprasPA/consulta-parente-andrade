@@ -318,7 +318,7 @@ def detectar_tipo_arquivo_import(arquivo):
 def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_manuais,
                              campos_chave, indice_existentes, campo_status=None,
                              calcular_status=None, gatilho_status=None, campos_obrigatorios=(),
-                             campos_sempre_sobrescreve=()):
+                             campos_sempre_sobrescreve=(), correcao_descricao=None):
     lookup_campo = construir_lookup_campo_import(list(mapa.keys()) + campos_manuais, aliases)
     col_status = resolver_coluna_real_import(cabecalho_destino, campo_status, {}) if campo_status else None
 
@@ -333,6 +333,20 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
             campo_tela: FORMATADORES_IMPORT[config["tipo"]](linha_origem.get(config["origem"], ""))
             for campo_tela, config in mapa.items()
         }
+
+        if correcao_descricao and "DESCRICAO" in valores_por_campo:
+            # O relatorio "Listagem do Browse" de Pedidos do proprio Totvs as
+            # vezes repete a Descricao do primeiro item quando varias
+            # Solicitacoes diferentes sao consolidadas num mesmo Pedido -
+            # visto ao vivo no PEDIDO 180032 (7 itens bem diferentes, todos
+            # com a Descricao do primeiro). A aba Solicitacoes vem de um
+            # relatorio Totvs diferente que nao tem esse problema, entao e'
+            # a fonte mais confiavel pra Descricao quando disponivel.
+            descricao_correta = correcao_descricao.get(
+                (valores_por_campo.get("SOLICITAÇÃO", ""), valores_por_campo.get("PRODUTO", ""))
+            )
+            if descricao_correta:
+                valores_por_campo["DESCRICAO"] = descricao_correta
 
         if any(valor_e_zero_ou_vazio_import(valores_por_campo.get(c, "")) for c in campos_obrigatorios):
             duplicadas += 1
@@ -458,6 +472,43 @@ def aplicar_no_google_sheets_import(worksheet, novas_linhas, atualizacoes):
         worksheet.update_cells(celulas, value_input_option="RAW")
 
 
+def carregar_descricoes_solicitacoes_import(spreadsheet):
+    """Monta um lookup (SOLICITAÇÃO, PRODUTO) -> DESCRICAO a partir da aba
+    Solicitacoes, usado pra corrigir a Descricao vinda do relatorio de
+    Pedidos do Totvs quando ela vem errada (ver comentario em
+    processar_linhas_import). Devolve {} se a aba nao existir/estiver vazia
+    ou faltar alguma das 3 colunas - nesse caso o import de Pedidos
+    simplesmente nao aplica nenhuma correcao."""
+    try:
+        worksheet = spreadsheet.worksheet(ABA_SOLICITACOES_IMPORT)
+    except gspread.WorksheetNotFound:
+        return {}
+
+    valores = worksheet.get_all_values()
+    if not valores:
+        return {}
+    cabecalho = valores[0]
+    col_sol = resolver_coluna_real_import(cabecalho, "SOLICITAÇÃO", {"SOLICITAÇÃO": ["SOLICITAÇÃO", "SOLICITACAO"]})
+    col_produto = resolver_coluna_real_import(cabecalho, "PRODUTO", {})
+    col_desc = resolver_coluna_real_import(cabecalho, "DESCRICAO", {})
+    if not col_sol or not col_produto or not col_desc:
+        return {}
+    idx_sol = cabecalho.index(col_sol)
+    idx_produto = cabecalho.index(col_produto)
+    idx_desc = cabecalho.index(col_desc)
+
+    lookup = {}
+    for linha in valores[1:]:
+        if len(linha) <= max(idx_sol, idx_produto, idx_desc):
+            continue
+        sol = fmt_solicitacao_import(linha[idx_sol])
+        produto = fmt_produto_import(linha[idx_produto])
+        descricao = fmt_texto_import(linha[idx_desc])
+        if sol and produto and descricao:
+            lookup[(sol, produto)] = descricao
+    return lookup
+
+
 def obter_ou_criar_aba_import(spreadsheet, nome_aba, cabecalho_padrao=None):
     try:
         return spreadsheet.worksheet(nome_aba)
@@ -474,6 +525,8 @@ def processar_arquivo_pc_import(arquivo, spreadsheet):
     if not cabecalho_real:
         raise RuntimeError(f"Aba '{ABA_PEDIDOS_IMPORT}' está vazia (sem cabeçalho). Configure o cabeçalho antes de importar.")
 
+    correcao_descricao = carregar_descricoes_solicitacoes_import(spreadsheet)
+
     arquivo.seek(0)
     df = pd.read_excel(arquivo, header=1)
     novas_linhas, atualizacoes, duplicadas, atualizadas, chaves_deste_arquivo = processar_linhas_import(
@@ -482,6 +535,7 @@ def processar_arquivo_pc_import(arquivo, spreadsheet):
         campo_status="STATUS", calcular_status=valor_status_origem_import, gatilho_status=STATUS_GATILHO_SUBSTITUICAO_IMPORT,
         campos_obrigatorios=("SOLICITAÇÃO",),
         campos_sempre_sobrescreve=CAMPOS_SEMPRE_SOBRESCREVE_PEDIDOS_IMPORT,
+        correcao_descricao=correcao_descricao,
     )
     atualizacoes_exclusao = detectar_pedidos_excluidos_import(indice_existentes, chaves_deste_arquivo, cabecalho_real)
     aplicar_no_google_sheets_import(worksheet, novas_linhas, atualizacoes + atualizacoes_exclusao)
