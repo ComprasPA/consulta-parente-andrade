@@ -373,7 +373,6 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": ["DESCRICAO"], "tela": "Descrição", "tipo": "texto"},
     {"planilha": ["UM"], "tela": "Um", "tipo": "texto"},
     {"planilha": ["QTD"], "tela": "Qtd", "tipo": "numero"},
-    {"planilha": ["QTD ENTREGUE"], "tela": "Qtd Entregue", "tipo": "numero"},
     {"planilha": ["PREÇO UNITÁRIO", "PRECO UNITARIO"], "tela": "Preço Unitário", "tipo": "moeda"},
     {"planilha": ["VALOR TOTAL"], "tela": "Valor Total", "tipo": "moeda"},
     {"planilha": ["NF REMESSA"], "tela": "NF Remessa", "tipo": "texto"},
@@ -845,7 +844,7 @@ if tem_busca_ativa:
                                     configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
                                         rotulo_tela, options=opcoes_logistica, required=False, width=largura_px
                                     )
-                                elif nome_tela in ("Qtd Entregue", "Data Logística"):
+                                elif nome_tela == "Data Logística":
                                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(rotulo_tela, disabled=False, width=largura_px)
                                 else:
                                     configuracao_colunas_tela[nome_tela] = st.column_config.Column(rotulo_tela, disabled=True, width=largura_px)
