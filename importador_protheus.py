@@ -9,10 +9,10 @@ quantidade da entrega) prevalecem o que vier no arquivo (mesmo que ja tenha
 valor - o arquivo mais recente do Totvs e a fonte de verdade); os demais
 campos so preenchem em branco (nunca sobrescrevem o que ja tem valor);
 status so muda quando esta "em espera" (branco/Em aprovacao/Pendente) -
-EXCETO que ENTREGA ou QTD ENTREGUE mudarem sempre reavalia o status de
-entrega: se a Qtd Entregue ainda for menor que a Qtd pedida, vira "ENTREGA
-PARCIAL"; quando o saldo for todo entregue (Qtd Entregue >= Qtd pedida),
-vira "ATENDIDO" - sempre com a data e quantidade mais recentes do Totvs."""
+EXCETO que ENTREGA ganhar uma data (nesta importacao) sempre forca o
+Status pra "ATENDIDO", decisao explicita do usuario, sem excecao mesmo pra
+status como EXCLUÍDO DO TOTVS. QTD ENTREGUE e' apenas importado/gravado -
+nao influencia o Status."""
 
 import re
 import unicodedata
@@ -56,8 +56,7 @@ MAPA_PEDIDOS_IMPORT = {
     # Quantidade ja entregue desse item, segundo o proprio Totvs (cumulativa -
     # cresce a cada nota fiscal digitada contra o mesmo Pedido/Produto).
     # Junto com ENTREGA, e' o outro campo que sempre prevalece o que vier no
-    # arquivo (ver processar_arquivo_pc_import) - usado pra decidir entre
-    # "ENTREGA PARCIAL" e "ATENDIDO" (ver processar_linhas_import).
+    # arquivo (ver processar_arquivo_pc_import).
     "QTD ENTREGUE":       {"origem": "Qtd.Entregue",    "tipo": "numero"},
     "PREÇO UNITÁRIO":     {"origem": "Prc Unitario",    "tipo": "decimal"},
     "VALOR TOTAL":        {"origem": "Vlr.Total",       "tipo": "decimal"},
@@ -236,10 +235,6 @@ DIAS_JANELA_EXCLUSAO_TOTVS_IMPORT = 30
 # ENTREGA ganhando data (na importacao) sempre forca esse status - decisao
 # explicita do usuario, sem excecao mesmo pra status como EXCLUÍDO DO TOTVS.
 STATUS_ATENDIDO_IMPORT = "ATENDIDO"
-# Quando a Qtd Entregue (ver CAMPOS_SEMPRE_SOBRESCREVE_PEDIDOS_IMPORT) ainda
-# e' menor que a Qtd pedida no momento em que ENTREGA/QTD ENTREGUE mudam -
-# entrega parcial, ainda ha saldo em aberto pra esse item.
-STATUS_ENTREGA_PARCIAL_IMPORT = "ENTREGA PARCIAL"
 STATUS_TERMINAIS_SEM_REALERTA_IMPORT = {
     normalizar_status_import(STATUS_EXCLUIDO_TOTVS_IMPORT),
     normalizar_status_import("Cancelado"),
@@ -247,42 +242,6 @@ STATUS_TERMINAIS_SEM_REALERTA_IMPORT = {
     normalizar_status_import("Rejeitado Pelo Aprovador"),
     normalizar_status_import("Rejeitado"),
 }
-
-
-def _para_float_import(valor_str):
-    """Converte um valor ja formatado (string de QTD/QTD ENTREGUE) pra float,
-    ou None se vazio/nao numerico - usado so pra comparar Qtd pedida vs Qtd
-    entregue, nunca pra gravar de volta na planilha (o que e' gravado e'
-    sempre a string ja formatada por FORMATADORES_IMPORT)."""
-    txt = str(valor_str).strip()
-    if not txt:
-        return None
-    try:
-        return float(txt)
-    except ValueError:
-        return None
-
-
-def status_entrega_import(qtd_pedido_str, qtd_entregue_str):
-    """Decide entre ATENDIDO e ENTREGA PARCIAL comparando a Qtd pedida com a
-    Qtd ja entregue (ambas strings ja formatadas, vindas de QTD/QTD
-    ENTREGUE). "Parcial" exige que ALGUMA quantidade ja tenha sido entregue
-    (0 < Qtd Entregue < Qtd Pedido) - Qtd Entregue EXPLICITAMENTE zerada nao
-    e' o mesmo que entrega parcial (nada foi entregue ainda), entao devolve
-    None nesse caso pra sinalizar "nao force nenhum status aqui" e deixar
-    quem chamou decidir (normalmente: nao mexer no status atual). Falta de
-    dado (string vazia - planilha ainda sem a coluna QTD ENTREGUE
-    preenchida) e' um caso diferente: mantem o fallback de antes desta
-    funcionalidade existir (ENTREGA com data sempre virava ATENDIDO)."""
-    qtd_pedido = _para_float_import(qtd_pedido_str)
-    qtd_entregue = _para_float_import(qtd_entregue_str)
-    if qtd_pedido is None or qtd_entregue is None:
-        return STATUS_ATENDIDO_IMPORT
-    if qtd_entregue <= 0:
-        return None
-    if qtd_entregue < qtd_pedido:
-        return STATUS_ENTREGA_PARCIAL_IMPORT
-    return STATUS_ATENDIDO_IMPORT
 
 
 def valor_status_origem_import(linha_origem) -> str:
@@ -388,9 +347,8 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
             chaves_deste_arquivo.add(chave)
             info = indice_existentes[chave]
             valores_atuais = info["valores"]
-            valores_efetivos = dict(valores_atuais)
             alterou = False
-            campos_sempre_sobrescreve_alterados = set()
+            entrega_definida_agora = False
 
             for campo_tela, config_campo in mapa.items():
                 col_real = resolver_coluna_real_import(cabecalho_destino, campo_tela, aliases)
@@ -406,8 +364,8 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
                     if novo_valor and novo_valor != valor_atual:
                         atualizacoes.append((info["row_num"], cabecalho_destino.index(col_real) + 1, novo_valor))
                         alterou = True
-                        campos_sempre_sobrescreve_alterados.add(campo_tela)
-                        valores_efetivos[col_real] = novo_valor
+                        if campo_tela == "ENTREGA":
+                            entrega_definida_agora = True
                 else:
                     # Todo o resto (incl. os demais campos de data, como
                     # Previsão De Entrega, que o operador ainda edita a mao) so
@@ -418,7 +376,6 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
                     if novo_valor:
                         atualizacoes.append((info["row_num"], cabecalho_destino.index(col_real) + 1, novo_valor))
                         alterou = True
-                        valores_efetivos[col_real] = novo_valor
 
             if col_status and calcular_status:
                 atual_status = normalizar_status_import(valores_atuais.get(col_status, ""))
@@ -428,29 +385,17 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
                         atualizacoes.append((info["row_num"], cabecalho_destino.index(col_status) + 1, novo_status))
                         alterou = True
 
-            # So reavalia o Status de entrega quando ENTREGA ou QTD ENTREGUE
-            # acabaram de ser gravados NESTA importacao (nao a cada ciclo) -
+            # ENTREGA ganhando data (nesta importacao) sempre forca esse
+            # status - decisao explicita do usuario, sem excecao mesmo pra
+            # status como EXCLUÍDO DO TOTVS. So reavalia quando ENTREGA
+            # acabou de ser gravada NESTA importacao (nao a cada ciclo) -
             # senao um Status corrigido a mao pelo gestor seria desfeito no
-            # proximo import so por causa de um valor antigo que nunca mudou.
-            # Compara Qtd pedida x Qtd entregue pra decidir entre ATENDIDO
-            # (saldo zerado) e ENTREGA PARCIAL (ainda falta entregar) - se a
-            # planilha nao tiver a coluna QTD ENTREGUE ainda, cai no
-            # comportamento antigo (sempre ATENDIDO).
-            entrega_ou_qtd_mudou = bool(
-                {"ENTREGA", "QTD ENTREGUE"} & campos_sempre_sobrescreve_alterados
-            )
-            if col_status and entrega_ou_qtd_mudou:
-                col_qtd_real = resolver_coluna_real_import(cabecalho_destino, "QTD", aliases)
-                col_qtd_entregue_real = resolver_coluna_real_import(cabecalho_destino, "QTD ENTREGUE", aliases)
-                novo_status_entrega = status_entrega_import(
-                    valores_efetivos.get(col_qtd_real, "") if col_qtd_real else "",
-                    valores_efetivos.get(col_qtd_entregue_real, "") if col_qtd_entregue_real else "",
-                )
-                if novo_status_entrega:
-                    atual_status_norm = normalizar_status_import(valores_atuais.get(col_status, ""))
-                    if atual_status_norm != normalizar_status_import(novo_status_entrega):
-                        atualizacoes.append((info["row_num"], cabecalho_destino.index(col_status) + 1, novo_status_entrega))
-                        alterou = True
+            # proximo import so por causa de um ENTREGA antigo que nunca mudou.
+            if col_status and entrega_definida_agora:
+                atual_status_norm = normalizar_status_import(valores_atuais.get(col_status, ""))
+                if atual_status_norm != normalizar_status_import(STATUS_ATENDIDO_IMPORT):
+                    atualizacoes.append((info["row_num"], cabecalho_destino.index(col_status) + 1, STATUS_ATENDIDO_IMPORT))
+                    alterou = True
 
             if alterou:
                 linhas_atualizadas += 1
@@ -464,12 +409,8 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
             novo_status = calcular_status(linha_origem)
             if novo_status:
                 linha_final[cabecalho_destino.index(col_status)] = novo_status
-        if col_status and (valores_por_campo.get("ENTREGA", "") or valores_por_campo.get("QTD ENTREGUE", "")):
-            novo_status_entrega = status_entrega_import(
-                valores_por_campo.get("QTD", ""), valores_por_campo.get("QTD ENTREGUE", ""),
-            )
-            if novo_status_entrega:
-                linha_final[cabecalho_destino.index(col_status)] = novo_status_entrega
+        if col_status and valores_por_campo.get("ENTREGA", ""):
+            linha_final[cabecalho_destino.index(col_status)] = STATUS_ATENDIDO_IMPORT
         novas_linhas.append(linha_final)
 
     return novas_linhas, atualizacoes, duplicadas, linhas_atualizadas, chaves_deste_arquivo
