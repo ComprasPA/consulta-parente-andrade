@@ -263,15 +263,24 @@ def _para_float_import(valor_str):
         return None
 
 
-def status_entrega_import(qtd_pedido_str, qtd_entregue_str) -> str:
+def status_entrega_import(qtd_pedido_str, qtd_entregue_str):
     """Decide entre ATENDIDO e ENTREGA PARCIAL comparando a Qtd pedida com a
     Qtd ja entregue (ambas strings ja formatadas, vindas de QTD/QTD
-    ENTREGUE). Se nao der pra comparar (falta uma das duas - ex: planilha
-    ainda sem a coluna QTD ENTREGUE), assume ATENDIDO (comportamento de
-    antes desta funcionalidade existir)."""
+    ENTREGUE). "Parcial" exige que ALGUMA quantidade ja tenha sido entregue
+    (0 < Qtd Entregue < Qtd Pedido) - Qtd Entregue EXPLICITAMENTE zerada nao
+    e' o mesmo que entrega parcial (nada foi entregue ainda), entao devolve
+    None nesse caso pra sinalizar "nao force nenhum status aqui" e deixar
+    quem chamou decidir (normalmente: nao mexer no status atual). Falta de
+    dado (string vazia - planilha ainda sem a coluna QTD ENTREGUE
+    preenchida) e' um caso diferente: mantem o fallback de antes desta
+    funcionalidade existir (ENTREGA com data sempre virava ATENDIDO)."""
     qtd_pedido = _para_float_import(qtd_pedido_str)
     qtd_entregue = _para_float_import(qtd_entregue_str)
-    if qtd_pedido is not None and qtd_entregue is not None and qtd_entregue < qtd_pedido:
+    if qtd_pedido is None or qtd_entregue is None:
+        return STATUS_ATENDIDO_IMPORT
+    if qtd_entregue <= 0:
+        return None
+    if qtd_entregue < qtd_pedido:
         return STATUS_ENTREGA_PARCIAL_IMPORT
     return STATUS_ATENDIDO_IMPORT
 
@@ -437,10 +446,11 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
                     valores_efetivos.get(col_qtd_real, "") if col_qtd_real else "",
                     valores_efetivos.get(col_qtd_entregue_real, "") if col_qtd_entregue_real else "",
                 )
-                atual_status_norm = normalizar_status_import(valores_atuais.get(col_status, ""))
-                if atual_status_norm != normalizar_status_import(novo_status_entrega):
-                    atualizacoes.append((info["row_num"], cabecalho_destino.index(col_status) + 1, novo_status_entrega))
-                    alterou = True
+                if novo_status_entrega:
+                    atual_status_norm = normalizar_status_import(valores_atuais.get(col_status, ""))
+                    if atual_status_norm != normalizar_status_import(novo_status_entrega):
+                        atualizacoes.append((info["row_num"], cabecalho_destino.index(col_status) + 1, novo_status_entrega))
+                        alterou = True
 
             if alterou:
                 linhas_atualizadas += 1
@@ -455,9 +465,11 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
             if novo_status:
                 linha_final[cabecalho_destino.index(col_status)] = novo_status
         if col_status and (valores_por_campo.get("ENTREGA", "") or valores_por_campo.get("QTD ENTREGUE", "")):
-            linha_final[cabecalho_destino.index(col_status)] = status_entrega_import(
+            novo_status_entrega = status_entrega_import(
                 valores_por_campo.get("QTD", ""), valores_por_campo.get("QTD ENTREGUE", ""),
             )
+            if novo_status_entrega:
+                linha_final[cabecalho_destino.index(col_status)] = novo_status_entrega
         novas_linhas.append(linha_final)
 
     return novas_linhas, atualizacoes, duplicadas, linhas_atualizadas, chaves_deste_arquivo
