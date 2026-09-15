@@ -973,6 +973,16 @@ if tem_busca_ativa:
                                         alteracoes_detectadas = 0
                                         detalhes_gravados = []
                                         divergencias = []
+
+                                        # Monta a lista de celulas a gravar primeiro, sem tocar no
+                                        # Google Sheets ainda - grava e confere tudo em UMA chamada
+                                        # cada (update_cells/batch_get) em vez de 1 chamada por
+                                        # celula. Salvar muitas linhas de uma vez (ex: importar um
+                                        # filtro com dezenas de itens) com uma chamada por celula
+                                        # estourava a cota "Write requests per minute per user" do
+                                        # Google Sheets (erro 429) bem antes de terminar de gravar.
+                                        celulas_para_gravar = []
+                                        metadados_celulas = []
                                         for posicao, mudancas in edited_rows.items():
                                             linha_df = df_painel.iloc[int(posicao)]
                                             linha_planilha = int(linha_df["_row_idx"])
@@ -993,19 +1003,28 @@ if tem_busca_ativa:
                                                         break
 
                                                 if col_index:
-                                                    worksheet.update_cell(linha_planilha, col_index, str(valor_novo))
-                                                    # Confere na hora se realmente ficou gravado - sem
-                                                    # isso o painel podia dizer "sucesso" mesmo que a
-                                                    # escrita nao tivesse pego por algum motivo.
-                                                    valor_conferido = worksheet.cell(linha_planilha, col_index).value
-                                                    if str(valor_conferido or "").strip() != str(valor_novo).strip():
-                                                        divergencias.append(
-                                                            f"Pedido {pedido_num} — {col}: tentei gravar **{valor_novo}**, "
-                                                            f"mas a planilha ainda mostra \"{valor_conferido}\" (linha {linha_planilha})"
-                                                        )
-                                                    else:
-                                                        alteracoes_detectadas += 1
-                                                        detalhes_gravados.append(f"Pedido {pedido_num} — {col}: **{valor_novo}**")
+                                                    celulas_para_gravar.append(gspread.Cell(linha_planilha, col_index, str(valor_novo)))
+                                                    metadados_celulas.append((linha_planilha, col_index, pedido_num, col, valor_novo))
+
+                                        if celulas_para_gravar:
+                                            worksheet.update_cells(celulas_para_gravar, value_input_option="RAW")
+
+                                            # Confere na hora se realmente ficou gravado - sem isso o
+                                            # painel podia dizer "sucesso" mesmo que a escrita nao
+                                            # tivesse pego por algum motivo. batch_get busca todas as
+                                            # celulas alteradas numa unica chamada.
+                                            ranges = [gspread.utils.rowcol_to_a1(row, col) for row, col, _, _, _ in metadados_celulas]
+                                            valores_conferidos = worksheet.batch_get(ranges)
+                                            for (linha_planilha, col_index, pedido_num, col, valor_novo), resultado in zip(metadados_celulas, valores_conferidos):
+                                                valor_conferido = resultado[0][0] if resultado and resultado[0] else ""
+                                                if str(valor_conferido or "").strip() != str(valor_novo).strip():
+                                                    divergencias.append(
+                                                        f"Pedido {pedido_num} — {col}: tentei gravar **{valor_novo}**, "
+                                                        f"mas a planilha ainda mostra \"{valor_conferido}\" (linha {linha_planilha})"
+                                                    )
+                                                else:
+                                                    alteracoes_detectadas += 1
+                                                    detalhes_gravados.append(f"Pedido {pedido_num} — {col}: **{valor_novo}**")
 
                                         if divergencias:
                                             st.markdown(
