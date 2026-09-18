@@ -266,6 +266,16 @@ def montar_linhas_em_cotacao(df_pc, df_sc):
     linhas_cotacao = pd.DataFrame("", index=range(len(candidatas)), columns=df_pc.columns)
     if col_status_pc:
         linhas_cotacao[col_status_pc] = "EM COTAÇÃO"
+        # A aba Solicitacoes tem sua propria coluna STATUS (REJEITADO,
+        # REVISAR, CONTRATO, PEDIDO GERADO...), preenchida por fora desse
+        # painel - quando ela tiver um valor real, usa esse valor em vez do
+        # generico "EM COTAÇÃO", senao uma Solicitação recusada/cancelada
+        # continuava aparecendo como se ainda estivesse em cotação.
+        col_status_sc = colunas_normalizadas_sc.get("STATUS")
+        if col_status_sc:
+            status_reais_sc = candidatas[col_status_sc].astype(str).str.strip().values
+            mask_com_status_real = status_reais_sc != ""
+            linhas_cotacao.loc[mask_com_status_real, col_status_pc] = status_reais_sc[mask_com_status_real]
 
     mapa_sc_para_pc = {
         "SOLICITACAO": col_solic_sc,
