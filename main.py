@@ -83,6 +83,25 @@ def buscar_pedido_fornecedor_valor(numero_pedido: str):
     return fornecedor, valor_total, len(linhas)
 
 
+@st.cache_data(ttl=300)
+def carregar_mapa_fornecedor_cnpj() -> dict:
+    """Mapa FORNECEDOR (maiusculo) -> CNPJ (so digitos) a partir da aba
+    CadastroFornecedores - a aba Pedidos so guarda o nome do fornecedor, entao
+    e assim que a busca por CNPJ (Almoxarifado) encontra os Pedidos certos."""
+    client, _ = obter_client_gspread()
+    spreadsheet = client.open_by_key(FILE_ID)
+    df = _ler_aba_como_df(spreadsheet, ABA_CADASTRO_FORNECEDORES)
+    if df.empty or "FORNECEDOR" not in df.columns or "CNPJ" not in df.columns:
+        return {}
+    mapa = {}
+    for _, linha in df.iterrows():
+        nome = str(linha.get("FORNECEDOR", "")).strip().upper()
+        cnpj_digitos = re.sub(r"\D", "", str(linha.get("CNPJ", "")))
+        if nome and cnpj_digitos:
+            mapa[nome] = cnpj_digitos
+    return mapa
+
+
 def buscar_cadastro_fornecedor_bancario(nome_fornecedor: str) -> dict:
     client, _ = obter_client_gspread()
     spreadsheet = client.open_by_key(FILE_ID)
@@ -402,6 +421,14 @@ def aplicar_filtros(df_pc):
         if col_pc:
             df_final = df_final[df_final[col_pc].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().str.contains(pc_termo, na=False)]
 
+    if st.session_state.filtro_cnpj_val:
+        cnpj_termo = re.sub(r"\D", "", str(st.session_state.filtro_cnpj_val))
+        col_fornecedor = colunas_normalizadas.get("FORNECEDOR")
+        if col_fornecedor and cnpj_termo:
+            mapa_cnpj = carregar_mapa_fornecedor_cnpj()
+            cnpj_por_linha = df_final[col_fornecedor].astype(str).str.strip().str.upper().map(mapa_cnpj).fillna("")
+            df_final = df_final[cnpj_por_linha.str.contains(cnpj_termo, na=False)]
+
     if st.session_state.filtro_sc_val:
         sc_termo = str(st.session_state.filtro_sc_val).strip()
         col_sc = colunas_normalizadas.get("SOLICITAÇÃO") or colunas_normalizadas.get("SOLICITACAO")
@@ -583,6 +610,8 @@ def calcular_colunas_sla(df_painel):
 # 7. FILTROS E LÓGICA DE GAVETA
 if "filtro_pc_val" not in st.session_state:
     st.session_state.filtro_pc_val = ""
+if "filtro_cnpj_val" not in st.session_state:
+    st.session_state.filtro_cnpj_val = ""
 if "filtro_sc_val" not in st.session_state:
     st.session_state.filtro_sc_val = ""
 if "filtro_cc_val" not in st.session_state:
@@ -600,7 +629,7 @@ if "editor_key_counter" not in st.session_state:
 
 # Pré-cálculo do relatório (pra habilitar o botão Baixar Relatório dentro dos Filtros Avançados,
 # com o resultado da busca mais recente - sem isso o botão mostraria dado de uma busca anterior)
-tem_busca_ativa = st.session_state.filtro_pc_val or st.session_state.filtro_sc_val or st.session_state.filtro_cc_val or st.session_state.filtro_status_val != "Todos" or bool(st.session_state.filtro_data_val)
+tem_busca_ativa = st.session_state.filtro_pc_val or st.session_state.filtro_cnpj_val or st.session_state.filtro_sc_val or st.session_state.filtro_cc_val or st.session_state.filtro_status_val != "Todos" or bool(st.session_state.filtro_data_val)
 
 relatorio_bytes = None
 if tem_busca_ativa and not df_pc.empty:
@@ -622,8 +651,12 @@ rotulo_seta = "Filtros Avançados ▲" if st.session_state.gaveta_aberta else "F
 
 with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
     with st.form("form_filtros", clear_on_submit=False):
-        f1, f2, f3, f4, f5 = st.columns(5)
-        
+        mostrar_filtro_cnpj = st.session_state.autenticado and st.session_state.departamento_ativo == "almoxarifado"
+        if mostrar_filtro_cnpj:
+            f1, f2, f3, f4, f5, f6 = st.columns(6)
+        else:
+            f1, f2, f3, f4, f5 = st.columns(5)
+
         with f1:
             filtro_pc = st.text_input("Pedido (PC):", value=st.session_state.filtro_pc_val, placeholder="Nº do PC...")
         with f2:
@@ -641,8 +674,13 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
             filtro_status = st.selectbox("Status:", options=lista_status_Filtro, index=idx_padrao)
         with f5:
             filtro_data = st.date_input("Data de Emissão:", value=st.session_state.filtro_data_val, format="DD/MM/YYYY")
+        if mostrar_filtro_cnpj:
+            with f6:
+                filtro_cnpj = st.text_input("CNPJ Fornecedor:", value=st.session_state.filtro_cnpj_val, placeholder="CNPJ...")
+        else:
+            filtro_cnpj = st.session_state.filtro_cnpj_val
 
-        st.write("") 
+        st.write("")
         
         esp0, espb, b1, b2, b3, b4 = st.columns([1.6, 1, 1, 1, 1, 1])
         with esp0:
@@ -653,6 +691,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
             btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True, type="primary")
             if btn_pesquisar:
                 st.session_state.filtro_pc_val = filtro_pc
+                st.session_state.filtro_cnpj_val = filtro_cnpj
                 st.session_state.filtro_sc_val = filtro_sc
                 st.session_state.filtro_cc_val = filtro_cc
                 st.session_state.filtro_status_val = filtro_status
@@ -665,6 +704,7 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
             btn_limpar = st.form_submit_button("❌ Limpar", use_container_width=True)
             if btn_limpar:
                 st.session_state.filtro_pc_val = ""
+                st.session_state.filtro_cnpj_val = ""
                 st.session_state.filtro_sc_val = ""
                 st.session_state.filtro_cc_val = []
                 st.session_state.filtro_status_val = "Todos"
