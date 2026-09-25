@@ -764,8 +764,8 @@ if st.session_state.autenticado and st.session_state.departamento_ativo in ("com
     if st.session_state.mostrar_popup_importar:
         with st.container():
             st.markdown("""
-                <div style="background-color: #ffffff; padding: 20px; border-radius: 12px; border: 2px solid #478c3b; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px;">
-                    <h3 style="color: #1e293b; margin-top: 0; font-size: 18px;">📤 Importar Arquivo do Protheus (PC/SC)</h3>
+                <div style="background-color: var(--secondary-background-color); padding: 20px; border-radius: 12px; border: 2px solid #478c3b; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                    <h3 style="color: var(--text-color); margin-top: 0; font-size: 18px;">📤 Importar Arquivo do Protheus (PC/SC)</h3>
                 </div>
             """, unsafe_allow_html=True)
 
