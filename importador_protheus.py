@@ -235,6 +235,11 @@ DIAS_JANELA_EXCLUSAO_TOTVS_IMPORT = 30
 # ENTREGA ganhando data (na importacao) sempre forca esse status - decisao
 # explicita do usuario, sem excecao mesmo pra status como EXCLUÍDO DO TOTVS.
 STATUS_ATENDIDO_IMPORT = "ATENDIDO"
+# Quando ha Entrega mas a Qtd Entregue ainda e' menor que a Qtd pedida -
+# decisao explicita do usuario, 2026-09-25: com Entrega preenchida, o status
+# e' ATENDIDO se Qtd Entregue == Qtd, ou ENTREGA PARCIAL se Qtd Entregue <
+# Qtd (nunca o contrario - Entrega sempre implica pelo menos parcial).
+STATUS_ENTREGA_PARCIAL_IMPORT = "ENTREGA PARCIAL"
 STATUS_TERMINAIS_SEM_REALERTA_IMPORT = {
     normalizar_status_import(STATUS_EXCLUIDO_TOTVS_IMPORT),
     normalizar_status_import("Cancelado"),
@@ -243,11 +248,46 @@ STATUS_TERMINAIS_SEM_REALERTA_IMPORT = {
     normalizar_status_import("Rejeitado"),
 }
 
+# A Criticidade "COMPRA DIRETA" mora na aba Solicitacoes (coluna CRITICIDADE,
+# alimentada por fora - aba Criticidade_Solicitacoes/formula, nao pelo
+# importador). Decisao explicita do usuario: quando a Solicitacao de um
+# Pedido tem essa criticidade, o STATUS do Pedido deve espelhar "COMPRA
+# DIRETA" na aba Pedidos - sempre prevalece, mesmo sobre um status ja
+# preenchido (ex.: ATENDIDO, ou os que o agente_pedidos_pagamento grava:
+# ENVIADO AO FINANCEIRO/ENVIADO AO FORNECEDOR).
+CRITICIDADE_COMPRA_DIRETA_IMPORT = "COMPRA DIRETA"
+STATUS_COMPRA_DIRETA_IMPORT = "COMPRA DIRETA"
+
 
 def valor_status_origem_import(linha_origem) -> str:
     bruto = fmt_texto_import(linha_origem.get("Status Aprov", ""))
     valor = MAPA_STATUS_APROV_TEXTO_IMPORT.get(normalizar_status_import(bruto), bruto)
     return valor.upper()
+
+
+def _para_float_status_import(valor_str):
+    """Converte um valor de QTD/QTD ENTREGUE (ja como string) pra float, ou
+    None se vazio/nao numerico - usado so pra decidir entre ATENDIDO e
+    ENTREGA PARCIAL, nunca pra gravar de volta na planilha."""
+    txt = str(valor_str).strip().replace(",", ".")
+    if not txt:
+        return None
+    try:
+        return float(txt)
+    except ValueError:
+        return None
+
+
+def status_por_entrega_import(qtd_str, qtd_entregue_str) -> str:
+    """Decide entre ATENDIDO e ENTREGA PARCIAL comparando Qtd pedida com Qtd
+    entregue (ambas strings já como estão na planilha/arquivo). Se não der
+    pra comparar (falta uma das duas, ou não é número), assume ATENDIDO -
+    mesmo comportamento de antes dessa distinção existir."""
+    qtd = _para_float_status_import(qtd_str)
+    qtd_entregue = _para_float_status_import(qtd_entregue_str)
+    if qtd is not None and qtd_entregue is not None and qtd_entregue < qtd:
+        return STATUS_ENTREGA_PARCIAL_IMPORT
+    return STATUS_ATENDIDO_IMPORT
 
 
 def construir_lookup_campo_import(campos: list, aliases: dict) -> dict:
@@ -318,7 +358,8 @@ def detectar_tipo_arquivo_import(arquivo):
 def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_manuais,
                              campos_chave, indice_existentes, campo_status=None,
                              calcular_status=None, gatilho_status=None, campos_obrigatorios=(),
-                             campos_sempre_sobrescreve=(), correcao_descricao=None):
+                             campos_sempre_sobrescreve=(), correcao_descricao=None,
+                             mapa_pedidos_por_produto=None):
     lookup_campo = construir_lookup_campo_import(list(mapa.keys()) + campos_manuais, aliases)
     col_status = resolver_coluna_real_import(cabecalho_destino, campo_status, {}) if campo_status else None
 
@@ -333,6 +374,20 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
             campo_tela: FORMATADORES_IMPORT[config["tipo"]](linha_origem.get(config["origem"], ""))
             for campo_tela, config in mapa.items()
         }
+
+        if mapa_pedidos_por_produto and not valores_por_campo.get("PEDIDO", ""):
+            # O relatorio de Solicitacoes do Totvs nem sempre traz o Num.
+            # Pedido preenchido mesmo quando o Pedido ja foi gerado (visto ao
+            # vivo: SC 140965/140963, Pedido ja ATENDIDO na aba Pedidos, e a
+            # propria Solicitacao nunca recebeu essa referencia de volta no
+            # Totvs) - usa a aba Pedidos (cruzando por Solicitação+Produto,
+            # fonte mais confiavel) como fallback so quando o arquivo nao
+            # trouxe nada.
+            pedido_fallback = mapa_pedidos_por_produto.get(
+                (valores_por_campo.get("SOLICITAÇÃO", ""), valores_por_campo.get("PRODUTO", ""))
+            )
+            if pedido_fallback:
+                valores_por_campo["PEDIDO"] = pedido_fallback
 
         if correcao_descricao and "DESCRICAO" in valores_por_campo:
             # O relatorio "Listagem do Browse" de Pedidos do proprio Totvs as
@@ -472,6 +527,106 @@ def aplicar_no_google_sheets_import(worksheet, novas_linhas, atualizacoes):
         worksheet.update_cells(celulas, value_input_option="RAW")
 
 
+def sincronizar_status_compra_direta_import(spreadsheet) -> int:
+    """Espelha em STATUS (aba Pedidos) quando a Solicitação daquele Pedido
+    tem CRITICIDADE = "COMPRA DIRETA" na aba Solicitacoes - decisão
+    explícita do usuário: sempre prevalece, sobrescrevendo qualquer outro
+    STATUS que a linha já tivesse - EXCETO quando o Pedido já tem ENTREGA
+    preenchida (decisão explícita do usuário, 2026-09-24: "ATENDIDO impera
+    sobre todos os outros status" - Entrega registrada significa NF
+    classificada e entrega realizada, isso nunca pode ser desfeito por essa
+    sincronização). Roda depois de qualquer import (PC ou SC) - a
+    Criticidade fica em Solicitacoes mas o espelho é em Pedidos, e aqui
+    sempre lê o estado atual das duas abas de novo (nunca confia em cache),
+    já que o import mexeu numa delas. Devolve quantas linhas de Pedidos
+    foram atualizadas."""
+    ws_solicitacoes = spreadsheet.worksheet(ABA_SOLICITACOES_IMPORT)
+    dados_sol = ws_solicitacoes.get_all_values()
+    if not dados_sol:
+        return 0
+    cabecalho_sol = dados_sol[0]
+    if "SOLICITAÇÃO" not in cabecalho_sol or "CRITICIDADE" not in cabecalho_sol:
+        return 0
+    idx_sc_sol = cabecalho_sol.index("SOLICITAÇÃO")
+    idx_criticidade = cabecalho_sol.index("CRITICIDADE")
+
+    scs_compra_direta = set()
+    for linha in dados_sol[1:]:
+        if idx_criticidade < len(linha) and linha[idx_criticidade].strip().upper() == CRITICIDADE_COMPRA_DIRETA_IMPORT:
+            sc = limpar_numero_texto_import(linha[idx_sc_sol] if idx_sc_sol < len(linha) else "")
+            if sc:
+                scs_compra_direta.add(sc.zfill(6))
+    if not scs_compra_direta:
+        return 0
+
+    ws_pedidos = spreadsheet.worksheet(ABA_PEDIDOS_IMPORT)
+    dados_ped = ws_pedidos.get_all_values()
+    if not dados_ped:
+        return 0
+    cabecalho_ped = dados_ped[0]
+    col_sc_ped = resolver_coluna_real_import(cabecalho_ped, "SOLICITAÇÃO", ALIASES_PEDIDOS_IMPORT)
+    if not col_sc_ped or "STATUS" not in cabecalho_ped:
+        return 0
+    idx_sc_ped = cabecalho_ped.index(col_sc_ped)
+    idx_status_ped = cabecalho_ped.index("STATUS")
+    col_entrega_ped = resolver_coluna_real_import(cabecalho_ped, "ENTREGA", {})
+    idx_entrega_ped = cabecalho_ped.index(col_entrega_ped) if col_entrega_ped else None
+
+    celulas = []
+    for i, linha in enumerate(dados_ped[1:], start=2):
+        sc_pedido = limpar_numero_texto_import(linha[idx_sc_ped] if idx_sc_ped < len(linha) else "")
+        if sc_pedido and sc_pedido.zfill(6) in scs_compra_direta:
+            if idx_entrega_ped is not None and idx_entrega_ped < len(linha) and linha[idx_entrega_ped].strip():
+                continue  # ja atendido de verdade - Entrega nao pode ser desfeita
+            status_atual = linha[idx_status_ped] if idx_status_ped < len(linha) else ""
+            if status_atual.strip().upper() != STATUS_COMPRA_DIRETA_IMPORT:
+                celulas.append(gspread.Cell(i, idx_status_ped + 1, STATUS_COMPRA_DIRETA_IMPORT))
+
+    if celulas:
+        ws_pedidos.update_cells(celulas, value_input_option="RAW")
+    return len(celulas)
+
+
+def forcar_atendido_quando_entrega_import(spreadsheet) -> int:
+    """Varredura geral (decisão explícita do usuário, 2026-09-24/25): quando
+    o Pedido tem ENTREGA preenchida (NF classificada), o status correto e'
+    ATENDIDO se a Qtd Entregue já cobre a Qtd pedida, ou ENTREGA PARCIAL se
+    ainda falta (ver status_por_entrega_import) - sempre prevalece sobre
+    qualquer outro status que a linha tivesse (Compra Direta, Correção de
+    Processo, Enviado ao Fornecedor, etc.). Roda periodicamente (ver
+    agente_importador.py) como uma rede de segurança, cobrindo qualquer
+    causa de divergência - não só a sincronização de Compra Direta.
+    Devolve quantas linhas foram corrigidas."""
+    ws_pedidos = spreadsheet.worksheet(ABA_PEDIDOS_IMPORT)
+    dados_ped = ws_pedidos.get_all_values()
+    if not dados_ped:
+        return 0
+    cabecalho_ped = dados_ped[0]
+    col_entrega = resolver_coluna_real_import(cabecalho_ped, "ENTREGA", {})
+    col_qtd = resolver_coluna_real_import(cabecalho_ped, "QTD", {})
+    col_qtd_entregue = resolver_coluna_real_import(cabecalho_ped, "QTD ENTREGUE", ALIASES_PEDIDOS_IMPORT)
+    if not col_entrega or "STATUS" not in cabecalho_ped:
+        return 0
+    idx_entrega = cabecalho_ped.index(col_entrega)
+    idx_status = cabecalho_ped.index("STATUS")
+    idx_qtd = cabecalho_ped.index(col_qtd) if col_qtd else None
+    idx_qtd_entregue = cabecalho_ped.index(col_qtd_entregue) if col_qtd_entregue else None
+
+    celulas = []
+    for i, linha in enumerate(dados_ped[1:], start=2):
+        if idx_entrega < len(linha) and linha[idx_entrega].strip():
+            qtd_str = linha[idx_qtd] if idx_qtd is not None and idx_qtd < len(linha) else ""
+            qtd_entregue_str = linha[idx_qtd_entregue] if idx_qtd_entregue is not None and idx_qtd_entregue < len(linha) else ""
+            alvo = status_por_entrega_import(qtd_str, qtd_entregue_str)
+            status_atual = linha[idx_status] if idx_status < len(linha) else ""
+            if status_atual.strip().upper() != alvo:
+                celulas.append(gspread.Cell(i, idx_status + 1, alvo))
+
+    if celulas:
+        ws_pedidos.update_cells(celulas, value_input_option="RAW")
+    return len(celulas)
+
+
 def carregar_descricoes_solicitacoes_import(spreadsheet):
     """Monta um lookup (SOLICITAÇÃO, PRODUTO) -> DESCRICAO a partir da aba
     Solicitacoes, usado pra corrigir a Descricao vinda do relatorio de
@@ -506,6 +661,44 @@ def carregar_descricoes_solicitacoes_import(spreadsheet):
         descricao = fmt_texto_import(linha[idx_desc])
         if sol and produto and descricao:
             lookup[(sol, produto)] = descricao
+    return lookup
+
+
+def carregar_mapa_pedidos_por_produto_import(spreadsheet):
+    """Monta um lookup (SOLICITAÇÃO, PRODUTO) -> PEDIDO a partir da aba
+    Pedidos, usado como fallback no import de Solicitacoes quando o proprio
+    relatorio do Totvs nao traz o Num. Pedido preenchido (acontece mesmo com
+    o Pedido ja gerado e ATENDIDO - visto ao vivo nas SCs 140965/140963, ver
+    comentario em processar_linhas_import). Devolve {} se a aba nao
+    existir/estiver vazia ou faltar alguma das 3 colunas - nesse caso o
+    import de Solicitacoes simplesmente nao aplica nenhum fallback."""
+    try:
+        worksheet = spreadsheet.worksheet(ABA_PEDIDOS_IMPORT)
+    except gspread.WorksheetNotFound:
+        return {}
+
+    valores = worksheet.get_all_values()
+    if not valores:
+        return {}
+    cabecalho = valores[0]
+    col_sol = resolver_coluna_real_import(cabecalho, "SOLICITAÇÃO", ALIASES_PEDIDOS_IMPORT)
+    col_produto = resolver_coluna_real_import(cabecalho, "PRODUTO", {})
+    col_pedido = resolver_coluna_real_import(cabecalho, "PEDIDO", {})
+    if not col_sol or not col_produto or not col_pedido:
+        return {}
+    idx_sol = cabecalho.index(col_sol)
+    idx_produto = cabecalho.index(col_produto)
+    idx_pedido = cabecalho.index(col_pedido)
+
+    lookup = {}
+    for linha in valores[1:]:
+        if len(linha) <= max(idx_sol, idx_produto, idx_pedido):
+            continue
+        sol = fmt_solicitacao_import(linha[idx_sol])
+        produto = fmt_produto_import(linha[idx_produto])
+        pedido = fmt_inteiro_import(linha[idx_pedido])
+        if sol and produto and pedido:
+            lookup.setdefault((sol, produto), pedido)
     return lookup
 
 
@@ -548,10 +741,13 @@ def processar_arquivo_sc_import(arquivo, spreadsheet):
     if not cabecalho_real:
         cabecalho_real = CABECALHO_SOLICITACOES_IMPORT
 
+    mapa_pedidos_por_produto = carregar_mapa_pedidos_por_produto_import(spreadsheet)
+
     arquivo.seek(0)
     df = pd.read_excel(arquivo, header=1)
     novas_linhas, atualizacoes, duplicadas, atualizadas, _ = processar_linhas_import(
         df, MAPA_SOLICITACOES_IMPORT, cabecalho_real, {}, [], CHAVE_SOLICITACOES_IMPORT, indice_existentes,
+        mapa_pedidos_por_produto=mapa_pedidos_por_produto,
     )
     aplicar_no_google_sheets_import(worksheet, novas_linhas, atualizacoes)
     return len(novas_linhas), duplicadas, atualizadas
@@ -572,12 +768,38 @@ def processar_upload_protheus(arquivo):
         if tipo == "PC":
             novos, dup, atualizadas, excluidos = processar_arquivo_pc_import(arquivo, spreadsheet)
             msg_excluidos = f", {excluidos} marcado(s) como '{STATUS_EXCLUIDO_TOTVS_IMPORT}' (sumiram do relatório)" if excluidos else ""
-            return True, f"✅ Pedidos: {novos} linha(s) nova(s), {atualizadas} atualizada(s) (campos em branco/status){msg_excluidos}, {dup} sem nenhuma alteração."
+            msg_compra_direta = _sufixo_compra_direta_import(spreadsheet)
+            return True, f"✅ Pedidos: {novos} linha(s) nova(s), {atualizadas} atualizada(s) (campos em branco/status){msg_excluidos}, {dup} sem nenhuma alteração.{msg_compra_direta}"
         elif tipo == "SC":
             novos, dup, atualizadas = processar_arquivo_sc_import(arquivo, spreadsheet)
-            return True, f"✅ Solicitações: {novos} linha(s) nova(s), {atualizadas} atualizada(s), {dup} sem nenhuma alteração."
+            msg_compra_direta = _sufixo_compra_direta_import(spreadsheet)
+            return True, f"✅ Solicitações: {novos} linha(s) nova(s), {atualizadas} atualizada(s), {dup} sem nenhuma alteração.{msg_compra_direta}"
         else:
             return False, "❌ Layout do arquivo não reconhecido (não parece Listagem de Pedidos nem de Solicitações do Protheus)."
     except Exception as e:
         return False, f"❌ Erro ao processar o arquivo: {e}"
+
+
+def _sufixo_compra_direta_import(spreadsheet) -> str:
+    """Roda sincronizar_status_compra_direta_import e depois
+    forcar_atendido_quando_entrega_import (nessa ordem - a segunda corrige
+    qualquer coisa que a primeira, ou qualquer outra causa, tenha deixado
+    errada) e devolve um sufixo de mensagem pronto pra concatenar no
+    retorno de processar_upload_protheus - nunca deixa uma falha nessa
+    sincronização derrubar o import principal (que já rodou e já foi salvo
+    com sucesso antes desta parte)."""
+    partes = []
+    try:
+        atualizados = sincronizar_status_compra_direta_import(spreadsheet)
+        if atualizados:
+            partes.append(f" {atualizados} pedido(s) marcado(s) como 'COMPRA DIRETA' (Criticidade da Solicitação).")
+    except Exception as e:
+        partes.append(f" ⚠️ Falha ao sincronizar status de Compra Direta: {e}")
+    try:
+        corrigidos = forcar_atendido_quando_entrega_import(spreadsheet)
+        if corrigidos:
+            partes.append(f" {corrigidos} pedido(s) corrigido(s) para 'ATENDIDO' (já tinham Entrega registrada).")
+    except Exception as e:
+        partes.append(f" ⚠️ Falha ao forçar status Atendido: {e}")
+    return "".join(partes)
 

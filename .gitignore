@@ -1,3 +1,5 @@
 .streamlit/secrets.toml
 .venv/
 __pycache__/
+automacao_totvs/downloads/
+automacao_totvs/debug/

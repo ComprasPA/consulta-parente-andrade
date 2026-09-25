@@ -385,6 +385,7 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": ["QTD"], "tela": "Qtd", "tipo": "numero"},
     {"planilha": ["PREÇO UNITÁRIO", "PRECO UNITARIO"], "tela": "Preço Unitário", "tipo": "moeda"},
     {"planilha": ["VALOR TOTAL"], "tela": "Valor Total", "tipo": "moeda"},
+    {"planilha": ["QTD ENTREGUE"], "tela": "Qtd Entregue", "tipo": "numero"},
     {"planilha": ["NF REMESSA"], "tela": "NF Remessa", "tipo": "texto"},
     {"planilha": ["LOGISTICA"], "tela": "Logística", "tipo": "logistica"},
     {"planilha": ["PREV LOG"], "tela": "Prev Log", "tipo": "data"}
