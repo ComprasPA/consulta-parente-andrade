@@ -220,6 +220,12 @@ STATUS_GATILHO_SUBSTITUICAO_IMPORT = {
     normalizar_status_import("Em aprovação"),
     normalizar_status_import("Pendente"),
     normalizar_status_import(TEXTO_PENDENTE_APROVACAO_IMPORT),
+    # Pedido que reaparece num import (a chave bateu = ele existe no arquivo
+    # de agora) nunca deve continuar preso em EXCLUÍDO DO TOTVS - isso só
+    # acontece quando o arquivo anterior que gerou a exclusão era parcial/
+    # filtrado (ex.: relatorio diario mais estreito que o Browse completo do
+    # Totvs) e o pedido nunca tinha realmente sumido de lá.
+    normalizar_status_import(STATUS_EXCLUIDO_TOTVS),
 }
 
 MAPA_STATUS_APROV_TEXTO_IMPORT = {
