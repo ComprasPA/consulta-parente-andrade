@@ -773,7 +773,12 @@ if tem_busca_ativa:
                 df_painel = montar_df_painel(df_final, colunas_normalizadas)
 
                 if not df_painel.empty:
-                    txt_status = f"🔍 Registros Localizados ({len(df_painel)} itens)"
+                    if "Pedido" in df_painel.columns:
+                        pedidos_validos = df_painel["Pedido"].astype(str).str.strip()
+                        qtd_pedidos = pedidos_validos[pedidos_validos != ""].nunique()
+                    else:
+                        qtd_pedidos = 0
+                    txt_status = f"🔍 Registros Localizados ({qtd_pedidos} Pedidos / {len(df_painel)} itens)"
                     st.markdown(f'<div class="status-card">{txt_status}</div>', unsafe_allow_html=True)
 
                     # Confirmação de gravação persistida - o st.success() antigo
