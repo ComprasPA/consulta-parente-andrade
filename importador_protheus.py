@@ -238,16 +238,6 @@ MAPA_STATUS_APROV_TEXTO_IMPORT = {
     normalizar_status_import("Não possui controle de Aprovação"): "Aprovado",
 }
 
-# Decisao explicita do usuario, 2026-09-28: o sinal confiavel de que um
-# Pedido foi realmente aprovado e' a coluna Dt Lib. PC (Data Liberacao) ter
-# data preenchida - nao o campo "Status Aprov" isolado, que reflete so UM
-# nivel do fluxo de aprovacao dentro do proprio Totvs e pode vir "Aprovado"
-# antes de todos os aprovadores da SCG terem assinado (caso real: Pedido
-# 180540, dois aprovadores no PDF, "Ronald Lira [OK] | Joao Francisco
-# Pereira Procopio [ ]" - so um tinha assinado, mas Status Aprov ja dizia
-# aprovado). Ver valor_status_origem_import.
-STATUS_APROVADO_IMPORT = "APROVADO"
-
 # Pedido some do relatorio mais recente do Totvs = provavelmente foi excluido
 # la, mas a importacao nunca remove linha da base - sem isso o pedido ficaria
 # preso pra sempre com o status antigo, parecendo ainda em aberto.
@@ -281,12 +271,11 @@ STATUS_COMPRA_DIRETA_IMPORT = "COMPRA DIRETA"
 
 
 def valor_status_origem_import(linha_origem) -> str:
-    """Data em "Dt Lib. PC" (Data Liberação) e' o sinal de aprovação real -
-    prevalece sobre "Status Aprov" mesmo quando esse campo ainda diz
-    Pendente/Em aprovação (ver STATUS_APROVADO_IMPORT). Sem essa data, cai
-    pro comportamento antigo baseado só em "Status Aprov"."""
-    if fmt_texto_import(linha_origem.get("Dt Lib. PC", "")):
-        return STATUS_APROVADO_IMPORT
+    """Decisão explícita do usuário, 2026-09-28: confirma o status de
+    aprovação SÓ pela coluna "Status Aprov" do relatório do Totvs (voltou
+    atrás de uma tentativa de usar "Dt Lib. PC"/Data Liberação como sinal -
+    essa data vinha preenchida mesmo com pedido ainda pendente, gerando
+    falso positivo de aprovação)."""
     bruto = fmt_texto_import(linha_origem.get("Status Aprov", ""))
     valor = MAPA_STATUS_APROV_TEXTO_IMPORT.get(normalizar_status_import(bruto), bruto)
     return valor.upper()
@@ -706,86 +695,6 @@ def forcar_atendido_quando_entrega_import(spreadsheet) -> int:
     return len(celulas)
 
 
-def forcar_aprovado_quando_liberado_import(spreadsheet) -> int:
-    """Varredura geral (decisão explícita do usuário, 2026-09-28): quando o
-    Pedido tem DATA LIBERAÇÃO preenchida (Dt Lib. PC no Totvs) e ainda está
-    numa etapa "não decidida" (em branco ou Pendente de Aprovação), força
-    STATUS = APROVADO - mesmo raciocínio de forcar_atendido_quando_entrega_
-    import, mas pro sinal de aprovação em vez de entrega. Nunca mexe se
-    ENTREGA já está preenchida (Entrega sempre tem prioridade - o Pedido já
-    passou de aprovado pra recebido) nem em status mais avançados (Enviado,
-    Atendido, Compra Direta, Rejeitado, etc. - só sobe de "ainda não
-    decidido" pra "aprovado", nunca desfaz progresso ou uma rejeição
-    manual). Devolve quantas linhas foram corrigidas."""
-    ws_pedidos = spreadsheet.worksheet(ABA_PEDIDOS_IMPORT)
-    dados_ped = ws_pedidos.get_all_values()
-    if not dados_ped:
-        return 0
-    cabecalho_ped = dados_ped[0]
-    col_liberacao = resolver_coluna_real_import(cabecalho_ped, "DATA LIBERAÇÃO", ALIASES_PEDIDOS_IMPORT)
-    col_entrega = resolver_coluna_real_import(cabecalho_ped, "ENTREGA", {})
-    if not col_liberacao or "STATUS" not in cabecalho_ped:
-        return 0
-    idx_liberacao = cabecalho_ped.index(col_liberacao)
-    idx_status = cabecalho_ped.index("STATUS")
-    idx_entrega = cabecalho_ped.index(col_entrega) if col_entrega else None
-
-    celulas = []
-    for i, linha in enumerate(dados_ped[1:], start=2):
-        if not (idx_liberacao < len(linha) and linha[idx_liberacao].strip()):
-            continue
-        if idx_entrega is not None and idx_entrega < len(linha) and linha[idx_entrega].strip():
-            continue
-        status_atual = normalizar_status_import(linha[idx_status] if idx_status < len(linha) else "")
-        if status_atual not in STATUS_GATILHO_SUBSTITUICAO_IMPORT:
-            continue
-        if status_atual == normalizar_status_import(STATUS_EXCLUIDO_TOTVS_IMPORT):
-            continue  # exclusao/revivificacao tem sua propria logica, nao mexe aqui
-        celulas.append(gspread.Cell(i, idx_status + 1, STATUS_APROVADO_IMPORT))
-
-    if celulas:
-        ws_pedidos.update_cells(celulas, value_input_option="RAW")
-    return len(celulas)
-
-
-def reverter_aprovado_sem_liberacao_import(spreadsheet) -> int:
-    """Complemento de forcar_aprovado_quando_liberado_import (decisão
-    explícita do usuário, 2026-09-28, após achar 98 linhas assim na base):
-    se o STATUS já está APROVADO mas DATA LIBERAÇÃO está em branco, esse
-    "aprovado" não tem o sinal confiável por trás (veio do "Status Aprov"
-    antigo, ou de um import anterior à mudança de regra) - reverte pra
-    PENDENTE DE APROVAÇÃO. Nunca mexe se ENTREGA já está preenchida (Pedido
-    já avançou pra recebido, Data Liberação pode só não ter sido importada
-    ainda). Devolve quantas linhas foram corrigidas."""
-    ws_pedidos = spreadsheet.worksheet(ABA_PEDIDOS_IMPORT)
-    dados_ped = ws_pedidos.get_all_values()
-    if not dados_ped:
-        return 0
-    cabecalho_ped = dados_ped[0]
-    col_liberacao = resolver_coluna_real_import(cabecalho_ped, "DATA LIBERAÇÃO", ALIASES_PEDIDOS_IMPORT)
-    col_entrega = resolver_coluna_real_import(cabecalho_ped, "ENTREGA", {})
-    if not col_liberacao or "STATUS" not in cabecalho_ped:
-        return 0
-    idx_liberacao = cabecalho_ped.index(col_liberacao)
-    idx_status = cabecalho_ped.index("STATUS")
-    idx_entrega = cabecalho_ped.index(col_entrega) if col_entrega else None
-
-    celulas = []
-    for i, linha in enumerate(dados_ped[1:], start=2):
-        status_atual = linha[idx_status] if idx_status < len(linha) else ""
-        if normalizar_status_import(status_atual) != normalizar_status_import(STATUS_APROVADO_IMPORT):
-            continue
-        if idx_liberacao < len(linha) and linha[idx_liberacao].strip():
-            continue  # tem Data Liberacao - aprovado de verdade, nao mexe
-        if idx_entrega is not None and idx_entrega < len(linha) and linha[idx_entrega].strip():
-            continue  # ja avancou pra recebido, nao rebaixa
-        celulas.append(gspread.Cell(i, idx_status + 1, TEXTO_PENDENTE_APROVACAO_IMPORT))
-
-    if celulas:
-        ws_pedidos.update_cells(celulas, value_input_option="RAW")
-    return len(celulas)
-
-
 def carregar_descricoes_solicitacoes_import(spreadsheet):
     """Monta um lookup (SOLICITAÇÃO, PRODUTO) -> DESCRICAO a partir da aba
     Solicitacoes, usado pra corrigir a Descricao vinda do relatorio de
@@ -940,16 +849,13 @@ def processar_upload_protheus(arquivo):
 
 
 def _sufixo_compra_direta_import(spreadsheet) -> str:
-    """Roda sincronizar_status_compra_direta_import, depois
-    forcar_aprovado_quando_liberado_import e por fim
-    forcar_atendido_quando_entrega_import (nessa ordem - cada uma corrige
-    qualquer coisa que as anteriores, ou qualquer outra causa, tenham
-    deixado errada: Compra Direta sempre prevalece, Aprovado sobe de
-    pendente quando tem Data Liberação, Atendido sobe de qualquer coisa
-    quando tem Entrega) e devolve um sufixo de mensagem pronto pra
-    concatenar no retorno de processar_upload_protheus - nunca deixa uma
-    falha nessa sincronização derrubar o import principal (que já rodou e
-    já foi salvo com sucesso antes desta parte)."""
+    """Roda sincronizar_status_compra_direta_import e depois
+    forcar_atendido_quando_entrega_import (nessa ordem - a segunda corrige
+    qualquer coisa que a primeira, ou qualquer outra causa, tenha deixado
+    errada) e devolve um sufixo de mensagem pronto pra concatenar no
+    retorno de processar_upload_protheus - nunca deixa uma falha nessa
+    sincronização derrubar o import principal (que já rodou e já foi salvo
+    com sucesso antes desta parte)."""
     partes = []
     try:
         atualizados = sincronizar_status_compra_direta_import(spreadsheet)
@@ -957,18 +863,6 @@ def _sufixo_compra_direta_import(spreadsheet) -> str:
             partes.append(f" {atualizados} pedido(s) marcado(s) como 'COMPRA DIRETA' (Criticidade da Solicitação).")
     except Exception as e:
         partes.append(f" ⚠️ Falha ao sincronizar status de Compra Direta: {e}")
-    try:
-        aprovados = forcar_aprovado_quando_liberado_import(spreadsheet)
-        if aprovados:
-            partes.append(f" {aprovados} pedido(s) corrigido(s) para 'APROVADO' (já tinham Data Liberação registrada).")
-    except Exception as e:
-        partes.append(f" ⚠️ Falha ao forçar status Aprovado: {e}")
-    try:
-        revertidos = reverter_aprovado_sem_liberacao_import(spreadsheet)
-        if revertidos:
-            partes.append(f" {revertidos} pedido(s) revertido(s) de 'APROVADO' pra 'Pendente de Aprovação' (sem Data Liberação).")
-    except Exception as e:
-        partes.append(f" ⚠️ Falha ao reverter status Aprovado sem Data Liberação: {e}")
     try:
         corrigidos = forcar_atendido_quando_entrega_import(spreadsheet)
         if corrigidos:
