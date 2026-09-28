@@ -748,6 +748,44 @@ def forcar_aprovado_quando_liberado_import(spreadsheet) -> int:
     return len(celulas)
 
 
+def reverter_aprovado_sem_liberacao_import(spreadsheet) -> int:
+    """Complemento de forcar_aprovado_quando_liberado_import (decisão
+    explícita do usuário, 2026-09-28, após achar 98 linhas assim na base):
+    se o STATUS já está APROVADO mas DATA LIBERAÇÃO está em branco, esse
+    "aprovado" não tem o sinal confiável por trás (veio do "Status Aprov"
+    antigo, ou de um import anterior à mudança de regra) - reverte pra
+    PENDENTE DE APROVAÇÃO. Nunca mexe se ENTREGA já está preenchida (Pedido
+    já avançou pra recebido, Data Liberação pode só não ter sido importada
+    ainda). Devolve quantas linhas foram corrigidas."""
+    ws_pedidos = spreadsheet.worksheet(ABA_PEDIDOS_IMPORT)
+    dados_ped = ws_pedidos.get_all_values()
+    if not dados_ped:
+        return 0
+    cabecalho_ped = dados_ped[0]
+    col_liberacao = resolver_coluna_real_import(cabecalho_ped, "DATA LIBERAÇÃO", ALIASES_PEDIDOS_IMPORT)
+    col_entrega = resolver_coluna_real_import(cabecalho_ped, "ENTREGA", {})
+    if not col_liberacao or "STATUS" not in cabecalho_ped:
+        return 0
+    idx_liberacao = cabecalho_ped.index(col_liberacao)
+    idx_status = cabecalho_ped.index("STATUS")
+    idx_entrega = cabecalho_ped.index(col_entrega) if col_entrega else None
+
+    celulas = []
+    for i, linha in enumerate(dados_ped[1:], start=2):
+        status_atual = linha[idx_status] if idx_status < len(linha) else ""
+        if normalizar_status_import(status_atual) != normalizar_status_import(STATUS_APROVADO_IMPORT):
+            continue
+        if idx_liberacao < len(linha) and linha[idx_liberacao].strip():
+            continue  # tem Data Liberacao - aprovado de verdade, nao mexe
+        if idx_entrega is not None and idx_entrega < len(linha) and linha[idx_entrega].strip():
+            continue  # ja avancou pra recebido, nao rebaixa
+        celulas.append(gspread.Cell(i, idx_status + 1, TEXTO_PENDENTE_APROVACAO_IMPORT))
+
+    if celulas:
+        ws_pedidos.update_cells(celulas, value_input_option="RAW")
+    return len(celulas)
+
+
 def carregar_descricoes_solicitacoes_import(spreadsheet):
     """Monta um lookup (SOLICITAÇÃO, PRODUTO) -> DESCRICAO a partir da aba
     Solicitacoes, usado pra corrigir a Descricao vinda do relatorio de
@@ -925,6 +963,12 @@ def _sufixo_compra_direta_import(spreadsheet) -> str:
             partes.append(f" {aprovados} pedido(s) corrigido(s) para 'APROVADO' (já tinham Data Liberação registrada).")
     except Exception as e:
         partes.append(f" ⚠️ Falha ao forçar status Aprovado: {e}")
+    try:
+        revertidos = reverter_aprovado_sem_liberacao_import(spreadsheet)
+        if revertidos:
+            partes.append(f" {revertidos} pedido(s) revertido(s) de 'APROVADO' pra 'Pendente de Aprovação' (sem Data Liberação).")
+    except Exception as e:
+        partes.append(f" ⚠️ Falha ao reverter status Aprovado sem Data Liberação: {e}")
     try:
         corrigidos = forcar_atendido_quando_entrega_import(spreadsheet)
         if corrigidos:

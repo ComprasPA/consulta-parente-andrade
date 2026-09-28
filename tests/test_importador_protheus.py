@@ -630,6 +630,51 @@ class TestForcarAprovadoQuandoLiberado:
         assert ws.update_cells_chamado is None
 
 
+class TestReverterAprovadoSemLiberacao:
+    CABECALHO = ["STATUS", "PEDIDO", "PRODUTO", "DATA LIBERAÇÃO", "ENTREGA"]
+
+    def _montar(self, linhas):
+        ws = _FakeWorksheetComDados([self.CABECALHO, *linhas])
+        sheet = _FakeSpreadsheetComAbas({"Pedidos": ws})
+        return sheet, ws
+
+    def test_aprovado_sem_data_liberacao_volta_pra_pendente(self):
+        # Caso real, 2026-09-28: 98 linhas assim na base (Status Aprov antigo
+        # tinha marcado APROVADO antes da Data Liberação existir de verdade).
+        sheet, ws = self._montar([
+            ["APROVADO", "180408", "0000001700", "", ""],
+        ])
+        total = ip.reverter_aprovado_sem_liberacao_import(sheet)
+        assert total == 1
+        celulas = ws.update_cells_chamado
+        assert (celulas[0].row, celulas[0].col, celulas[0].value) == (2, 1, ip.TEXTO_PENDENTE_APROVACAO_IMPORT)
+
+    def test_aprovado_com_data_liberacao_nao_mexe(self):
+        sheet, ws = self._montar([
+            ["APROVADO", "180408", "0000001700", "24/09/2026", ""],
+        ])
+        total = ip.reverter_aprovado_sem_liberacao_import(sheet)
+        assert total == 0
+        assert ws.update_cells_chamado is None
+
+    def test_aprovado_sem_liberacao_mas_com_entrega_nao_rebaixa(self):
+        sheet, ws = self._montar([
+            ["APROVADO", "180408", "0000001700", "", "25/09/2026"],
+        ])
+        total = ip.reverter_aprovado_sem_liberacao_import(sheet)
+        assert total == 0
+        assert ws.update_cells_chamado is None
+
+    def test_outros_status_nao_sao_afetados(self):
+        for status_outro in ("PENDENTE DE APROVAÇÃO", "ENVIADO AO FORNECEDOR", "ATENDIDO", "COMPRA DIRETA", "REJEITADO", ""):
+            sheet, ws = self._montar([
+                [status_outro, "180408", "0000001700", "", ""],
+            ])
+            total = ip.reverter_aprovado_sem_liberacao_import(sheet)
+            assert total == 0, f"nao deveria mexer em status {status_outro!r}"
+            assert ws.update_cells_chamado is None
+
+
 class TestProcessarUploadProtheus:
     def test_erro_de_conexao_retorna_ok_false(self, monkeypatch):
         def _falha():
