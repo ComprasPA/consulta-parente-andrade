@@ -230,8 +230,23 @@ STATUS_GATILHO_SUBSTITUICAO_IMPORT = {
 
 MAPA_STATUS_APROV_TEXTO_IMPORT = {
     normalizar_status_import("Pendente"): TEXTO_PENDENTE_APROVACAO_IMPORT,
+    # "Em aprovação" é só uma grafia alternativa do Totvs pro mesmo estado -
+    # sem essa entrada, gravava "EM APROVAÇÃO" como status literal na base,
+    # duplicando o conceito de "Pendente de Aprovação" com dois textos
+    # diferentes (decisão do usuário 2026-09-28: usar sempre um só).
+    normalizar_status_import("Em aprovação"): TEXTO_PENDENTE_APROVACAO_IMPORT,
     normalizar_status_import("Não possui controle de Aprovação"): "Aprovado",
 }
+
+# Decisao explicita do usuario, 2026-09-28: o sinal confiavel de que um
+# Pedido foi realmente aprovado e' a coluna Dt Lib. PC (Data Liberacao) ter
+# data preenchida - nao o campo "Status Aprov" isolado, que reflete so UM
+# nivel do fluxo de aprovacao dentro do proprio Totvs e pode vir "Aprovado"
+# antes de todos os aprovadores da SCG terem assinado (caso real: Pedido
+# 180540, dois aprovadores no PDF, "Ronald Lira [OK] | Joao Francisco
+# Pereira Procopio [ ]" - so um tinha assinado, mas Status Aprov ja dizia
+# aprovado). Ver valor_status_origem_import.
+STATUS_APROVADO_IMPORT = "APROVADO"
 
 # Pedido some do relatorio mais recente do Totvs = provavelmente foi excluido
 # la, mas a importacao nunca remove linha da base - sem isso o pedido ficaria
@@ -266,6 +281,12 @@ STATUS_COMPRA_DIRETA_IMPORT = "COMPRA DIRETA"
 
 
 def valor_status_origem_import(linha_origem) -> str:
+    """Data em "Dt Lib. PC" (Data Liberação) e' o sinal de aprovação real -
+    prevalece sobre "Status Aprov" mesmo quando esse campo ainda diz
+    Pendente/Em aprovação (ver STATUS_APROVADO_IMPORT). Sem essa data, cai
+    pro comportamento antigo baseado só em "Status Aprov"."""
+    if fmt_texto_import(linha_origem.get("Dt Lib. PC", "")):
+        return STATUS_APROVADO_IMPORT
     bruto = fmt_texto_import(linha_origem.get("Status Aprov", ""))
     valor = MAPA_STATUS_APROV_TEXTO_IMPORT.get(normalizar_status_import(bruto), bruto)
     return valor.upper()
@@ -525,6 +546,58 @@ def detectar_pedidos_excluidos_import(indice_existentes, chaves_deste_arquivo, c
     return atualizacoes
 
 
+def detectar_pedidos_duplicados_import(worksheet) -> list[dict]:
+    """Varre a aba Pedidos inteira procurando (PEDIDO, PRODUTO) que aparece em
+    mais de uma linha - sinal de que duas importações rodaram quase ao mesmo
+    tempo (ex.: o agente em segundo plano e um upload manual pelo Portal) e
+    cada uma viu a chave como "ainda não existe" antes da outra terminar de
+    gravar (carregar_indice_existentes_import só guarda a ÚLTIMA linha de
+    cada chave - se já tem duplicata na base, a primeira cópia fica invisível
+    pro índice e nunca mais recebe atualização de campo, mesmo em blank, ver
+    caso real Pedido 180291/180297/180299/180301).
+
+    Só relata pra revisão humana - NUNCA apaga linha sozinho (é uma ação
+    sensível, o usuário decide qual cópia manter). Devolve uma lista de
+    dicts, um por chave duplicada: {"pedido", "produto", "linhas" (números
+    de linha na planilha, 1-based), "fornecedor", "status"}."""
+    valores = worksheet.get_all_values()
+    if not valores:
+        return []
+    cabecalho_real = valores[0]
+    col_pedido = resolver_coluna_real_import(cabecalho_real, "PEDIDO", {})
+    col_produto = resolver_coluna_real_import(cabecalho_real, "PRODUTO", {})
+    col_forn = resolver_coluna_real_import(cabecalho_real, "FORNECEDOR", {})
+    col_status = resolver_coluna_real_import(cabecalho_real, "STATUS", {})
+    if not col_pedido or not col_produto:
+        return []
+    idx_pedido = cabecalho_real.index(col_pedido)
+    idx_produto = cabecalho_real.index(col_produto)
+    idx_forn = cabecalho_real.index(col_forn) if col_forn else None
+    idx_status = cabecalho_real.index(col_status) if col_status else None
+
+    linhas_por_chave: dict[tuple[str, str], list[int]] = {}
+    for i, linha in enumerate(valores[1:], start=2):
+        pedido = limpar_numero_texto_import(linha[idx_pedido]) if idx_pedido < len(linha) else ""
+        produto = fmt_produto_import(linha[idx_produto]) if idx_produto < len(linha) else ""
+        if not pedido or not produto:
+            continue
+        linhas_por_chave.setdefault((pedido, produto), []).append(i)
+
+    duplicados = []
+    for (pedido, produto), linhas in linhas_por_chave.items():
+        if len(linhas) <= 1:
+            continue
+        primeira = valores[linhas[0] - 1]
+        duplicados.append({
+            "pedido": pedido,
+            "produto": produto,
+            "linhas": linhas,
+            "fornecedor": primeira[idx_forn].strip() if idx_forn is not None and idx_forn < len(primeira) else "",
+            "status": primeira[idx_status].strip() if idx_status is not None and idx_status < len(primeira) else "",
+        })
+    return duplicados
+
+
 def aplicar_no_google_sheets_import(worksheet, novas_linhas, atualizacoes):
     if novas_linhas:
         worksheet.append_rows(novas_linhas, value_input_option="RAW")
@@ -627,6 +700,48 @@ def forcar_atendido_quando_entrega_import(spreadsheet) -> int:
             status_atual = linha[idx_status] if idx_status < len(linha) else ""
             if status_atual.strip().upper() != alvo:
                 celulas.append(gspread.Cell(i, idx_status + 1, alvo))
+
+    if celulas:
+        ws_pedidos.update_cells(celulas, value_input_option="RAW")
+    return len(celulas)
+
+
+def forcar_aprovado_quando_liberado_import(spreadsheet) -> int:
+    """Varredura geral (decisão explícita do usuário, 2026-09-28): quando o
+    Pedido tem DATA LIBERAÇÃO preenchida (Dt Lib. PC no Totvs) e ainda está
+    numa etapa "não decidida" (em branco ou Pendente de Aprovação), força
+    STATUS = APROVADO - mesmo raciocínio de forcar_atendido_quando_entrega_
+    import, mas pro sinal de aprovação em vez de entrega. Nunca mexe se
+    ENTREGA já está preenchida (Entrega sempre tem prioridade - o Pedido já
+    passou de aprovado pra recebido) nem em status mais avançados (Enviado,
+    Atendido, Compra Direta, Rejeitado, etc. - só sobe de "ainda não
+    decidido" pra "aprovado", nunca desfaz progresso ou uma rejeição
+    manual). Devolve quantas linhas foram corrigidas."""
+    ws_pedidos = spreadsheet.worksheet(ABA_PEDIDOS_IMPORT)
+    dados_ped = ws_pedidos.get_all_values()
+    if not dados_ped:
+        return 0
+    cabecalho_ped = dados_ped[0]
+    col_liberacao = resolver_coluna_real_import(cabecalho_ped, "DATA LIBERAÇÃO", ALIASES_PEDIDOS_IMPORT)
+    col_entrega = resolver_coluna_real_import(cabecalho_ped, "ENTREGA", {})
+    if not col_liberacao or "STATUS" not in cabecalho_ped:
+        return 0
+    idx_liberacao = cabecalho_ped.index(col_liberacao)
+    idx_status = cabecalho_ped.index("STATUS")
+    idx_entrega = cabecalho_ped.index(col_entrega) if col_entrega else None
+
+    celulas = []
+    for i, linha in enumerate(dados_ped[1:], start=2):
+        if not (idx_liberacao < len(linha) and linha[idx_liberacao].strip()):
+            continue
+        if idx_entrega is not None and idx_entrega < len(linha) and linha[idx_entrega].strip():
+            continue
+        status_atual = normalizar_status_import(linha[idx_status] if idx_status < len(linha) else "")
+        if status_atual not in STATUS_GATILHO_SUBSTITUICAO_IMPORT:
+            continue
+        if status_atual == normalizar_status_import(STATUS_EXCLUIDO_TOTVS_IMPORT):
+            continue  # exclusao/revivificacao tem sua propria logica, nao mexe aqui
+        celulas.append(gspread.Cell(i, idx_status + 1, STATUS_APROVADO_IMPORT))
 
     if celulas:
         ws_pedidos.update_cells(celulas, value_input_option="RAW")
@@ -787,13 +902,16 @@ def processar_upload_protheus(arquivo):
 
 
 def _sufixo_compra_direta_import(spreadsheet) -> str:
-    """Roda sincronizar_status_compra_direta_import e depois
-    forcar_atendido_quando_entrega_import (nessa ordem - a segunda corrige
-    qualquer coisa que a primeira, ou qualquer outra causa, tenha deixado
-    errada) e devolve um sufixo de mensagem pronto pra concatenar no
-    retorno de processar_upload_protheus - nunca deixa uma falha nessa
-    sincronização derrubar o import principal (que já rodou e já foi salvo
-    com sucesso antes desta parte)."""
+    """Roda sincronizar_status_compra_direta_import, depois
+    forcar_aprovado_quando_liberado_import e por fim
+    forcar_atendido_quando_entrega_import (nessa ordem - cada uma corrige
+    qualquer coisa que as anteriores, ou qualquer outra causa, tenham
+    deixado errada: Compra Direta sempre prevalece, Aprovado sobe de
+    pendente quando tem Data Liberação, Atendido sobe de qualquer coisa
+    quando tem Entrega) e devolve um sufixo de mensagem pronto pra
+    concatenar no retorno de processar_upload_protheus - nunca deixa uma
+    falha nessa sincronização derrubar o import principal (que já rodou e
+    já foi salvo com sucesso antes desta parte)."""
     partes = []
     try:
         atualizados = sincronizar_status_compra_direta_import(spreadsheet)
@@ -801,6 +919,12 @@ def _sufixo_compra_direta_import(spreadsheet) -> str:
             partes.append(f" {atualizados} pedido(s) marcado(s) como 'COMPRA DIRETA' (Criticidade da Solicitação).")
     except Exception as e:
         partes.append(f" ⚠️ Falha ao sincronizar status de Compra Direta: {e}")
+    try:
+        aprovados = forcar_aprovado_quando_liberado_import(spreadsheet)
+        if aprovados:
+            partes.append(f" {aprovados} pedido(s) corrigido(s) para 'APROVADO' (já tinham Data Liberação registrada).")
+    except Exception as e:
+        partes.append(f" ⚠️ Falha ao forçar status Aprovado: {e}")
     try:
         corrigidos = forcar_atendido_quando_entrega_import(spreadsheet)
         if corrigidos:
