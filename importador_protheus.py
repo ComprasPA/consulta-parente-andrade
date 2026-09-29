@@ -76,7 +76,7 @@ CAMPOS_SEMPRE_SOBRESCREVE_PEDIDOS_IMPORT = ("ENTREGA", "QTD ENTREGUE")
 CABECALHO_SOLICITACOES_IMPORT = [
     "SOLICITAÇÃO", "ITEM SC", "COTAÇÃO", "PEDIDO", "PRODUTO", "DESCRICAO",
     "QTD", "UM", "CENTRO DE CUSTO", "DESC CENTRO DE CUSTO",
-    "DATA EMISSAO", "DATA APROVACAO", "FILIAL", "QTD EM PEDIDO",
+    "DATA EMISSAO", "DATA APROVACAO", "FILIAL", "QTD EM PEDIDO", "COD SC SCM",
 ]
 MAPA_SOLICITACOES_IMPORT = {
     "SOLICITAÇÃO":          {"origem": "Numero da SC", "tipo": "solicitacao"},
@@ -93,6 +93,7 @@ MAPA_SOLICITACOES_IMPORT = {
     "DATA APROVACAO":       {"origem": "Dt Aprovacao", "tipo": "data"},
     "FILIAL":               {"origem": "Filial",       "tipo": "texto"},
     "QTD EM PEDIDO":        {"origem": "Quant.em Ped", "tipo": "numero"},
+    "COD SC SCM":           {"origem": "Cod SC. SCM",  "tipo": "texto"},
 }
 CHAVE_SOLICITACOES_IMPORT = ("SOLICITAÇÃO", "ITEM SC")
 CAMPOS_MANUAIS_SOLICITACOES_IMPORT = ["STATUS"]
