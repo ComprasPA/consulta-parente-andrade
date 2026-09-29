@@ -95,6 +95,7 @@ MAPA_SOLICITACOES_IMPORT = {
     "QTD EM PEDIDO":        {"origem": "Quant.em Ped", "tipo": "numero"},
 }
 CHAVE_SOLICITACOES_IMPORT = ("SOLICITAÇÃO", "ITEM SC")
+CAMPOS_MANUAIS_SOLICITACOES_IMPORT = ["STATUS"]
 
 
 def normalizar_nome_import(nome) -> str:
@@ -258,6 +259,38 @@ STATUS_TERMINAIS_SEM_REALERTA_IMPORT = {
     normalizar_status_import("Rejeitado Pelo Aprovador"),
     normalizar_status_import("Rejeitado"),
 }
+
+# Decisao explicita do usuario, 2026-09-29: a coluna "Legenda" do relatorio
+# de Solicitacoes do Totvs reflete o status real e atual de cada item
+# (aprovado/cotando/entregue/etc.) - convertido pro STATUS canonico da aba
+# Solicitacoes. Mantem as grafias exatas que o usuario pediu (ex.:
+# "REJEITADA", nao "REJEITADO" - esse ultimo e' um status DIFERENTE,
+# lancado a mao por atualizar_pendencias_abertas.py/Portal do Comprador,
+# ver GATILHO_STATUS_SOLICITACOES_IMPORT).
+MAPA_LEGENDA_STATUS_IMPORT = {
+    "SOLICITACAO BLOQUEADA": "BLOQUEADA",
+    "SOLICITACAO EM PROCESSO DE COTACAO": "EM COTAÇÃO",
+    "SOLICITACAO PARCIALMENTE ATENDIDA": "PARCIALMENTE ATENDIDA",
+    "SOLICITACAO PENDENTE": "PENDENTE",
+    "SOLICITACAO REJEITADA": "REJEITADA",
+    "SOLICITACAO TOTALMENTE ATENDIDA": "ATENDIDA",
+}
+# So recalcula o STATUS quando o valor atual e' um dos que essa propria
+# importacao gera (ou esta em branco) - protege status manuais lancados por
+# OUTRO pipeline (REJEITADO/CONTRATO/REVISAR, ver atualizar_pendencias_
+# abertas.py e Portal do Comprador) de serem sobrescritos so por a
+# Solicitacao ter reaparecido num import comum.
+GATILHO_STATUS_SOLICITACOES_IMPORT = {normalizar_status_import("")} | {
+    normalizar_status_import(v) for v in MAPA_LEGENDA_STATUS_IMPORT.values()
+}
+
+
+def status_da_legenda_import(linha_origem) -> str:
+    """Traduz a coluna "Legenda" do relatorio de Solicitacoes do Totvs pro
+    STATUS canonico da aba Solicitacoes (ver MAPA_LEGENDA_STATUS_IMPORT).
+    Legenda desconhecida/em branco devolve "" (nao mexe no status atual)."""
+    bruto = fmt_texto_import(linha_origem.get("Legenda", ""))
+    return MAPA_LEGENDA_STATUS_IMPORT.get(normalizar_status_import(bruto), "")
 
 # A Criticidade "COMPRA DIRETA" mora na aba Solicitacoes (coluna CRITICIDADE,
 # alimentada por fora - aba Criticidade_Solicitacoes/formula, nao pelo
@@ -814,7 +847,10 @@ def processar_arquivo_sc_import(arquivo, spreadsheet):
     arquivo.seek(0)
     df = pd.read_excel(arquivo, header=1)
     novas_linhas, atualizacoes, duplicadas, atualizadas, _ = processar_linhas_import(
-        df, MAPA_SOLICITACOES_IMPORT, cabecalho_real, {}, [], CHAVE_SOLICITACOES_IMPORT, indice_existentes,
+        df, MAPA_SOLICITACOES_IMPORT, cabecalho_real, {}, CAMPOS_MANUAIS_SOLICITACOES_IMPORT,
+        CHAVE_SOLICITACOES_IMPORT, indice_existentes,
+        campo_status="STATUS", calcular_status=status_da_legenda_import,
+        gatilho_status=GATILHO_STATUS_SOLICITACOES_IMPORT,
         mapa_pedidos_por_produto=mapa_pedidos_por_produto,
     )
     aplicar_no_google_sheets_import(worksheet, novas_linhas, atualizacoes)

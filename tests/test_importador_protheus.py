@@ -141,6 +141,111 @@ class TestValorStatusOrigem:
         linha = {"Status Aprov": "Em aprovação"}
         assert ip.valor_status_origem_import(linha) == "PENDENTE DE APROVAÇÃO".upper()
 
+
+class TestStatusDaLegenda:
+    # Decisão explícita do usuário, 2026-09-29: coluna "Legenda" do
+    # relatório de Solicitações do Totvs -> STATUS canônico da aba
+    # Solicitacoes. Grafias exatas pedidas pelo usuário (ex.: "REJEITADA",
+    # não "REJEITADO" - esse é outro status, de outro pipeline).
+    @pytest.mark.parametrize("legenda,esperado", [
+        ("Solicitacao bloqueada", "BLOQUEADA"),
+        ("Solicitação em processo de cotação", "EM COTAÇÃO"),
+        ("Solicitacao parcialmente atendida", "PARCIALMENTE ATENDIDA"),
+        ("Solicitacao Pendente", "PENDENTE"),
+        ("Solicitacao rejeitada", "REJEITADA"),
+        ("Solicitacao totalmente atendida", "ATENDIDA"),
+    ])
+    def test_mapeia_cada_legenda_conhecida(self, legenda, esperado):
+        assert ip.status_da_legenda_import({"Legenda": legenda}) == esperado
+
+    def test_legenda_vazia_nao_mexe(self):
+        assert ip.status_da_legenda_import({"Legenda": ""}) == ""
+
+    def test_legenda_desconhecida_nao_mexe(self):
+        assert ip.status_da_legenda_import({"Legenda": "Uma legenda nova que o Totvs inventou"}) == ""
+
+    def test_gatilho_protege_status_manuais_de_outro_pipeline(self):
+        # REJEITADO/CONTRATO/REVISAR são lançados a mão por
+        # atualizar_pendencias_abertas.py / Portal do Comprador - um import
+        # comum de Solicitações nunca pode sobrescrever esses.
+        for manual in ("REJEITADO", "CONTRATO", "REVISAR"):
+            assert ip.normalizar_status_import(manual) not in ip.GATILHO_STATUS_SOLICITACOES_IMPORT
+
+    def test_gatilho_inclui_todos_os_proprios_valores_e_branco(self):
+        assert ip.normalizar_status_import("") in ip.GATILHO_STATUS_SOLICITACOES_IMPORT
+        for valor in ip.MAPA_LEGENDA_STATUS_IMPORT.values():
+            assert ip.normalizar_status_import(valor) in ip.GATILHO_STATUS_SOLICITACOES_IMPORT
+
+
+CABECALHO_DESTINO_SC = ["SOLICITAÇÃO", "ITEM SC", "PRODUTO", "STATUS"]
+
+
+class TestImportSolicitacoesAtualizaStatusPelaLegenda:
+    """Integração ponta a ponta: processar_linhas_import com os parâmetros
+    reais usados por processar_arquivo_sc_import (MAPA_SOLICITACOES_IMPORT,
+    CAMPOS_MANUAIS_SOLICITACOES_IMPORT, status_da_legenda_import,
+    GATILHO_STATUS_SOLICITACOES_IMPORT) - garante que o import comum de
+    Solicitações já grava o STATUS certo sozinho, sem precisar de ajuste
+    manual depois (pedido do usuário, 2026-09-29)."""
+
+    def _indice_existente(self, row_num=5, **valores_atuais):
+        chave = (valores_atuais.get("SOLICITAÇÃO", ""), valores_atuais.get("ITEM SC", ""))
+        base = {c: "" for c in CABECALHO_DESTINO_SC}
+        base.update(valores_atuais)
+        return {chave: {"row_num": row_num, "valores": base}}
+
+    def _rodar(self, df, indice):
+        return ip.processar_linhas_import(
+            df, ip.MAPA_SOLICITACOES_IMPORT, CABECALHO_DESTINO_SC, {},
+            ip.CAMPOS_MANUAIS_SOLICITACOES_IMPORT, ip.CHAVE_SOLICITACOES_IMPORT,
+            indice_existentes=indice,
+            campo_status="STATUS", calcular_status=ip.status_da_legenda_import,
+            gatilho_status=ip.GATILHO_STATUS_SOLICITACOES_IMPORT,
+        )
+
+    def test_solicitacao_nova_ja_nasce_com_status_da_legenda(self):
+        df = _df_origem([{
+            "Numero da SC": 141500, "Item da SC": 1, "Produto": "5",
+            "Legenda": "Solicitacao totalmente atendida",
+        }])
+        novas, atualizacoes, dup, atualizadas, chaves = self._rodar(df, indice={})
+        assert len(novas) == 1
+        col_status = CABECALHO_DESTINO_SC.index("STATUS")
+        assert novas[0][col_status] == "ATENDIDA"
+
+    def test_solicitacao_existente_pendente_atualiza_para_atendida(self):
+        indice = self._indice_existente(SOLICITAÇÃO="141500", **{"ITEM SC": "1"}, STATUS="PENDENTE")
+        df = _df_origem([{
+            "Numero da SC": 141500, "Item da SC": 1, "Produto": "5",
+            "Legenda": "Solicitacao totalmente atendida",
+        }])
+        novas, atualizacoes, dup, atualizadas, chaves = self._rodar(df, indice)
+        col_status = CABECALHO_DESTINO_SC.index("STATUS") + 1
+        assert (5, col_status, "ATENDIDA") in atualizacoes
+
+    def test_status_manual_rejeitado_nao_e_sobrescrito(self):
+        # REJEITADO foi lançado a mão por outro pipeline (não é o "REJEITADA"
+        # que essa importação gera) - tem que ficar intocado, mesmo que
+        # outros campos em branco (ex.: PRODUTO) sejam preenchidos.
+        indice = self._indice_existente(SOLICITAÇÃO="141500", **{"ITEM SC": "1"}, STATUS="REJEITADO")
+        df = _df_origem([{
+            "Numero da SC": 141500, "Item da SC": 1, "Produto": "5",
+            "Legenda": "Solicitacao totalmente atendida",
+        }])
+        novas, atualizacoes, dup, atualizadas, chaves = self._rodar(df, indice)
+        col_status = CABECALHO_DESTINO_SC.index("STATUS") + 1
+        assert not any(col == col_status for _, col, _ in atualizacoes)
+
+    def test_status_manual_contrato_nao_e_sobrescrito(self):
+        indice = self._indice_existente(SOLICITAÇÃO="141500", **{"ITEM SC": "1"}, STATUS="CONTRATO")
+        df = _df_origem([{
+            "Numero da SC": 141500, "Item da SC": 1, "Produto": "5",
+            "Legenda": "Solicitacao Pendente",
+        }])
+        novas, atualizacoes, dup, atualizadas, chaves = self._rodar(df, indice)
+        col_status = CABECALHO_DESTINO_SC.index("STATUS") + 1
+        assert not any(col == col_status for _, col, _ in atualizacoes)
+
     def test_status_desconhecido_mantem_bruto_em_maiusculo(self):
         linha = {"Status Aprov": "Liberado"}
         assert ip.valor_status_origem_import(linha) == "LIBERADO"
