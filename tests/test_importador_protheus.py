@@ -651,6 +651,35 @@ class TestSincronizarStatusCompraDireta:
         assert total == 1
 
 
+class TestForcarPedidoGeradoQuandoSemStatus:
+    CABECALHO_SOL = ["SOLICITAÇÃO", "ITEM SC", "PEDIDO", "STATUS"]
+
+    def _montar(self, linhas_sol):
+        ws_sol = _FakeWorksheetComDados([self.CABECALHO_SOL, *linhas_sol])
+        sheet = _FakeSpreadsheetComAbas({"Solicitacoes": ws_sol})
+        return sheet, ws_sol
+
+    def test_marca_pedido_gerado_quando_status_em_branco_e_pedido_preenchido(self):
+        sheet, ws_sol = self._montar([["140380", "1", "177074", ""]])
+        total = ip.forcar_pedido_gerado_quando_sem_status_import(sheet)
+        assert total == 1
+        celulas = ws_sol.update_cells_chamado
+        assert len(celulas) == 1
+        assert (celulas[0].row, celulas[0].col, celulas[0].value) == (2, 4, "PEDIDO GERADO")
+
+    def test_nao_mexe_quando_pedido_tambem_esta_em_branco(self):
+        sheet, ws_sol = self._montar([["140380", "1", "", ""]])
+        total = ip.forcar_pedido_gerado_quando_sem_status_import(sheet)
+        assert total == 0
+        assert ws_sol.update_cells_chamado is None
+
+    def test_nao_sobrescreve_status_ja_existente(self):
+        sheet, ws_sol = self._montar([["140380", "1", "177074", "ATENDIDA"]])
+        total = ip.forcar_pedido_gerado_quando_sem_status_import(sheet)
+        assert total == 0
+        assert ws_sol.update_cells_chamado is None
+
+
 class TestProcessarUploadProtheus:
     def test_erro_de_conexao_retorna_ok_false(self, monkeypatch):
         def _falha():

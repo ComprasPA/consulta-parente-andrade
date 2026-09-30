@@ -248,6 +248,11 @@ DIAS_JANELA_EXCLUSAO_TOTVS_IMPORT = 30
 # ENTREGA ganhando data (na importacao) sempre forca esse status - decisao
 # explicita do usuario, sem excecao mesmo pra status como EXCLUÍDO DO TOTVS.
 STATUS_ATENDIDO_IMPORT = "ATENDIDO"
+# Solicitacao que ja tem PEDIDO vinculado mas nunca recebeu nenhum STATUS -
+# geralmente porque o Pedido foi gerado antes de existir o rastreamento pela
+# Legenda do Totvs (ver status_da_legenda_import), entao o relatorio de SC
+# atual nem traz mais essa linha. Decisao explicita do usuario, 2026-09-30.
+STATUS_PEDIDO_GERADO_SOLICITACOES_IMPORT = "PEDIDO GERADO"
 # Quando ha Entrega mas a Qtd Entregue ainda e' menor que a Qtd pedida -
 # decisao explicita do usuario, 2026-09-25: com Entrega preenchida, o status
 # e' ATENDIDO se Qtd Entregue == Qtd, ou ENTREGA PARCIAL se Qtd Entregue <
@@ -729,6 +734,41 @@ def forcar_atendido_quando_entrega_import(spreadsheet) -> int:
     return len(celulas)
 
 
+def forcar_pedido_gerado_quando_sem_status_import(spreadsheet) -> int:
+    """Varredura geral (decisão explícita do usuário, 2026-09-30): Solicitação
+    que já tem PEDIDO preenchido mas STATUS em branco (Pedido gerado antes de
+    existir o rastreamento pela Legenda do Totvs, então o relatório de SC
+    atual não traz mais essa linha - status_da_legenda_import nunca teria
+    como preenchê-la) recebe PEDIDO GERADO. Só preenche quando STATUS está
+    em branco - nunca sobrescreve um status já existente (incluindo os da
+    própria Legenda). Roda depois de qualquer import (PC ou SC) e
+    periodicamente (ver agente_importador.py) como rede de segurança.
+    Devolve quantas linhas foram corrigidas."""
+    ws_sol = spreadsheet.worksheet(ABA_SOLICITACOES_IMPORT)
+    dados_sol = ws_sol.get_all_values()
+    if not dados_sol:
+        return 0
+    cabecalho_sol = dados_sol[0]
+    col_pedido = resolver_coluna_real_import(cabecalho_sol, "PEDIDO", {})
+    if not col_pedido or "STATUS" not in cabecalho_sol:
+        return 0
+    idx_pedido = cabecalho_sol.index(col_pedido)
+    idx_status = cabecalho_sol.index("STATUS")
+
+    celulas = []
+    for i, linha in enumerate(dados_sol[1:], start=2):
+        status_atual = linha[idx_status] if idx_status < len(linha) else ""
+        if status_atual.strip():
+            continue
+        pedido = linha[idx_pedido] if idx_pedido < len(linha) else ""
+        if pedido.strip():
+            celulas.append(gspread.Cell(i, idx_status + 1, STATUS_PEDIDO_GERADO_SOLICITACOES_IMPORT))
+
+    if celulas:
+        ws_sol.update_cells(celulas, value_input_option="RAW")
+    return len(celulas)
+
+
 def carregar_descricoes_solicitacoes_import(spreadsheet):
     """Monta um lookup (SOLICITAÇÃO, PRODUTO) -> DESCRICAO a partir da aba
     Solicitacoes, usado pra corrigir a Descricao vinda do relatorio de
@@ -906,5 +946,11 @@ def _sufixo_compra_direta_import(spreadsheet) -> str:
             partes.append(f" {corrigidos} pedido(s) corrigido(s) para 'ATENDIDO' (já tinham Entrega registrada).")
     except Exception as e:
         partes.append(f" ⚠️ Falha ao forçar status Atendido: {e}")
+    try:
+        corrigidos_sol = forcar_pedido_gerado_quando_sem_status_import(spreadsheet)
+        if corrigidos_sol:
+            partes.append(f" {corrigidos_sol} solicitação(ões) marcada(s) como 'PEDIDO GERADO' (já tinham Pedido mas nenhum status).")
+    except Exception as e:
+        partes.append(f" ⚠️ Falha ao forçar status Pedido Gerado em Solicitações: {e}")
     return "".join(partes)
 
