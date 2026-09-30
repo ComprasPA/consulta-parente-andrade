@@ -584,6 +584,16 @@ def detectar_pedidos_duplicados_import(worksheet) -> list[dict]:
     pro índice e nunca mais recebe atualização de campo, mesmo em blank, ver
     caso real Pedido 180291/180297/180299/180301).
 
+    IMPORTANTE: (PEDIDO, PRODUTO) repetido nem sempre é duplicata de import -
+    o Totvs pode legitimamente ter mais de uma linha pro mesmo Pedido+Produto
+    quando o Pedido consolida Solicitações diferentes (SCs diferentes, cada
+    uma com sua própria Quantidade). Visto ao vivo, 2026-09-30: 38 dos 71
+    casos reportados tinham SOLICITAÇÃO e/ou QTD diferentes entre as linhas -
+    são pedidos distintos, não cópias acidentais, e apagar qualquer um deles
+    perderia quantidade/valor real. Só entra no relatório quando TODAS as
+    linhas da chave têm a mesma SOLICITAÇÃO e a mesma QTD (aí sim é cópia
+    acidental da mesma linha).
+
     Só relata pra revisão humana - NUNCA apaga linha sozinho (é uma ação
     sensível, o usuário decide qual cópia manter). Devolve uma lista de
     dicts, um por chave duplicada: {"pedido", "produto", "linhas" (números
@@ -596,12 +606,16 @@ def detectar_pedidos_duplicados_import(worksheet) -> list[dict]:
     col_produto = resolver_coluna_real_import(cabecalho_real, "PRODUTO", {})
     col_forn = resolver_coluna_real_import(cabecalho_real, "FORNECEDOR", {})
     col_status = resolver_coluna_real_import(cabecalho_real, "STATUS", {})
+    col_sol = resolver_coluna_real_import(cabecalho_real, "SOLICITAÇÃO", ALIASES_PEDIDOS_IMPORT)
+    col_qtd = resolver_coluna_real_import(cabecalho_real, "QTD", {})
     if not col_pedido or not col_produto:
         return []
     idx_pedido = cabecalho_real.index(col_pedido)
     idx_produto = cabecalho_real.index(col_produto)
     idx_forn = cabecalho_real.index(col_forn) if col_forn else None
     idx_status = cabecalho_real.index(col_status) if col_status else None
+    idx_sol = cabecalho_real.index(col_sol) if col_sol else None
+    idx_qtd = cabecalho_real.index(col_qtd) if col_qtd else None
 
     linhas_por_chave: dict[tuple[str, str], list[int]] = {}
     for i, linha in enumerate(valores[1:], start=2):
@@ -611,9 +625,25 @@ def detectar_pedidos_duplicados_import(worksheet) -> list[dict]:
             continue
         linhas_por_chave.setdefault((pedido, produto), []).append(i)
 
+    def _mesma_solicitacao_e_qtd(linhas: list[int]) -> bool:
+        if idx_sol is None or idx_qtd is None:
+            return True
+        referencia = None
+        for numero_linha in linhas:
+            linha = valores[numero_linha - 1]
+            sol = linha[idx_sol].strip() if idx_sol < len(linha) else ""
+            qtd = linha[idx_qtd].strip() if idx_qtd < len(linha) else ""
+            if referencia is None:
+                referencia = (sol, qtd)
+            elif (sol, qtd) != referencia:
+                return False
+        return True
+
     duplicados = []
     for (pedido, produto), linhas in linhas_por_chave.items():
         if len(linhas) <= 1:
+            continue
+        if not _mesma_solicitacao_e_qtd(linhas):
             continue
         primeira = valores[linhas[0] - 1]
         duplicados.append({

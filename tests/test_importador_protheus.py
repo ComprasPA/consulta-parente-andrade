@@ -543,6 +543,48 @@ class TestDetectarPedidosDuplicados:
         assert ip.detectar_pedidos_duplicados_import(ws) == []
 
 
+class TestDetectarPedidosDuplicadosComSolicitacaoEQtd:
+    # Caso real, 2026-09-30: mesmo Pedido+Produto pode legitimamente
+    # consolidar Solicitações diferentes (cada uma com sua própria QTD) - não
+    # é cópia acidental, e não deve entrar no relatório de duplicados.
+    CABECALHO = ["PEDIDO", "PRODUTO", "STATUS", "FORNECEDOR", "SOLICITAÇÃO", "QTD"]
+
+    def test_mesma_solicitacao_e_qtd_ainda_e_reportada(self):
+        ws = _FakeWorksheetComDados([
+            self.CABECALHO,
+            ["180291", "0000003149", "APROVADO", "FAYAMO", "141535", "30"],
+            ["180291", "0000003149", "APROVADO", "FAYAMO", "141535", "30"],
+        ])
+        duplicados = ip.detectar_pedidos_duplicados_import(ws)
+        assert len(duplicados) == 1
+        assert duplicados[0]["linhas"] == [2, 3]
+
+    def test_solicitacao_diferente_nao_e_reportada(self):
+        ws = _FakeWorksheetComDados([
+            self.CABECALHO,
+            ["175435", "0000003588", "ATENDIDO", "LUANJO", "139644", "8"],
+            ["175435", "0000003588", "ATENDIDO", "LUANJO", "139501", "1"],
+        ])
+        assert ip.detectar_pedidos_duplicados_import(ws) == []
+
+    def test_qtd_diferente_mesma_solicitacao_nao_e_reportada(self):
+        ws = _FakeWorksheetComDados([
+            self.CABECALHO,
+            ["179727", "0000008055", "ATENDIDO", "REI DAS MANGUEIRAS", "141228", "21"],
+            ["179727", "0000008055", "ATENDIDO", "REI DAS MANGUEIRAS", "141228", "40"],
+        ])
+        assert ip.detectar_pedidos_duplicados_import(ws) == []
+
+    def test_grupo_de_tres_com_uma_solicitacao_diferente_nao_e_reportado(self):
+        ws = _FakeWorksheetComDados([
+            self.CABECALHO,
+            ["180291", "0000003149", "APROVADO", "FAYAMO", "141535", "30"],
+            ["180291", "0000003149", "APROVADO", "FAYAMO", "141535", "30"],
+            ["180291", "0000003149", "APROVADO", "FAYAMO", "999999", "30"],
+        ])
+        assert ip.detectar_pedidos_duplicados_import(ws) == []
+
+
 # ---------------------------------------------------------------------------
 # Fronteira com Google Sheets (gspread) - usando stubs, sem rede
 # ---------------------------------------------------------------------------
