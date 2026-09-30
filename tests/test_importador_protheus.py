@@ -177,7 +177,7 @@ class TestStatusDaLegenda:
             assert ip.normalizar_status_import(valor) in ip.GATILHO_STATUS_SOLICITACOES_IMPORT
 
 
-CABECALHO_DESTINO_SC = ["SOLICITAÇÃO", "ITEM SC", "PRODUTO", "STATUS"]
+CABECALHO_DESTINO_SC = ["SOLICITAÇÃO", "ITEM SC", "PRODUTO", "STATUS", "LEGENDA"]
 
 
 class TestImportSolicitacoesAtualizaStatusPelaLegenda:
@@ -201,6 +201,7 @@ class TestImportSolicitacoesAtualizaStatusPelaLegenda:
             indice_existentes=indice,
             campo_status="STATUS", calcular_status=ip.status_da_legenda_import,
             gatilho_status=ip.GATILHO_STATUS_SOLICITACOES_IMPORT,
+            campos_sempre_sobrescreve=ip.CAMPOS_SEMPRE_SOBRESCREVE_SOLICITACOES_IMPORT,
         )
 
     def test_solicitacao_nova_ja_nasce_com_status_da_legenda(self):
@@ -249,6 +250,44 @@ class TestImportSolicitacoesAtualizaStatusPelaLegenda:
     def test_status_desconhecido_mantem_bruto_em_maiusculo(self):
         linha = {"Status Aprov": "Liberado"}
         assert ip.valor_status_origem_import(linha) == "LIBERADO"
+
+    def test_legenda_nova_solicitacao_ja_grava_o_texto_bruto(self):
+        df = _df_origem([{
+            "Numero da SC": 141500, "Item da SC": 1, "Produto": "5",
+            "Legenda": "Solicitacao totalmente atendida",
+        }])
+        novas, atualizacoes, dup, atualizadas, chaves = self._rodar(df, indice={})
+        col_legenda = CABECALHO_DESTINO_SC.index("LEGENDA")
+        assert novas[0][col_legenda] == "Solicitacao totalmente atendida"
+
+    def test_legenda_sempre_sobrescreve_mesmo_ja_tendo_valor(self):
+        # Ao contrario do STATUS (derivado, protegido), LEGENDA e' so um
+        # espelho do Totvs - decisao explicita do usuario, 2026-09-30:
+        # atualiza sempre com a ultima versao do arquivo, sem excecao.
+        indice = self._indice_existente(
+            SOLICITAÇÃO="141500", **{"ITEM SC": "1"},
+            STATUS="ATENDIDA", LEGENDA="Solicitacao totalmente atendida",
+        )
+        df = _df_origem([{
+            "Numero da SC": 141500, "Item da SC": 1, "Produto": "5",
+            "Legenda": "Solicitacao em processo de cotacao",
+        }])
+        novas, atualizacoes, dup, atualizadas, chaves = self._rodar(df, indice)
+        col_legenda = CABECALHO_DESTINO_SC.index("LEGENDA") + 1
+        assert (5, col_legenda, "Solicitacao em processo de cotacao") in atualizacoes
+
+    def test_legenda_nao_muda_quando_arquivo_traz_o_mesmo_texto(self):
+        indice = self._indice_existente(
+            SOLICITAÇÃO="141500", **{"ITEM SC": "1"},
+            STATUS="ATENDIDA", LEGENDA="Solicitacao totalmente atendida",
+        )
+        df = _df_origem([{
+            "Numero da SC": 141500, "Item da SC": 1, "Produto": "5",
+            "Legenda": "Solicitacao totalmente atendida",
+        }])
+        novas, atualizacoes, dup, atualizadas, chaves = self._rodar(df, indice)
+        col_legenda = CABECALHO_DESTINO_SC.index("LEGENDA") + 1
+        assert not any(col == col_legenda for _, col, _ in atualizacoes)
 
 
 # ---------------------------------------------------------------------------

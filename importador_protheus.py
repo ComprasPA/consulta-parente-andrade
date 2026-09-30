@@ -77,6 +77,7 @@ CABECALHO_SOLICITACOES_IMPORT = [
     "SOLICITAÇÃO", "ITEM SC", "COTAÇÃO", "PEDIDO", "PRODUTO", "DESCRICAO",
     "QTD", "UM", "CENTRO DE CUSTO", "DESC CENTRO DE CUSTO",
     "DATA EMISSAO", "DATA APROVACAO", "FILIAL", "QTD EM PEDIDO", "COD SC SCM",
+    "LEGENDA",
 ]
 MAPA_SOLICITACOES_IMPORT = {
     "SOLICITAÇÃO":          {"origem": "Numero da SC", "tipo": "solicitacao"},
@@ -94,9 +95,16 @@ MAPA_SOLICITACOES_IMPORT = {
     "FILIAL":               {"origem": "Filial",       "tipo": "texto"},
     "QTD EM PEDIDO":        {"origem": "Quant.em Ped", "tipo": "numero"},
     "COD SC SCM":           {"origem": "Cod SC. SCM",  "tipo": "texto"},
+    "LEGENDA":              {"origem": "Legenda",      "tipo": "texto"},
 }
 CHAVE_SOLICITACOES_IMPORT = ("SOLICITAÇÃO", "ITEM SC")
 CAMPOS_MANUAIS_SOLICITACOES_IMPORT = ["STATUS"]
+# LEGENDA e o texto cru do Totvs (ex.: "Solicitacao totalmente atendida") -
+# ao contrario do STATUS (que e derivado e protegido de sobrescrita manual,
+# ver GATILHO_STATUS_SOLICITACOES_IMPORT), a LEGENDA e so um espelho do que o
+# Totvs diz agora - decisao explicita do usuario, 2026-09-30: sempre
+# atualizar com a versao mais recente do arquivo do dia, sem excecao.
+CAMPOS_SEMPRE_SOBRESCREVE_SOLICITACOES_IMPORT = ("LEGENDA",)
 
 
 def normalizar_nome_import(nome) -> str:
@@ -922,6 +930,7 @@ def processar_arquivo_sc_import(arquivo, spreadsheet):
         CHAVE_SOLICITACOES_IMPORT, indice_existentes,
         campo_status="STATUS", calcular_status=status_da_legenda_import,
         gatilho_status=GATILHO_STATUS_SOLICITACOES_IMPORT,
+        campos_sempre_sobrescreve=CAMPOS_SEMPRE_SOBRESCREVE_SOLICITACOES_IMPORT,
         mapa_pedidos_por_produto=mapa_pedidos_por_produto,
     )
     aplicar_no_google_sheets_import(worksheet, novas_linhas, atualizacoes)
