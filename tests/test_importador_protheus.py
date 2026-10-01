@@ -731,6 +731,20 @@ class TestSincronizarStatusCompraDireta:
         total = ip.sincronizar_status_compra_direta_import(sheet)
         assert total == 1
 
+    def test_aceita_criticidade_no_plural_compras_direta(self):
+        # Caso real, 2026-09-30: SC 141457/PC 179785 - a fonte que alimenta
+        # CRITICIDADE as vezes grava no plural ("COMPRAS DIRETA"), e a
+        # sincronizacao tem que casar mesmo assim (o valor gravado em
+        # Pedidos.STATUS continua singular, so a leitura aceita as duas).
+        sheet, ws_sol, ws_ped = self._montar(
+            linhas_sol=[["141457", "1", "179785", "", "COMPRAS DIRETA"]],
+            linhas_ped=[["APROVADO", "141457", "179785", "MR COMERCIO"]],
+        )
+        total = ip.sincronizar_status_compra_direta_import(sheet)
+        assert total == 1
+        celulas = ws_ped.update_cells_chamado
+        assert (celulas[0].row, celulas[0].col, celulas[0].value) == (2, 1, "COMPRA DIRETA")
+
 
 class TestForcarPedidoGeradoQuandoSemStatus:
     CABECALHO_SOL = ["SOLICITAÇÃO", "ITEM SC", "PEDIDO", "STATUS"]

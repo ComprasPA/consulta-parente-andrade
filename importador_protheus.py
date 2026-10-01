@@ -313,7 +313,14 @@ def status_da_legenda_import(linha_origem) -> str:
 # DIRETA" na aba Pedidos - sempre prevalece, mesmo sobre um status ja
 # preenchido (ex.: ATENDIDO, ou os que o agente_pedidos_pagamento grava:
 # ENVIADO AO FINANCEIRO/ENVIADO AO FORNECEDOR).
-CRITICIDADE_COMPRA_DIRETA_IMPORT = "COMPRA DIRETA"
+# A fonte externa que alimenta CRITICIDADE as vezes grava no plural
+# ("COMPRAS DIRETA") - visto ao vivo, 2026-09-30: SC 141457/PC 179785, as
+# 1.576 linhas com essa criticidade na base estavam TODAS no plural, entao a
+# sincronizacao nunca disparava pra nenhuma delas (comparacao exata so
+# aceitava o singular). Aceita as duas grafias na leitura; o valor GRAVADO
+# em Pedidos.STATUS continua sempre singular (STATUS_COMPRA_DIRETA_IMPORT),
+# pra nao mudar a opcao que ja existe no dropdown do Portal (main.py).
+CRITICIDADES_COMPRA_DIRETA_IMPORT = {"COMPRA DIRETA", "COMPRAS DIRETA"}
 STATUS_COMPRA_DIRETA_IMPORT = "COMPRA DIRETA"
 
 
@@ -697,7 +704,7 @@ def sincronizar_status_compra_direta_import(spreadsheet) -> int:
 
     scs_compra_direta = set()
     for linha in dados_sol[1:]:
-        if idx_criticidade < len(linha) and linha[idx_criticidade].strip().upper() == CRITICIDADE_COMPRA_DIRETA_IMPORT:
+        if idx_criticidade < len(linha) and linha[idx_criticidade].strip().upper() in CRITICIDADES_COMPRA_DIRETA_IMPORT:
             sc = limpar_numero_texto_import(linha[idx_sc_sol] if idx_sc_sol < len(linha) else "")
             if sc:
                 scs_compra_direta.add(sc.zfill(6))
