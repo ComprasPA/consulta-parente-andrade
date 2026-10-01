@@ -236,6 +236,17 @@ STATUS_GATILHO_SUBSTITUICAO_IMPORT = {
     # filtrado (ex.: relatorio diario mais estreito que o Browse completo do
     # Totvs) e o pedido nunca tinha realmente sumido de lá.
     normalizar_status_import(STATUS_EXCLUIDO_TOTVS),
+    # Caso real (30/09/2026): 24 pedidos ficaram presos como "APROVADO" pra
+    # sempre, mesmo depois do Totvs reverter pra "Em Aprovação" de verdade
+    # (confirmado comparando com um export novo do Totvs) - "Aprovado" não
+    # era gatilho, então nenhuma reimportação corrigia de volta. "Aprovado"
+    # é só mais um status NATIVO do Totvs (não é algo que o usuário define
+    # manualmente por fora), então ele tem que poder ser recalculado dos dois
+    # lados (pra frente E pra trás) igual Pendente/Em aprovação - a proteção
+    # de quem já foi tratado pelo Agente Pedidos Pagamento continua existindo
+    # via ENVIO preenchido (ver barreira em processar_linhas_import), então
+    # isso não arrisca desfazer um pedido já enviado.
+    normalizar_status_import("Aprovado"),
 }
 
 MAPA_STATUS_APROV_TEXTO_IMPORT = {
@@ -329,10 +340,26 @@ def valor_status_origem_import(linha_origem) -> str:
     aprovação SÓ pela coluna "Status Aprov" do relatório do Totvs (voltou
     atrás de uma tentativa de usar "Dt Lib. PC"/Data Liberação como sinal -
     essa data vinha preenchida mesmo com pedido ainda pendente, gerando
-    falso positivo de aprovação)."""
+    falso positivo de aprovação).
+
+    Barreira adicional (30/09/2026, caso real: 180774/180825/180826/180831/
+    180832/180833/180841/180857 e outros - confirmados pelo usuário como
+    "ainda não foram aprovados" mesmo o Totvs reportando "Status Aprov" =
+    Aprovado): isso é o problema OPOSTO ao de 2026-09-28 - aqui a data não é
+    usada como sinal POSITIVO de aprovação (o que causava falso positivo),
+    só como BARREIRA - pedido sem "Dt Lib. PC" preenchida nunca pode virar
+    "Aprovado", mesmo que o texto do Totvs diga isso (sinal de que a
+    aprovação ainda não foi de fato confirmada/finalizada no sistema deles).
+    Não afeta nenhum outro status (Pendente/Em aprovação continuam como
+    estão, só "Aprovado" sem data vira "Pendente de Aprovação")."""
     bruto = fmt_texto_import(linha_origem.get("Status Aprov", ""))
     valor = MAPA_STATUS_APROV_TEXTO_IMPORT.get(normalizar_status_import(bruto), bruto)
-    return valor.upper()
+    valor = valor.upper()
+
+    if normalizar_status_import(valor) == normalizar_status_import("Aprovado") and not fmt_texto_import(linha_origem.get("Dt Lib. PC", "")):
+        return TEXTO_PENDENTE_APROVACAO_IMPORT.upper()
+
+    return valor
 
 
 def _para_float_status_import(valor_str):
@@ -516,7 +543,17 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
                         atualizacoes.append((info["row_num"], cabecalho_destino.index(col_real) + 1, novo_valor))
                         alterou = True
 
-            if col_status and calcular_status:
+            # Barreira extra (30/09/2026, caso real: pedido 179937 e outros
+            # 10 - ver investigacao em project_agente_pedidos_pagamento.md):
+            # ENVIO preenchido e' prova inequivoca de que o Agente Pedidos
+            # Pagamento ja tratou esse pedido (criou rascunho/enviou e-mail) -
+            # mesmo que o STATUS atual por algum motivo bata com o gatilho
+            # (ex.: um valor em branco reintroduzido por engano), a
+            # importacao nunca deve recalcular o STATUS por cima disso.
+            col_envio = resolver_coluna_real_import(cabecalho_destino, "ENVIO", {})
+            envio_ja_preenchido = bool(col_envio and valores_atuais.get(col_envio, "").strip())
+
+            if col_status and calcular_status and not envio_ja_preenchido:
                 atual_status = normalizar_status_import(valores_atuais.get(col_status, ""))
                 if atual_status in gatilho_status:
                     novo_status = calcular_status(linha_origem)
@@ -899,6 +936,28 @@ def obter_ou_criar_aba_import(spreadsheet, nome_aba, cabecalho_padrao=None):
         return aba
 
 
+def normalizar_colunas_descricao_pc_import(df):
+    """O relatorio de Pedidos do Totvs (Listagem do Browse OU o MATA121
+    nativo) traz DUAS colunas chamadas "Descricao" quando a coluna
+    "Condição Pagamento" esta visivel no browse no momento do export - a
+    PRIMEIRA e na verdade a Condição de Pagamento, a SEGUNDA (que o pandas
+    renomeia sozinho pra "Descricao.1" por ja existir uma igual) e a
+    Descricao real do item (ver MAPA_PEDIDOS_IMPORT). Quando o usuario tira
+    essa coluna do browse (ja aconteceu, tentando contornar um crash do
+    Totvs - ver conversa 2026-09-28), o export vem com UMA SO "Descricao",
+    que e a real - sem esse ajuste, a condicao de pagamento (inexistente
+    nesse arquivo) ficava recebendo a propria Descricao do item, e a
+    Descricao real ficava em branco (caso real, 2026-10-01: Pedidos
+    180691/180698/180713/180714, vindos de um arquivo sem a coluna
+    Condição Pagamento visivel). Devolve o DataFrame ajustado pra
+    MAPA_PEDIDOS_IMPORT sempre poder usar a mesma origem fixa nos dois
+    casos."""
+    if "Descricao.1" not in df.columns and "Descricao" in df.columns:
+        df = df.rename(columns={"Descricao": "Descricao.1"})
+        df["Descricao"] = ""
+    return df
+
+
 def processar_arquivo_pc_import(arquivo, spreadsheet):
     worksheet = obter_ou_criar_aba_import(spreadsheet, ABA_PEDIDOS_IMPORT)
     indice_existentes, cabecalho_real = carregar_indice_existentes_import(worksheet, CHAVE_PEDIDOS_IMPORT, ALIASES_PEDIDOS_IMPORT)
@@ -909,6 +968,7 @@ def processar_arquivo_pc_import(arquivo, spreadsheet):
 
     arquivo.seek(0)
     df = pd.read_excel(arquivo, header=1)
+    df = normalizar_colunas_descricao_pc_import(df)
     novas_linhas, atualizacoes, duplicadas, atualizadas, chaves_deste_arquivo = processar_linhas_import(
         df, MAPA_PEDIDOS_IMPORT, cabecalho_real, ALIASES_PEDIDOS_IMPORT, CAMPOS_MANUAIS_PEDIDOS_IMPORT,
         CHAVE_PEDIDOS_IMPORT, indice_existentes,

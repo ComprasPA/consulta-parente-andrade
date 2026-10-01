@@ -130,7 +130,7 @@ class TestValorStatusOrigem:
         assert ip.valor_status_origem_import(linha) == "PENDENTE DE APROVAÇÃO".upper()
 
     def test_sem_controle_aprovacao_vira_aprovado(self):
-        linha = {"Status Aprov": "Não possui controle de Aprovação"}
+        linha = {"Status Aprov": "Não possui controle de Aprovação", "Dt Lib. PC": pd.Timestamp("2026-09-05")}
         assert ip.valor_status_origem_import(linha) == "APROVADO"
 
     def test_em_aprovacao_vira_texto_completo_pendente(self):
@@ -139,6 +139,25 @@ class TestValorStatusOrigem:
         # (decisão do usuário 2026-09-28: nunca ter "EM APROVAÇÃO" e
         # "PENDENTE DE APROVAÇÃO" coexistindo como status distintos na base).
         linha = {"Status Aprov": "Em aprovação"}
+        assert ip.valor_status_origem_import(linha) == "PENDENTE DE APROVAÇÃO".upper()
+
+    def test_aprovado_vira_texto_completo_quando_tem_data_liberacao(self):
+        linha = {"Status Aprov": "Aprovado", "Dt Lib. PC": pd.Timestamp("2026-09-05")}
+        assert ip.valor_status_origem_import(linha) == "APROVADO"
+
+    def test_aprovado_sem_data_liberacao_vira_pendente(self):
+        """Caso real (30/09/2026): varios pedidos (180774/180825/180826/
+        180831/180832/180833/180841/180857 e outros) confirmados pelo
+        usuario como "ainda não foram aprovados" mesmo o Totvs mandando
+        "Status Aprov" = Aprovado - sem "Dt Lib. PC" preenchida, a aprovação
+        não foi de fato confirmada/finalizada no sistema deles. Decisão
+        explícita do usuário: pedido sem data de aprovação nunca pode virar
+        "Aprovado" na nossa base, mesmo que o texto diga isso."""
+        linha = {"Status Aprov": "Aprovado", "Dt Lib. PC": ""}
+        assert ip.valor_status_origem_import(linha) == "PENDENTE DE APROVAÇÃO".upper()
+
+    def test_aprovado_sem_chave_dt_lib_pc_tambem_vira_pendente(self):
+        linha = {"Status Aprov": "Aprovado"}
         assert ip.valor_status_origem_import(linha) == "PENDENTE DE APROVAÇÃO".upper()
 
 
@@ -366,6 +385,37 @@ CHAVE = ("PEDIDO", "PRODUTO")
 
 def _df_origem(linhas):
     return pd.DataFrame(linhas)
+
+
+class TestNormalizarColunasDescricaoPc:
+    # Caso real, 2026-10-01: Pedidos 180691/180698/180713/180714 vieram com
+    # CONDIÇÃO PAGAMENTO = Descricao do item, e DESCRICAO em branco - o
+    # arquivo do Totvs so tinha UMA coluna "Descricao" (a coluna "Condição
+    # Pagamento" tinha sido tirada do browse, ver conversa 2026-09-28), mas
+    # o mapa (MAPA_PEDIDOS_IMPORT) sempre esperou DUAS ("Descricao" =
+    # condicao, "Descricao.1" = item real).
+
+    def test_uma_so_descricao_vira_descricao_1_e_descricao_fica_em_branco(self):
+        df = pd.DataFrame({"Produto": ["0001"], "Descricao": ["BOTINA SEGUR ELETRICISTA"]})
+        resultado = ip.normalizar_colunas_descricao_pc_import(df)
+        assert resultado["Descricao"].tolist() == [""]
+        assert resultado["Descricao.1"].tolist() == ["BOTINA SEGUR ELETRICISTA"]
+
+    def test_duas_descricoes_nao_mexe_em_nada(self):
+        df = pd.DataFrame({
+            "Produto": ["0001"],
+            "Descricao": ["30 DIAS D"],
+            "Descricao.1": ["BOTINA SEGUR ELETRICISTA"],
+        })
+        resultado = ip.normalizar_colunas_descricao_pc_import(df)
+        assert resultado["Descricao"].tolist() == ["30 DIAS D"]
+        assert resultado["Descricao.1"].tolist() == ["BOTINA SEGUR ELETRICISTA"]
+
+    def test_sem_nenhuma_descricao_nao_quebra(self):
+        df = pd.DataFrame({"Produto": ["0001"]})
+        resultado = ip.normalizar_colunas_descricao_pc_import(df)
+        assert "Descricao" not in resultado.columns
+        assert "Descricao.1" not in resultado.columns
 
 
 class TestProcessarLinhasImportLinhaNova:
@@ -1006,6 +1056,73 @@ class TestCorrecaoDescricaoViaSolicitacoes:
         df = _linha_origem_pedido()
         novas, _, _, _, _ = _rodar_import_pedidos(df, indice_existentes={})
         assert novas[0][CABECALHO_REAL_PEDIDOS.index("DESCRICAO")] == "Parafuso"
+
+
+class TestEnvioProtegeStatusDeRecalculoNaImportacao:
+    """Caso real (30/09/2026): 12 pedidos (ex.: 179937) ja tinham ENVIO
+    preenchido pelo Agente Pedidos Pagamento (e-mail de verdade ja enviado),
+    mas uma reimportacao do Totvs recalculou o STATUS de volta pra "APROVADO"
+    - ENVIO preenchido e' prova de que o pedido ja foi tratado, entao a
+    importacao nunca deve recalcular o STATUS por cima disso, mesmo que o
+    STATUS atual bata com o gatilho de substituicao (ex.: um branco
+    reintroduzido por engano)."""
+
+    def test_envio_preenchido_bloqueia_recalculo_mesmo_com_status_no_gatilho(self):
+        indice = _indice_pedido_existente(
+            PEDIDO="100", PRODUTO="0000000005", SOLICITAÇÃO="003419",
+            **{"STATUS": "", "ENVIO": "08/09/2026"},  # STATUS em branco bate no gatilho
+        )
+        df = _linha_origem_pedido(**{"Status Aprov": "Aprovado"})
+        novas, atualizacoes, dup, atualizadas, _ = _rodar_import_pedidos(df, indice)
+
+        col_status = CABECALHO_REAL_PEDIDOS.index("STATUS") + 1
+        assert not any(c == col_status for _, c, _ in atualizacoes), (
+            "ENVIO ja preenchido - o STATUS nao deveria ser recalculado pela importacao"
+        )
+
+    def test_aprovado_reverte_pra_pendente_quando_totvs_reporta_isso(self):
+        """Caso real (30/09/2026): 24 pedidos ficaram presos como "APROVADO"
+        pra sempre porque esse status nao era gatilho de recalculo - mesmo
+        depois do Totvs reverter de verdade pra "Em Aprovacao". Sem ENVIO
+        preenchido (pedido ainda nao foi tratado pelo agente), o STATUS
+        precisa poder regredir tambem, nao so avancar."""
+        indice = _indice_pedido_existente(
+            PEDIDO="102", PRODUTO="0000000008", SOLICITAÇÃO="003419",
+            **{"STATUS": "APROVADO", "ENVIO": ""},
+        )
+        df = _linha_origem_pedido(Numero=102, Produto=8, **{"Status Aprov": "Em aprovação"})
+        novas, atualizacoes, dup, atualizadas, _ = _rodar_import_pedidos(df, indice)
+
+        col_status = CABECALHO_REAL_PEDIDOS.index("STATUS") + 1
+        assert (8, col_status, ip.TEXTO_PENDENTE_APROVACAO_IMPORT.upper()) in atualizacoes
+
+    def test_aprovado_com_envio_preenchido_nao_regride(self):
+        """Mesmo cenario do teste acima, mas o pedido JA tem ENVIO preenchido
+        (agente ja tratou) - a barreira do ENVIO tem que segurar mesmo com
+        "Aprovado" agora sendo gatilho."""
+        indice = _indice_pedido_existente(
+            PEDIDO="103", PRODUTO="0000000009", SOLICITAÇÃO="003419",
+            **{"STATUS": "APROVADO", "ENVIO": "08/09/2026"},
+        )
+        df = _linha_origem_pedido(Numero=103, Produto=9, **{"Status Aprov": "Em aprovação"})
+        novas, atualizacoes, dup, atualizadas, _ = _rodar_import_pedidos(df, indice)
+
+        col_status = CABECALHO_REAL_PEDIDOS.index("STATUS") + 1
+        assert not any(c == col_status for _, c, _ in atualizacoes)
+
+    def test_envio_vazio_nao_bloqueia_recalculo_normal(self):
+        """Confirma que a barreira nova so age quando ENVIO tem valor - sem
+        ENVIO, o recalculo normal de STATUS continua acontecendo (mesmo
+        comportamento de antes, ja coberto pelos outros testes desta classe)."""
+        indice = _indice_pedido_existente(
+            PEDIDO="101", PRODUTO="0000000006", SOLICITAÇÃO="003419",
+            **{"STATUS": "", "ENVIO": ""},
+        )
+        df = _linha_origem_pedido(Numero=101, Produto=6, **{"Status Aprov": "Aprovado", "Dt Lib. PC": pd.Timestamp("2026-09-05")})
+        novas, atualizacoes, dup, atualizadas, _ = _rodar_import_pedidos(df, indice)
+
+        col_status = CABECALHO_REAL_PEDIDOS.index("STATUS") + 1
+        assert (8, col_status, "APROVADO") in atualizacoes
 
 
 class TestCarregarDescricoesSolicitacoes:
