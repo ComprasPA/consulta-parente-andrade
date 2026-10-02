@@ -125,6 +125,30 @@ class TestFormatadores:
 
 
 class TestValorStatusOrigem:
+    @pytest.mark.parametrize("texto_totvs, esperado", [
+        ("Aprovado - Totalmente Entregue", "APROVADO"),
+        ("Aprovado - Aguardando Entrega", "APROVADO"),
+        ("Aprovado - Entregue Parcial", "APROVADO"),
+        ("Bloqueado", "BLOQUEADO"),
+        ("Estornado", "BLOQUEADO"),
+        ("Rejeitado", "REJEITADO"),
+        ("Pendente (Nível 01)", "PENDENTE DE APROVAÇÃO"),
+        ("Pendente (Nível 02)", "PENDENTE DE APROVAÇÃO"),
+        ("Pendente (Nível 03)", "PENDENTE DE APROVAÇÃO"),
+        ("Pendente (Nível 1)", "PENDENTE DE APROVAÇÃO"),
+        ("Pendente (Nível 3)", "PENDENTE DE APROVAÇÃO"),
+        ("Liberado Direto", "ERRO"),
+    ])
+    def test_tabela_nova_do_mata121(self, texto_totvs, esperado):
+        # Tabela "PLANILHA DE ATUALIZAÇÃO = NOVO STATUS NO PORTAL SGC"
+        # (decisão do usuário, 2026-10-02) - com Dt Lib. PC preenchida pra não
+        # cair na barreira de "Aprovado sem data".
+        linha = {"Status Aprov": texto_totvs, "Dt Lib. PC": pd.Timestamp("2026-09-05")}
+        assert ip.valor_status_origem_import(linha) == esperado
+
+    def test_valor_desconhecido_passa_cru_em_caixa_alta(self):
+        assert ip.valor_status_origem_import({"Status Aprov": "Algo Novo"}) == "ALGO NOVO"
+
     def test_pendente_vira_texto_completo(self):
         linha = {"Status Aprov": "Pendente"}
         assert ip.valor_status_origem_import(linha) == "PENDENTE DE APROVAÇÃO".upper()

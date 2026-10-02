@@ -257,6 +257,21 @@ MAPA_STATUS_APROV_TEXTO_IMPORT = {
     # diferentes (decisão do usuário 2026-09-28: usar sempre um só).
     normalizar_status_import("Em aprovação"): TEXTO_PENDENTE_APROVACAO_IMPORT,
     normalizar_status_import("Não possui controle de Aprovação"): "Aprovado",
+    # Novo vocabulário de "Status Aprov" do MATA121 (decisão explícita do
+    # usuário, 2026-10-02 - tabela "PLANILHA DE ATUALIZAÇÃO = NOVO STATUS NO
+    # PORTAL SGC"). Valor desconhecido continua passando cru em CAIXA ALTA
+    # (fica visível na base em vez de ser mapeado no chute).
+    normalizar_status_import("Aprovado - Totalmente Entregue"): "Aprovado",
+    normalizar_status_import("Aprovado - Aguardando Entrega"): "Aprovado",
+    normalizar_status_import("Aprovado - Entregue Parcial"): "Aprovado",
+    normalizar_status_import("Estornado"): "Bloqueado",
+    normalizar_status_import("Pendente (Nível 01)"): TEXTO_PENDENTE_APROVACAO_IMPORT,
+    normalizar_status_import("Pendente (Nível 1)"): TEXTO_PENDENTE_APROVACAO_IMPORT,
+    normalizar_status_import("Pendente (Nível 02)"): TEXTO_PENDENTE_APROVACAO_IMPORT,
+    normalizar_status_import("Pendente (Nível 03)"): TEXTO_PENDENTE_APROVACAO_IMPORT,
+    normalizar_status_import("Pendente (Nível 3)"): TEXTO_PENDENTE_APROVACAO_IMPORT,
+    # "Liberado Direto" não é aprovado nem pendente de aprovação - vira ERRO.
+    normalizar_status_import("Liberado Direto"): "Erro",
 }
 
 # Pedido some do relatorio mais recente do Totvs = provavelmente foi excluido
