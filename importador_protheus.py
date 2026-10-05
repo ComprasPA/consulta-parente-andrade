@@ -350,6 +350,18 @@ CRITICIDADES_COMPRA_DIRETA_IMPORT = {"COMPRA DIRETA", "COMPRAS DIRETA"}
 STATUS_COMPRA_DIRETA_IMPORT = "COMPRA DIRETA"
 
 
+def nf_completa_import(linha_origem) -> bool:
+    """Dt. Dig.Nota E Num da Nota preenchidos no relatório do Totvs."""
+    return bool(fmt_texto_import(linha_origem.get("Dt. Dig.Nota", "")) and fmt_texto_import(linha_origem.get("Num da Nota", "")))
+
+
+def atendido_confirmado_import(linha_origem) -> bool:
+    """Os 3 fatores juntos: Dt. Dig.Nota + Num da Nota + Status Aprov =
+    "Aprovado - Totalmente Entregue" (regra do usuário, 2026-10-05)."""
+    status = normalizar_status_import(fmt_texto_import(linha_origem.get("Status Aprov", "")))
+    return nf_completa_import(linha_origem) and status == normalizar_status_import("Aprovado - Totalmente Entregue")
+
+
 def valor_status_origem_import(linha_origem) -> str:
     """Decisão explícita do usuário, 2026-09-28: confirma o status de
     aprovação SÓ pela coluna "Status Aprov" do relatório do Totvs (voltou
@@ -370,6 +382,14 @@ def valor_status_origem_import(linha_origem) -> str:
     bruto = fmt_texto_import(linha_origem.get("Status Aprov", ""))
     valor = MAPA_STATUS_APROV_TEXTO_IMPORT.get(normalizar_status_import(bruto), bruto)
     valor = valor.upper()
+
+    # Regra dos 3 fatores (decisão explícita do usuário, 2026-10-05): ATENDIDO
+    # só com Dt. Dig.Nota + Num da Nota + Status Aprov "Aprovado - Totalmente
+    # Entregue". Aqui o 3º fator já é o próprio texto (só ele vira ATENDIDO);
+    # faltando a data da NF ou o número da NF, o pedido NÃO está atendido e
+    # volta a ser tratado como APROVADO (a barreira de Dt Lib. PC abaixo ainda vale).
+    if normalizar_status_import(valor) == normalizar_status_import(STATUS_ATENDIDO_IMPORT) and not nf_completa_import(linha_origem):
+        valor = "APROVADO"
 
     if normalizar_status_import(valor) == normalizar_status_import("Aprovado") and not fmt_texto_import(linha_origem.get("Dt Lib. PC", "")):
         return TEXTO_PENDENTE_APROVACAO_IMPORT.upper()
@@ -471,7 +491,7 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
                              campos_chave, indice_existentes, campo_status=None,
                              calcular_status=None, gatilho_status=None, campos_obrigatorios=(),
                              campos_sempre_sobrescreve=(), correcao_descricao=None,
-                             mapa_pedidos_por_produto=None):
+                             mapa_pedidos_por_produto=None, confirma_atendido=None):
     lookup_campo = construir_lookup_campo_import(list(mapa.keys()) + campos_manuais, aliases)
     col_status = resolver_coluna_real_import(cabecalho_destino, campo_status, {}) if campo_status else None
 
@@ -582,7 +602,7 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
             # acabou de ser gravada NESTA importacao (nao a cada ciclo) -
             # senao um Status corrigido a mao pelo gestor seria desfeito no
             # proximo import so por causa de um ENTREGA antigo que nunca mudou.
-            if col_status and entrega_definida_agora:
+            if col_status and entrega_definida_agora and (confirma_atendido is None or confirma_atendido(linha_origem)):
                 atual_status_norm = normalizar_status_import(valores_atuais.get(col_status, ""))
                 if atual_status_norm != normalizar_status_import(STATUS_ATENDIDO_IMPORT):
                     atualizacoes.append((info["row_num"], cabecalho_destino.index(col_status) + 1, STATUS_ATENDIDO_IMPORT))
@@ -600,7 +620,7 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
             novo_status = calcular_status(linha_origem)
             if novo_status:
                 linha_final[cabecalho_destino.index(col_status)] = novo_status
-        if col_status and valores_por_campo.get("ENTREGA", ""):
+        if col_status and valores_por_campo.get("ENTREGA", "") and (confirma_atendido is None or confirma_atendido(linha_origem)):
             linha_final[cabecalho_destino.index(col_status)] = STATUS_ATENDIDO_IMPORT
         novas_linhas.append(linha_final)
 
@@ -823,12 +843,48 @@ def forcar_atendido_quando_entrega_import(spreadsheet) -> int:
             qtd_entregue_str = linha[idx_qtd_entregue] if idx_qtd_entregue is not None and idx_qtd_entregue < len(linha) else ""
             alvo = status_por_entrega_import(qtd_str, qtd_entregue_str)
             status_atual = linha[idx_status] if idx_status < len(linha) else ""
-            if status_atual.strip().upper() != alvo:
+            # Desde 2026-10-05 (regra dos 3 fatores) esta varredura NUNCA marca
+            # ATENDIDO: ela só enxerga a data da NF (ENTREGA), e ATENDIDO exige
+            # também Num da Nota + Status Aprov "Aprovado - Totalmente
+            # Entregue", que só o import tem (ver atendido_confirmado_import).
+            # Continua corrigindo pra ENTREGA PARCIAL quando falta quantidade.
+            if alvo == STATUS_ENTREGA_PARCIAL_IMPORT and status_atual.strip().upper() != alvo:
                 celulas.append(gspread.Cell(i, idx_status + 1, alvo))
 
     if celulas:
         ws_pedidos.update_cells(celulas, value_input_option="RAW")
     return len(celulas)
+
+
+STATUS_ENVIADO_FORNECEDOR_IMPORT = "ENVIADO AO FORNECEDOR"
+
+
+def reverter_atendido_sem_entrega_import(spreadsheet) -> list:
+    """ATENDIDO sem ENTREGA (data da NF) em branco volta pra ENVIADO AO
+    FORNECEDOR (decisão explícita do usuário, 2026-10-05: "o que está
+    atendido, que não tem número da NF, data de dig, volta a enviado ao
+    fornecedor"). ATENDIDO só é gravado automaticamente com a NF registrada,
+    então ATENDIDO sem ENTREGA é sempre indevido (caso real: 178996 e mais 8
+    pedidos). Devolve a lista de pedidos revertidos."""
+    ws = spreadsheet.worksheet(ABA_PEDIDOS_IMPORT)
+    dados = ws.get_all_values()
+    if not dados:
+        return []
+    cab = dados[0]
+    col_ent = resolver_coluna_real_import(cab, "ENTREGA", {})
+    col_ped = resolver_coluna_real_import(cab, "PEDIDO", {})
+    if not col_ent or not col_ped or "STATUS" not in cab:
+        return []
+    i_ent, i_ped, i_st = cab.index(col_ent), cab.index(col_ped), cab.index("STATUS")
+    celulas, pedidos = [], set()
+    for i, linha in enumerate(dados[1:], start=2):
+        if len(linha) > i_st and linha[i_st].strip().upper() == STATUS_ATENDIDO_IMPORT:
+            if not (len(linha) > i_ent and linha[i_ent].strip()):
+                celulas.append(gspread.Cell(i, i_st + 1, STATUS_ENVIADO_FORNECEDOR_IMPORT))
+                pedidos.add(linha[i_ped].strip())
+    if celulas:
+        ws.update_cells(celulas, value_input_option="RAW")
+    return sorted(p for p in pedidos if p)
 
 
 def forcar_pedido_gerado_quando_sem_status_import(spreadsheet) -> int:
@@ -991,6 +1047,7 @@ def processar_arquivo_pc_import(arquivo, spreadsheet):
         campos_obrigatorios=("SOLICITAÇÃO",),
         campos_sempre_sobrescreve=CAMPOS_SEMPRE_SOBRESCREVE_PEDIDOS_IMPORT,
         correcao_descricao=correcao_descricao,
+        confirma_atendido=atendido_confirmado_import,
     )
     atualizacoes_exclusao = detectar_pedidos_excluidos_import(indice_existentes, chaves_deste_arquivo, cabecalho_real)
     aplicar_no_google_sheets_import(worksheet, novas_linhas, atualizacoes + atualizacoes_exclusao)
@@ -1067,6 +1124,12 @@ def _sufixo_compra_direta_import(spreadsheet) -> str:
             partes.append(f" {corrigidos} pedido(s) corrigido(s) para 'ATENDIDO' (já tinham Entrega registrada).")
     except Exception as e:
         partes.append(f" ⚠️ Falha ao forçar status Atendido: {e}")
+    try:
+        revertidos = reverter_atendido_sem_entrega_import(spreadsheet)
+        if revertidos:
+            partes.append(f" {len(revertidos)} pedido(s) ATENDIDO sem NF voltaram para 'ENVIADO AO FORNECEDOR': {', '.join(revertidos)}.")
+    except Exception as e:
+        partes.append(f" ⚠️ Falha ao reverter ATENDIDO sem NF: {e}")
     try:
         corrigidos_sol = forcar_pedido_gerado_quando_sem_status_import(spreadsheet)
         if corrigidos_sol:

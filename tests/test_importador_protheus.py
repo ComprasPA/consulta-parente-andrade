@@ -143,8 +143,24 @@ class TestValorStatusOrigem:
         # Tabela "PLANILHA DE ATUALIZAÇÃO = NOVO STATUS NO PORTAL SGC"
         # (decisão do usuário, 2026-10-02) - com Dt Lib. PC preenchida pra não
         # cair na barreira de "Aprovado sem data".
-        linha = {"Status Aprov": texto_totvs, "Dt Lib. PC": pd.Timestamp("2026-09-05")}
+        linha = {"Status Aprov": texto_totvs, "Dt Lib. PC": pd.Timestamp("2026-09-05"),
+                 "Dt. Dig.Nota": pd.Timestamp("2026-09-20"), "Num da Nota": "000123 - 1"}
         assert ip.valor_status_origem_import(linha) == esperado
+
+    def test_totalmente_entregue_sem_nf_nao_e_atendido(self):
+        # Regra dos 3 fatores (2026-10-05): sem Dt. Dig.Nota ou sem Num da Nota
+        # o pedido NAO esta atendido - volta a APROVADO.
+        base = {"Status Aprov": "Aprovado - Totalmente Entregue", "Dt Lib. PC": pd.Timestamp("2026-09-05")}
+        assert ip.valor_status_origem_import({**base, "Dt. Dig.Nota": pd.Timestamp("2026-09-20")}) == "APROVADO"
+        assert ip.valor_status_origem_import({**base, "Num da Nota": "000123 - 1"}) == "APROVADO"
+        assert ip.valor_status_origem_import(base) == "APROVADO"
+
+    def test_atendido_confirmado_exige_os_3_fatores(self):
+        ok = {"Status Aprov": "Aprovado - Totalmente Entregue", "Dt. Dig.Nota": pd.Timestamp("2026-09-20"), "Num da Nota": "000123 - 1"}
+        assert ip.atendido_confirmado_import(ok) is True
+        assert ip.atendido_confirmado_import({**ok, "Status Aprov": "Aprovado - Aguardando Entrega"}) is False
+        assert ip.atendido_confirmado_import({**ok, "Num da Nota": ""}) is False
+        assert ip.atendido_confirmado_import({**ok, "Dt. Dig.Nota": None}) is False
 
     def test_valor_desconhecido_passa_cru_em_caixa_alta(self):
         assert ip.valor_status_origem_import({"Status Aprov": "Algo Novo"}) == "ALGO NOVO"
@@ -1186,3 +1202,71 @@ class TestCarregarDescricoesSolicitacoes:
             ["3419", "1", "100", "5", ""],
         ])
         assert ip.carregar_descricoes_solicitacoes_import(sh) == {}
+
+
+# --- regra dos 3 fatores para ATENDIDO (2026-10-05) ---------------------------
+
+class TestAtendidoExigeTresFatores:
+    MAPA = {
+        "PEDIDO": {"origem": "Numero", "tipo": "inteiro"},
+        "PRODUTO": {"origem": "Produto", "tipo": "produto"},
+        "ENTREGA": {"origem": "Dt. Dig.Nota", "tipo": "data"},
+    }
+    CAB = ["PEDIDO", "PRODUTO", "ENTREGA", "STATUS"]
+
+    def _rodar(self, linha, confirma):
+        df = pd.DataFrame([linha])
+        return ip.processar_linhas_import(
+            df, self.MAPA, self.CAB, {}, [], ("PEDIDO", "PRODUTO"), {},
+            campo_status="STATUS", calcular_status=ip.valor_status_origem_import,
+            gatilho_status=ip.STATUS_GATILHO_SUBSTITUICAO_IMPORT,
+            confirma_atendido=confirma,
+        )
+
+    def test_linha_nova_com_entrega_mas_sem_os_3_fatores_nao_vira_atendido(self):
+        linha = {"Numero": 100, "Produto": "5", "Dt. Dig.Nota": pd.Timestamp("2026-09-20"),
+                 "Num da Nota": "", "Status Aprov": "Aprovado - Aguardando Entrega",
+                 "Dt Lib. PC": pd.Timestamp("2026-09-01")}
+        novas, *_ = self._rodar(linha, ip.atendido_confirmado_import)
+        assert novas[0][self.CAB.index("STATUS")] == "APROVADO"
+
+    def test_linha_nova_com_os_3_fatores_vira_atendido(self):
+        linha = {"Numero": 100, "Produto": "5", "Dt. Dig.Nota": pd.Timestamp("2026-09-20"),
+                 "Num da Nota": "000123 - 1", "Status Aprov": "Aprovado - Totalmente Entregue",
+                 "Dt Lib. PC": pd.Timestamp("2026-09-01")}
+        novas, *_ = self._rodar(linha, ip.atendido_confirmado_import)
+        assert novas[0][self.CAB.index("STATUS")] == "ATENDIDO"
+
+
+class TestVarreduraAtendidoSemNf:
+    CAB = ["STATUS", "PEDIDO", "PRODUTO", "ENTREGA", "QTD", "QTD ENTREGUE"]
+
+    def _planilha(self, linhas):
+        ws = _FakeWorksheetComDados([self.CAB, *linhas])
+        return _FakeSpreadsheetComAbas({"Pedidos": ws}), ws
+
+    def test_atendido_sem_entrega_volta_para_enviado_ao_fornecedor(self):
+        sheet, ws = self._planilha([
+            ["ATENDIDO", "178996", "0000004756", "", "10", "0"],
+            ["ATENDIDO", "178997", "0000004757", "05/09/2026", "10", "10"],
+        ])
+        assert ip.reverter_atendido_sem_entrega_import(sheet) == ["178996"]
+        c = ws.update_cells_chamado
+        assert len(c) == 1 and (c[0].row, c[0].col, c[0].value) == (2, 1, "ENVIADO AO FORNECEDOR")
+
+    def test_sem_atendido_indevido_nao_grava_nada(self):
+        sheet, ws = self._planilha([["APROVADO", "1", "0000000001", "", "1", "0"]])
+        assert ip.reverter_atendido_sem_entrega_import(sheet) == []
+        assert ws.update_cells_chamado is None
+
+    def test_varredura_de_entrega_nunca_marca_atendido(self):
+        # ENTREGA preenchida + qtd completa: antes virava ATENDIDO sozinho;
+        # agora so o import (3 fatores) marca ATENDIDO.
+        sheet, ws = self._planilha([["ENVIADO AO FORNECEDOR", "1", "0000000001", "05/09/2026", "10", "10"]])
+        assert ip.forcar_atendido_quando_entrega_import(sheet) == 0
+        assert ws.update_cells_chamado is None
+
+    def test_varredura_de_entrega_continua_marcando_entrega_parcial(self):
+        sheet, ws = self._planilha([["ATENDIDO", "1", "0000000001", "05/09/2026", "10", "4"]])
+        assert ip.forcar_atendido_quando_entrega_import(sheet) == 1
+        assert ws.update_cells_chamado[0].value == "ENTREGA PARCIAL"
