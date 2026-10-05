@@ -126,7 +126,7 @@ class TestFormatadores:
 
 class TestValorStatusOrigem:
     @pytest.mark.parametrize("texto_totvs, esperado", [
-        ("Aprovado - Totalmente Entregue", "APROVADO"),
+        ("Aprovado - Totalmente Entregue", "ATENDIDO"),
         ("Aprovado - Aguardando Entrega", "APROVADO"),
         ("Aprovado - Entregue Parcial", "APROVADO"),
         ("Bloqueado", "BLOQUEADO"),
