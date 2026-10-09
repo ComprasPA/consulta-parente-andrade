@@ -1321,3 +1321,12 @@ class TestStatusContratoPorUsuario:
         sheet = _FakeSpreadsheetComAbas({"Solicitacoes": sol, "Pedidos": ped})
         assert ip.sincronizar_status_compra_direta_import(sheet) == 0
         assert ped.update_cells_chamado is None
+
+
+class TestVarreduraEntregaNaoMexeEmContrato:
+    def test_contrato_com_entrega_parcial_continua_contrato(self):
+        ws = _FakeWorksheetComDados([["STATUS", "PEDIDO", "PRODUTO", "ENTREGA", "QTD", "QTD ENTREGUE"],
+                                     ["CONTRATO", "177369", "0000000001", "17/06/2026", "10", "4"]])
+        sheet = _FakeSpreadsheetComAbas({"Pedidos": ws})
+        assert ip.forcar_atendido_quando_entrega_import(sheet) == 0
+        assert ws.update_cells_chamado is None

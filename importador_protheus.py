@@ -882,7 +882,8 @@ def forcar_atendido_quando_entrega_import(spreadsheet) -> int:
             # também Num da Nota + Status Aprov "Aprovado - Totalmente
             # Entregue", que só o import tem (ver atendido_confirmado_import).
             # Continua corrigindo pra ENTREGA PARCIAL quando falta quantidade.
-            if alvo == STATUS_ENTREGA_PARCIAL_IMPORT and status_atual.strip().upper() != alvo:
+            # CONTRATO (por usuario do Totvs) nunca e' sobrescrito por esta varredura.
+            if alvo == STATUS_ENTREGA_PARCIAL_IMPORT and status_atual.strip().upper() not in (alvo, STATUS_CONTRATO_PEDIDO_IMPORT):
                 celulas.append(gspread.Cell(i, idx_status + 1, alvo))
 
     if celulas:
