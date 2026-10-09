@@ -1270,3 +1270,54 @@ class TestVarreduraAtendidoSemNf:
         sheet, ws = self._planilha([["ATENDIDO", "1", "0000000001", "05/09/2026", "10", "4"]])
         assert ip.forcar_atendido_quando_entrega_import(sheet) == 1
         assert ws.update_cells_chamado[0].value == "ENTREGA PARCIAL"
+
+
+# --- pedidos de usuario "contrato" (2026-10-08) ------------------------------
+
+class TestStatusContratoPorUsuario:
+    MAPA = {
+        "PEDIDO": {"origem": "Numero", "tipo": "inteiro"},
+        "PRODUTO": {"origem": "Produto", "tipo": "produto"},
+    }
+    CAB = ["PEDIDO", "PRODUTO", "STATUS", "ENVIO"]
+
+    def test_reconhece_usuario_independente_de_caixa_e_pontuacao(self):
+        assert ip.status_forcado_por_usuario_import({"Nome Usuario": "BIANCAGEISSLER"}) == "CONTRATO"
+        assert ip.status_forcado_por_usuario_import({"Nome Usuario": "biancageissler"}) == "CONTRATO"
+        assert ip.status_forcado_por_usuario_import({"Nome Usuario": "BIANCA.GEISSLER"}) == "CONTRATO"
+        assert ip.status_forcado_por_usuario_import({"Nome Usuario": "SILVIO.SILVEIRA"}) is None
+        assert ip.status_forcado_por_usuario_import({}) is None
+
+    def _rodar(self, linha, indice):
+        df = pd.DataFrame([linha])
+        return ip.processar_linhas_import(
+            df, self.MAPA, self.CAB, {}, [], ("PEDIDO", "PRODUTO"), indice,
+            campo_status="STATUS", calcular_status=ip.valor_status_origem_import,
+            gatilho_status=ip.STATUS_GATILHO_SUBSTITUICAO_IMPORT,
+            status_forcado=ip.status_forcado_por_usuario_import,
+        )
+
+    def test_linha_nova_do_usuario_nasce_contrato(self):
+        linha = {"Numero": 200, "Produto": "5", "Nome Usuario": "BIANCAGEISSLER", "Status Aprov": "Aprovado - Aguardando Entrega",
+                 "Dt Lib. PC": pd.Timestamp("2026-10-01")}
+        novas, *_ = self._rodar(linha, {})
+        assert novas[0][self.CAB.index("STATUS")] == "CONTRATO"
+
+    def test_linha_existente_atendida_e_enviada_vira_contrato(self):
+        indice = {("200", "0000000005"): {"row_num": 7, "valores": {"PEDIDO": "200", "PRODUTO": "0000000005", "STATUS": "ATENDIDO", "ENVIO": "08/10/2026"}}}
+        linha = {"Numero": 200, "Produto": "5", "Nome Usuario": "BIANCAGEISSLER", "Status Aprov": "Aprovado - Aguardando Entrega"}
+        _, atualizacoes, _, atualizadas, _ = self._rodar(linha, indice)
+        assert (7, self.CAB.index("STATUS") + 1, "CONTRATO") in atualizacoes
+        assert atualizadas == 1
+
+    def test_outro_usuario_nao_e_afetado(self):
+        linha = {"Numero": 201, "Produto": "6", "Nome Usuario": "DAIANA.LIMA", "Status Aprov": "Pendente (Nível 01)"}
+        novas, *_ = self._rodar(linha, {})
+        assert novas[0][self.CAB.index("STATUS")] == "PENDENTE DE APROVAÇÃO"
+
+    def test_sincronizacao_de_compra_direta_nao_sobrescreve_contrato(self):
+        sol = _FakeWorksheetComDados([["SOLICITAÇÃO", "ITEM SC", "PEDIDO", "STATUS", "CRITICIDADE"], ["140380", "1", "177074", "", "COMPRAS DIRETA"]])
+        ped = _FakeWorksheetComDados([["STATUS", "SOLICITAÇÃO", "PEDIDO"], ["CONTRATO", "140380", "177074"]])
+        sheet = _FakeSpreadsheetComAbas({"Solicitacoes": sol, "Pedidos": ped})
+        assert ip.sincronizar_status_compra_direta_import(sheet) == 0
+        assert ped.update_cells_chamado is None

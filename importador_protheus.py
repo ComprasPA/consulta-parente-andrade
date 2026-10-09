@@ -350,6 +350,21 @@ CRITICIDADES_COMPRA_DIRETA_IMPORT = {"COMPRA DIRETA", "COMPRAS DIRETA"}
 STATUS_COMPRA_DIRETA_IMPORT = "COMPRA DIRETA"
 
 
+# Pedidos emitidos por esses usuarios do Totvs ("Nome Usuario" do MATA121) sao
+# CONTRATO - decisao explicita do usuario, 2026-10-08 ("todos os pedidos que
+# tiverem o nome de biancageissler, colocar status de CONTRATO em todos os
+# apps"). Vale pra linha nova e pra linha existente, sobrepondo o status que
+# ela tinha (inclusive ATENDIDO/ENVIADO). O Nome Usuario so existe no arquivo
+# do Totvs (a aba Pedidos nao guarda), entao a regra roda no import.
+USUARIOS_PEDIDO_CONTRATO_IMPORT = {"BIANCAGEISSLER"}
+STATUS_CONTRATO_PEDIDO_IMPORT = "CONTRATO"
+
+
+def status_forcado_por_usuario_import(linha_origem):
+    usuario = "".join(c for c in normalizar_status_import(linha_origem.get("Nome Usuario", "")) if c.isalnum())
+    return STATUS_CONTRATO_PEDIDO_IMPORT if usuario in USUARIOS_PEDIDO_CONTRATO_IMPORT else None
+
+
 def nf_completa_import(linha_origem) -> bool:
     """Dt. Dig.Nota E Num da Nota preenchidos no relatório do Totvs."""
     return bool(fmt_texto_import(linha_origem.get("Dt. Dig.Nota", "")) and fmt_texto_import(linha_origem.get("Num da Nota", "")))
@@ -491,7 +506,8 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
                              campos_chave, indice_existentes, campo_status=None,
                              calcular_status=None, gatilho_status=None, campos_obrigatorios=(),
                              campos_sempre_sobrescreve=(), correcao_descricao=None,
-                             mapa_pedidos_por_produto=None, confirma_atendido=None):
+                             mapa_pedidos_por_produto=None, confirma_atendido=None,
+                             status_forcado=None):
     lookup_campo = construir_lookup_campo_import(list(mapa.keys()) + campos_manuais, aliases)
     col_status = resolver_coluna_real_import(cabecalho_destino, campo_status, {}) if campo_status else None
 
@@ -608,6 +624,18 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
                     atualizacoes.append((info["row_num"], cabecalho_destino.index(col_status) + 1, STATUS_ATENDIDO_IMPORT))
                     alterou = True
 
+            # Status forcado por regra de negocio (ex.: usuario do Totvs ->
+            # CONTRATO): sobrepoe qualquer outro calculo acima, inclusive a
+            # barreira de ENVIO. Tira atualizacoes anteriores da mesma celula
+            # pra nao gravar duas vezes.
+            if col_status and status_forcado:
+                alvo_forcado = status_forcado(linha_origem)
+                if alvo_forcado and normalizar_status_import(valores_atuais.get(col_status, "")) != normalizar_status_import(alvo_forcado):
+                    coluna_status_num = cabecalho_destino.index(col_status) + 1
+                    atualizacoes[:] = [a for a in atualizacoes if not (a[0] == info["row_num"] and a[1] == coluna_status_num)]
+                    atualizacoes.append((info["row_num"], coluna_status_num, alvo_forcado))
+                    alterou = True
+
             if alterou:
                 linhas_atualizadas += 1
             else:
@@ -622,6 +650,10 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
                 linha_final[cabecalho_destino.index(col_status)] = novo_status
         if col_status and valores_por_campo.get("ENTREGA", "") and (confirma_atendido is None or confirma_atendido(linha_origem)):
             linha_final[cabecalho_destino.index(col_status)] = STATUS_ATENDIDO_IMPORT
+        if col_status and status_forcado:
+            alvo_forcado = status_forcado(linha_origem)
+            if alvo_forcado:
+                linha_final[cabecalho_destino.index(col_status)] = alvo_forcado
         novas_linhas.append(linha_final)
 
     return novas_linhas, atualizacoes, duplicadas, linhas_atualizadas, chaves_deste_arquivo
@@ -803,7 +835,9 @@ def sincronizar_status_compra_direta_import(spreadsheet) -> int:
             if idx_entrega_ped is not None and idx_entrega_ped < len(linha) and linha[idx_entrega_ped].strip():
                 continue  # ja atendido de verdade - Entrega nao pode ser desfeita
             status_atual = linha[idx_status_ped] if idx_status_ped < len(linha) else ""
-            if status_atual.strip().upper() != STATUS_COMPRA_DIRETA_IMPORT:
+            # CONTRATO (definido por usuario do Totvs, ver USUARIOS_PEDIDO_CONTRATO_IMPORT)
+            # nunca e' sobrescrito por esta sincronizacao.
+            if status_atual.strip().upper() not in (STATUS_COMPRA_DIRETA_IMPORT, STATUS_CONTRATO_PEDIDO_IMPORT):
                 celulas.append(gspread.Cell(i, idx_status_ped + 1, STATUS_COMPRA_DIRETA_IMPORT))
 
     if celulas:
@@ -1048,6 +1082,7 @@ def processar_arquivo_pc_import(arquivo, spreadsheet):
         campos_sempre_sobrescreve=CAMPOS_SEMPRE_SOBRESCREVE_PEDIDOS_IMPORT,
         correcao_descricao=correcao_descricao,
         confirma_atendido=atendido_confirmado_import,
+        status_forcado=status_forcado_por_usuario_import,
     )
     atualizacoes_exclusao = detectar_pedidos_excluidos_import(indice_existentes, chaves_deste_arquivo, cabecalho_real)
     aplicar_no_google_sheets_import(worksheet, novas_linhas, atualizacoes + atualizacoes_exclusao)
