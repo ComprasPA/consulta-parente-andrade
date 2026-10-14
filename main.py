@@ -59,7 +59,7 @@ SENTINELA_ROW_IDX_EM_COTACAO = 10_000_000
 # dados-bancarios-fornecedores.streamlit.app usa e mantém, então mostra o
 # mesmo card aqui dentro do portal sem precisar abrir o outro app.
 ABA_CADASTRO_FORNECEDORES = "CadastroFornecedores"
-CABECALHO_CADASTRO_FORNECEDORES = ["FORNECEDOR", "CNPJ", "REGIME TRIBUTÁRIO", "BANCO", "AGENCIA", "CONTA", "PIX", "EMAIL", "CONTATO", "VENDEDOR"]
+CABECALHO_CADASTRO_FORNECEDORES = ["FORNECEDOR", "CNPJ", "REGIME_TRIBUTARIO", "BANCO", "AGENCIA", "CONTA", "PIX", "EMAIL", "CONTATO", "VENDEDOR"]
 
 
 @st.cache_data(ttl=120)
@@ -225,7 +225,7 @@ def abrir_popup_dados_bancarios():
                     components.html(
                         renderizar_card_dados_bancarios(
                             pedido=re.sub(r"\.0$", "", numero_pedido_popup.strip()), fornecedor=fornecedor,
-                            cnpj=cadastro.get("CNPJ", ""), regime=cadastro.get("REGIME TRIBUTÁRIO", ""),
+                            cnpj=cadastro.get("CNPJ", ""), regime=cadastro.get("REGIME_TRIBUTARIO", ""),
                             banco=cadastro.get("BANCO", ""), agencia=cadastro.get("AGENCIA", ""),
                             conta=cadastro.get("CONTA", ""), pix=cadastro.get("PIX", ""), email=cadastro.get("EMAIL", ""),
                             contato=cadastro.get("CONTATO", ""), vendedor=cadastro.get("VENDEDOR", ""),
