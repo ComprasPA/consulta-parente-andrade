@@ -59,7 +59,7 @@ SENTINELA_ROW_IDX_EM_COTACAO = 10_000_000
 # dados-bancarios-fornecedores.streamlit.app usa e mantém, então mostra o
 # mesmo card aqui dentro do portal sem precisar abrir o outro app.
 ABA_CADASTRO_FORNECEDORES = "CadastroFornecedores"
-CABECALHO_CADASTRO_FORNECEDORES = ["FORNECEDOR", "CNPJ", "BANCO", "AGENCIA", "CONTA", "PIX", "EMAIL", "CONTATO", "VENDEDOR"]
+CABECALHO_CADASTRO_FORNECEDORES = ["FORNECEDOR", "CNPJ", "REGIME TRIBUTÁRIO", "BANCO", "AGENCIA", "CONTA", "PIX", "EMAIL", "CONTATO", "VENDEDOR"]
 
 
 @st.cache_data(ttl=120)
@@ -115,7 +115,7 @@ def buscar_cadastro_fornecedor_bancario(nome_fornecedor: str) -> dict:
     return {col: str(linhas.iloc[0].get(col, "")) for col in CABECALHO_CADASTRO_FORNECEDORES}
 
 
-def renderizar_card_dados_bancarios(pedido, fornecedor, cnpj, banco, agencia, conta, pix, email, contato, vendedor, valor_formatado):
+def renderizar_card_dados_bancarios(pedido, fornecedor, cnpj, regime, banco, agencia, conta, pix, email, contato, vendedor, valor_formatado):
     """Mesmo card visual (fundo branco/cinza claro, formato de tabela) do
     app dados-bancarios-fornecedores, embutido aqui pra mostrar no popup
     sem sair do portal."""
@@ -124,7 +124,7 @@ def renderizar_card_dados_bancarios(pedido, fornecedor, cnpj, banco, agencia, co
         return html_lib.escape(str(valor)) if valor else ""
 
     linhas = [
-        ("CNPJ", cnpj), ("BANCO", banco), ("AGÊNCIA", agencia), ("CONTA", conta),
+        ("CNPJ", cnpj), ("REGIME TRIB.", regime), ("BANCO", banco), ("AGÊNCIA", agencia), ("CONTA", conta),
         ("PIX", pix), ("E-MAIL", email), ("CONTATO", contato), ("VENDEDOR", vendedor),
         ("R$", valor_formatado),
     ]
@@ -225,7 +225,8 @@ def abrir_popup_dados_bancarios():
                     components.html(
                         renderizar_card_dados_bancarios(
                             pedido=re.sub(r"\.0$", "", numero_pedido_popup.strip()), fornecedor=fornecedor,
-                            cnpj=cadastro.get("CNPJ", ""), banco=cadastro.get("BANCO", ""), agencia=cadastro.get("AGENCIA", ""),
+                            cnpj=cadastro.get("CNPJ", ""), regime=cadastro.get("REGIME TRIBUTÁRIO", ""),
+                            banco=cadastro.get("BANCO", ""), agencia=cadastro.get("AGENCIA", ""),
                             conta=cadastro.get("CONTA", ""), pix=cadastro.get("PIX", ""), email=cadastro.get("EMAIL", ""),
                             contato=cadastro.get("CONTATO", ""), vendedor=cadastro.get("VENDEDOR", ""),
                             valor_formatado=formatar_moeda_br(valor_total),
