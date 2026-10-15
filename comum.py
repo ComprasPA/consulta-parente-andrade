@@ -12,6 +12,7 @@ from io import BytesIO
 import gspread
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 from google.oauth2.service_account import Credentials
 
 # Data do arquivo no momento em que este modulo foi carregado - o main.py
@@ -296,7 +297,41 @@ def renderizar_alternador_tema():
         st.rerun()
 
 
+_JS_ICONE_ATALHO = """
+<script>
+(function () {
+  function aplicar() {
+    try {
+      var topo = window.parent.parent.document;  // pagina externa do Streamlit Cloud
+      var icone = topo.querySelector('link[rel="icon"]') || topo.querySelector('link[rel="shortcut icon"]');
+      if (!icone || !icone.href) return;
+      var t = topo.querySelector('link[rel="apple-touch-icon"]');
+      if (!t) { t = topo.createElement('link'); t.rel = 'apple-touch-icon'; topo.head.appendChild(t); }
+      t.href = icone.href;
+      t.setAttribute('sizes', '512x512');
+      ['link[rel="manifest"]', 'link[rel="mask-icon"]'].forEach(function (s) {
+        var e = topo.querySelector(s); if (e) e.remove();
+      });
+    } catch (e) {}
+  }
+  var n = 0;
+  var iv = setInterval(function () { aplicar(); if (++n >= 10) clearInterval(iv); }, 1000);
+})();
+</script>
+"""
+
+
+def injetar_icone_atalho():
+    """Faz o atalho "Adicionar a tela inicial" do celular usar o icone da
+    pagina (marca PA) em vez da coroa do Streamlit: o Chrome Android escolhe
+    o apple-touch-icon/manifest da pagina EXTERNA do Streamlit Cloud, que o
+    app nao controla - entao troca esses dois links por JS (a pagina do app
+    roda num iframe de mesma origem)."""
+    components.html(_JS_ICONE_ATALHO, height=0)
+
+
 def renderizar_rodape():
+    injetar_icone_atalho()
     st.markdown("<div class=\"custom-footer-block\"><p style='color:var(--pa-slate-soft); font-size:13px; font-weight:600; margin:0;'>Parente Andrade | Coordenação de Suprimentos</p></div>", unsafe_allow_html=True)
     st.markdown('<div class="signature-fixed">Created by SS.</div>', unsafe_allow_html=True)
 
