@@ -4,6 +4,7 @@ Solicitações) - estilos, cabeçalho, login por departamento, acesso ao
 Google Sheets e formatadores de valor usados nos dois painéis."""
 
 import base64
+import os
 import re
 from datetime import datetime, timedelta
 from io import BytesIO
@@ -12,6 +13,12 @@ import gspread
 import pandas as pd
 import streamlit as st
 from google.oauth2.service_account import Credentials
+
+# Data do arquivo no momento em que este modulo foi carregado - o main.py
+# compara com a data atual do arquivo e recarrega o modulo se mudou (o
+# Streamlit Cloud so relê o main.py a cada deploy; modulos importados ficavam
+# com a versao antiga ate alguem reiniciar o app).
+_MTIME_AO_IMPORTAR = os.path.getmtime(__file__)
 
 FILE_ID = "1e7pQ512ge5XMnXxsRODEO7V48KgWo6FpKeITFqBSg1o"
 
@@ -187,6 +194,14 @@ CSS_GLOBAL = """
 
     .custom-footer-block { text-align: center !important; margin-top: 60px !important; border-top: 1px solid var(--pa-mist) !important; padding-top: 24px !important; padding-bottom: 24px !important; position: static !important; clear: both !important; width: 100% !important; display: block !important; }
     .signature-fixed { position: fixed; bottom: 12px; left: 20px; color: var(--pa-slate-soft); font-size: 11px; font-weight: 700; letter-spacing: 0.5px; z-index: 999999; pointer-events: none; }
+
+    /* Campos no Streamlit novo (1.5x+): o container externo de cada campo vem
+       com fundo/borda claros fixos do tema base - sem isso, no tema escuro os
+       campos de texto ganham um aro branco e o multiselect/data ficam claros */
+    div[data-testid="stTextInputRootElement"], div[data-testid="stDateInputField"], div[data-testid="stMultiSelect"] [role="group"], div[data-testid="stSelectbox"] [role="group"] { background-color: var(--pa-input-bg) !important; border: none !important; border-radius: 9px !important; box-shadow: none !important; }
+    div[data-testid="stTextInputRootElement"]:focus-within, div[data-testid="stDateInputField"]:focus-within, div[data-testid="stMultiSelect"] [role="group"]:focus-within, div[data-testid="stSelectbox"] [role="group"]:focus-within { background-color: var(--pa-verde-soft) !important; }
+    div[data-testid="stTextInputRootElement"] input::placeholder, div[data-testid="stMultiSelect"] input::placeholder { color: var(--pa-slate) !important; opacity: 1 !important; }
+    div[data-testid="stDateInputField"] span { color: var(--pa-slate) !important; }
 
     /* ---------------- MOBILE (celular, tela estreita) ---------------- */
     @media (max-width: 640px) {

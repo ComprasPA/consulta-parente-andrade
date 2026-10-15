@@ -9,6 +9,20 @@ import urllib.request
 import gspread
 import streamlit.components.v1 as components
 
+# O Streamlit Cloud so relê o main.py a cada deploy - modulos importados
+# (comum.py = CSS/cabecalho, importador_protheus.py) ficavam na versao antiga
+# ate alguem reiniciar o app (visto em producao: mudanca de CSS publicada e nao
+# aplicada). Recarrega o modulo quando o arquivo mudou desde que foi importado
+# (comum primeiro, o importador depende dele).
+import importlib
+import os
+import comum as _comum
+import importador_protheus as _importador_protheus
+
+for _modulo in (_comum, _importador_protheus):
+    if getattr(_modulo, "_MTIME_AO_IMPORTAR", None) != os.path.getmtime(_modulo.__file__):
+        importlib.reload(_modulo)
+
 from comum import (
     FILE_ID,
     aplicar_estilos,

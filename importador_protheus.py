@@ -14,6 +14,7 @@ Status pra "ATENDIDO", decisao explicita do usuario, sem excecao mesmo pra
 status como EXCLUÍDO DO TOTVS. QTD ENTREGUE e' apenas importado/gravado -
 nao influencia o Status."""
 
+import os
 import re
 import unicodedata
 from datetime import datetime
@@ -22,6 +23,10 @@ import gspread
 import pandas as pd
 
 from comum import FILE_ID, obter_client_gspread, parse_data_br
+
+# Ver comentario equivalente em comum.py (main.py recarrega o modulo se o
+# arquivo mudou depois de carregado).
+_MTIME_AO_IMPORTAR = os.path.getmtime(__file__)
 
 # Pedido marcado assim (ver detectar_pedidos_excluidos_import) sumiu do
 # relatorio do Totvs - a linha fica na planilha (base = fonte de verdade),
