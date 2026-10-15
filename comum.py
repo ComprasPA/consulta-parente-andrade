@@ -195,14 +195,15 @@ CSS_GLOBAL = """
 
         /* Cabecalho: logo + seletor de tema na mesma linha, titulo embaixo (antes
            o texto em caixa alta com espacamento largo estourava o card) */
-        div.st-key-header_card { padding: 12px 14px 12px 20px; margin-bottom: 12px; }
+        div.st-key-header_card { padding: 12px 20px; margin-bottom: 12px; }
         div.st-key-header_card div[data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: 0.35rem 0.5rem !important; align-items: center !important; }
         div.st-key-header_card div[data-testid="stHorizontalBlock"] > div { min-width: 0 !important; }
         div.st-key-header_card div[data-testid="stHorizontalBlock"] > div:nth-child(1) { order: 1; flex: 1 1 100% !important; width: 100% !important; justify-content: center !important; }
         /* Celular segue o tema do sistema: sem botao claro/escuro */
         div.st-key-header_card div[data-testid="stHorizontalBlock"] > div:nth-child(3), div.st-key-toggle_tema { display: none !important; }
         div.st-key-header_card div[data-testid="stHorizontalBlock"] > div:nth-child(2) { order: 3; flex: 1 1 100% !important; width: 100% !important; }
-        div.st-key-header_card img { width: 96px !important; }
+        div.st-key-header_card img { width: 96px !important; margin-left: auto !important; margin-right: auto !important; }
+        div.st-key-header_card div[data-testid="stHorizontalBlock"] > div:nth-child(1) div[data-testid="stMarkdownContainer"], div.st-key-header_card div[data-testid="stHorizontalBlock"] > div:nth-child(1) div[data-testid="stElementContainer"] { width: 100% !important; text-align: center; }
         .brand-eyebrow { font-size: 10.5px; letter-spacing: .06em; white-space: normal; text-align: center; }
         .brand-subtitle { font-size: 18px; white-space: normal; text-align: center; }
 
