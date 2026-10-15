@@ -252,6 +252,12 @@ STATUS_GATILHO_SUBSTITUICAO_IMPORT = {
     # via ENVIO preenchido (ver barreira em processar_linhas_import), então
     # isso não arrisca desfazer um pedido já enviado.
     normalizar_status_import("Aprovado"),
+    # Valores CRUS do Totvs que ja foram gravados na base quando o mapa abaixo
+    # nao os conhecia (caso real 15/10/2026: "Pendente (Nivel 2)" ficou como
+    # "PENDENTE (NIVEL 2)" e o pedido 181178 nunca virou APROVADO). Sao
+    # status nativos do Totvs, nao lancados a mao, entao podem ser recalculados.
+    *(normalizar_status_import(f"Pendente (Nível {n})") for n in ("1", "2", "3", "4", "5", "01", "02", "03", "04", "05")),
+    normalizar_status_import("S/Aprovador"),
 }
 
 MAPA_STATUS_APROV_TEXTO_IMPORT = {
@@ -275,6 +281,11 @@ MAPA_STATUS_APROV_TEXTO_IMPORT = {
     normalizar_status_import("Pendente (Nível 02)"): TEXTO_PENDENTE_APROVACAO_IMPORT,
     normalizar_status_import("Pendente (Nível 03)"): TEXTO_PENDENTE_APROVACAO_IMPORT,
     normalizar_status_import("Pendente (Nível 3)"): TEXTO_PENDENTE_APROVACAO_IMPORT,
+    normalizar_status_import("Pendente (Nível 2)"): TEXTO_PENDENTE_APROVACAO_IMPORT,
+    normalizar_status_import("Pendente (Nível 4)"): TEXTO_PENDENTE_APROVACAO_IMPORT,
+    normalizar_status_import("Pendente (Nível 5)"): TEXTO_PENDENTE_APROVACAO_IMPORT,
+    normalizar_status_import("Pendente (Nível 04)"): TEXTO_PENDENTE_APROVACAO_IMPORT,
+    normalizar_status_import("Pendente (Nível 05)"): TEXTO_PENDENTE_APROVACAO_IMPORT,
     # "Liberado Direto" não é aprovado nem pendente de aprovação - vira ERRO.
     normalizar_status_import("Liberado Direto"): "Erro",
 }

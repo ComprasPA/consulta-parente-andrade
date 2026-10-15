@@ -1330,3 +1330,18 @@ class TestVarreduraEntregaNaoMexeEmContrato:
         sheet = _FakeSpreadsheetComAbas({"Pedidos": ws})
         assert ip.forcar_atendido_quando_entrega_import(sheet) == 0
         assert ws.update_cells_chamado is None
+
+
+class TestPendenteNivelCruNaoPrendeOPedido:
+    @pytest.mark.parametrize("nivel", ["1", "2", "3", "4", "01", "02", "03"])
+    def test_qualquer_nivel_vira_pendente_de_aprovacao(self, nivel):
+        linha = {"Status Aprov": f"Pendente (Nível {nivel})", "Dt Lib. PC": ""}
+        assert ip.valor_status_origem_import(linha) == "PENDENTE DE APROVAÇÃO"
+
+    @pytest.mark.parametrize("cru", ["PENDENTE (NÍVEL 2)", "S/APROVADOR"])
+    def test_status_cru_ja_gravado_pode_ser_recalculado(self, cru):
+        assert ip.normalizar_status_import(cru) in ip.STATUS_GATILHO_SUBSTITUICAO_IMPORT
+
+    def test_pedido_preso_em_pendente_nivel_2_vira_aprovado_quando_totvs_aprova(self):
+        linha = {"Status Aprov": "Aprovado - Aguardando Entrega", "Dt Lib. PC": "14/10/2026"}
+        assert ip.valor_status_origem_import(linha) == "APROVADO"
