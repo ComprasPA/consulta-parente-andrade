@@ -31,9 +31,18 @@ from importador_protheus import (
 )
 
 # 1. CONFIGURAÇÃO DA PÁGINA
+# O icone da aba (e do atalho "Adicionar a tela inicial" no celular) e a marca
+# PA - caiu no emoji se o arquivo nao estiver junto.
+try:
+    from pathlib import Path as _Path
+    from PIL import Image as _Image
+    _icone_pagina = _Image.open(_Path(__file__).with_name("icone_pa.png"))
+except Exception:
+    _icone_pagina = "🏗️"
+
 st.set_page_config(
     page_title="Portal Gestão de Compras | Parente Andrade",
-    page_icon="🏗️",
+    page_icon=_icone_pagina,
     layout="wide",
     initial_sidebar_state="collapsed"
 )
