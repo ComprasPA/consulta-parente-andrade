@@ -56,27 +56,35 @@ def _tema_ativo():
     return st.session_state.tema
 
 
+def _vars_css(paleta):
+    return "\n".join(
+        f"--pa-{'paper' if chave == 'page-bg' else chave}: {valor};"
+        for chave, valor in paleta.items()
+    )
+
+
 def _css_variaveis_tema():
-    p = TEMAS[_tema_ativo()]
+    tema = _tema_ativo()
+    outro = "escuro" if tema == "claro" else "claro"
+    # Desktop: tema escolhido no botao (session_state). Celular (<=640px): o
+    # botao some e o app segue o tema claro/escuro do SISTEMA do aparelho -
+    # o Python nao enxerga isso, entao as duas paletas sao emitidas e o
+    # navegador escolhe via prefers-color-scheme (a logo troca do mesmo jeito).
     return f"""
     <style>
     :root {{
-        --pa-verde: {p["verde"]};
-        --pa-verde-deep: {p["verde-deep"]};
-        --pa-verde-soft: {p["verde-soft"]};
-        --pa-laranja: {p["laranja"]};
-        --pa-laranja-deep: {p["laranja-deep"]};
-        --pa-laranja-soft: {p["laranja-soft"]};
-        --pa-ink: {p["ink"]};
-        --pa-paper: {p["page-bg"]};
-        --pa-card: {p["card"]};
-        --pa-input-bg: {p["input-bg"]};
-        --pa-mist: {p["mist"]};
-        --pa-slate: {p["slate"]};
-        --pa-slate-soft: {p["slate-soft"]};
-        --pa-error-bg: {p["error-bg"]};
-        --pa-error-text: {p["error-text"]};
-        --pa-error-border: {p["error-border"]};
+        {_vars_css(TEMAS[tema])}
+    }}
+    .pa-logo-{outro} {{ display: none !important; }}
+    @media (max-width: 640px) {{
+        :root {{ {_vars_css(TEMAS["claro"])} }}
+        .pa-logo-claro {{ display: block !important; }}
+        .pa-logo-escuro {{ display: none !important; }}
+    }}
+    @media (max-width: 640px) and (prefers-color-scheme: dark) {{
+        :root {{ {_vars_css(TEMAS["escuro"])} }}
+        .pa-logo-claro {{ display: none !important; }}
+        .pa-logo-escuro {{ display: block !important; }}
     }}
     </style>
     """
@@ -179,6 +187,46 @@ CSS_GLOBAL = """
 
     .custom-footer-block { text-align: center !important; margin-top: 60px !important; border-top: 1px solid var(--pa-mist) !important; padding-top: 24px !important; padding-bottom: 24px !important; position: static !important; clear: both !important; width: 100% !important; display: block !important; }
     .signature-fixed { position: fixed; bottom: 12px; left: 20px; color: var(--pa-slate-soft); font-size: 11px; font-weight: 700; letter-spacing: 0.5px; z-index: 999999; pointer-events: none; }
+
+    /* ---------------- MOBILE (celular, tela estreita) ---------------- */
+    @media (max-width: 640px) {
+        .stApp { overflow-x: hidden; }
+        .block-container { padding-left: 0.75rem !important; padding-right: 0.75rem !important; padding-bottom: 3.5rem !important; }
+
+        /* Cabecalho: logo + seletor de tema na mesma linha, titulo embaixo (antes
+           o texto em caixa alta com espacamento largo estourava o card) */
+        div.st-key-header_card { padding: 12px 14px 12px 20px; margin-bottom: 12px; }
+        div.st-key-header_card div[data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: 0.35rem 0.5rem !important; align-items: center !important; }
+        div.st-key-header_card div[data-testid="stHorizontalBlock"] > div { min-width: 0 !important; }
+        div.st-key-header_card div[data-testid="stHorizontalBlock"] > div:nth-child(1) { order: 1; flex: 1 1 100% !important; width: 100% !important; justify-content: center !important; }
+        /* Celular segue o tema do sistema: sem botao claro/escuro */
+        div.st-key-header_card div[data-testid="stHorizontalBlock"] > div:nth-child(3), div.st-key-toggle_tema { display: none !important; }
+        div.st-key-header_card div[data-testid="stHorizontalBlock"] > div:nth-child(2) { order: 3; flex: 1 1 100% !important; width: 100% !important; }
+        div.st-key-header_card img { width: 96px !important; }
+        .brand-eyebrow { font-size: 10.5px; letter-spacing: .06em; white-space: normal; text-align: center; }
+        .brand-subtitle { font-size: 18px; white-space: normal; text-align: center; }
+
+        /* Filtros: os botoes do formulario viram grade 2x2 e os espacadores somem */
+        div[data-testid="stForm"] div[data-testid="stHorizontalBlock"]:has(.stFormSubmitButton) { flex-wrap: wrap !important; gap: 0.5rem !important; }
+        div[data-testid="stForm"] div[data-testid="stHorizontalBlock"]:has(.stFormSubmitButton) > div { flex: 1 1 calc(50% - 0.5rem) !important; min-width: calc(50% - 0.5rem) !important; width: calc(50% - 0.5rem) !important; }
+        div[data-testid="stColumn"]:has(.espacador-form), div[data-testid="column"]:has(.espacador-form) { display: none !important; }
+
+        /* Alvos de toque maiores (27px/10px era pequeno demais pro dedo) */
+        div.stFormSubmitButton > button, div.stButton > button, div.stDownloadButton > button, div.stLinkButton > a { min-height: 40px !important; max-height: 40px !important; font-size: 13px !important; }
+        div.stFormSubmitButton > button p, div.stButton > button p, div.stDownloadButton > button p, div.stLinkButton > a p { font-size: 13px !important; }
+        div.st-key-acoes_painel_wrap { flex-wrap: wrap !important; width: 100% !important; gap: 8px !important; }
+
+        .status-card, .custom-error-red { padding: 12px 14px; font-size: 14px; }
+        .custom-welcome-salutation, .custom-empty-state { padding: 20px 14px; font-size: 16px; min-height: auto; }
+        div[data-testid="stDataFrame"] { padding: 6px; }
+        div[data-testid="stExpander"] summary { padding: 10px 14px !important; }
+        div[data-testid="stExpander"] div[data-testid="stExpanderDetails"] { padding: 0 14px 14px !important; }
+        .custom-footer-block { margin-top: 28px !important; padding-top: 16px !important; padding-bottom: 40px !important; }
+
+        /* Assinatura fixa ficava por cima dos campos - agora com fundo proprio,
+           menor e colada no canto, e o conteudo ganha espaco extra embaixo */
+        .signature-fixed { left: 8px; bottom: 6px; font-size: 10px; padding: 2px 8px; border-radius: 999px; background: var(--pa-paper); }
+    }
     </style>
     """
 
@@ -193,13 +241,20 @@ def renderizar_cabecalho(subtitulo="Portal Gestão de Compras"):
     # Logo tem o texto "PARENTE ANDRADE" em preto puro - ilegível no header
     # escuro. logo_escuro é a mesma imagem com so esse texto trocado pra
     # branco (ícone P/A colorido intacto).
-    nome_arquivo_logo = "logo_escuro" if _tema_ativo() == "escuro" else "logo"
-    base64_logo = get_base64_logo(nome_arquivo_logo)
+    # As duas versoes da logo vao pro HTML e o CSS mostra a certa (tema do
+    # botao no desktop, tema do sistema no celular - ver _css_variaveis_tema).
+    logo_claro = get_base64_logo("logo")
+    logo_escuro = get_base64_logo("logo_escuro")
     with st.container(key="header_card"):
         c1, c2, c3 = st.columns([1.5, 6.0, 1.5])
         with c1:
-            if base64_logo:
-                st.markdown(f'<img src="data:image/png;base64,{base64_logo}" style="width:130px; display:block;">', unsafe_allow_html=True)
+            imgs = ""
+            if logo_claro:
+                imgs += f'<img class="pa-logo pa-logo-claro" src="data:image/png;base64,{logo_claro}" style="width:130px; display:block;">'
+            if logo_escuro:
+                imgs += f'<img class="pa-logo pa-logo-escuro" src="data:image/png;base64,{logo_escuro}" style="width:130px; display:block;">'
+            if imgs:
+                st.markdown(imgs, unsafe_allow_html=True)
         with c2:
             st.markdown(f'''
                 <div class="brand-text-block">

@@ -685,9 +685,9 @@ with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
         
         esp0, espb, b1, b2, b3, b4 = st.columns([1.6, 1, 1, 1, 1, 1])
         with esp0:
-            st.markdown("&nbsp;", unsafe_allow_html=True)
+            st.markdown('<div class="espacador-form">&nbsp;</div>', unsafe_allow_html=True)
         with espb:
-            st.markdown("&nbsp;", unsafe_allow_html=True)
+            st.markdown('<div class="espacador-form">&nbsp;</div>', unsafe_allow_html=True)
         with b1:
             btn_pesquisar = st.form_submit_button("🔍 Pesquisar", use_container_width=True, type="primary")
             if btn_pesquisar:
