@@ -149,11 +149,11 @@ def renderizar_card_dados_bancarios(pedido, fornecedor, cnpj, regime, banco, age
     linhas = [
         ("CNPJ", cnpj), ("REGIME TRIB.", regime), ("BANCO", banco), ("AGÊNCIA", agencia), ("CONTA", conta),
         ("PIX", pix), ("E-MAIL", email), ("CONTATO", contato), ("VENDEDOR", vendedor),
-        ("R$", valor_formatado),
+        ("VALOR DO PEDIDO", valor_formatado),
     ]
     linhas_html = "".join(f'<tr><td class="rotulo">{rot}</td><td class="valor">{esc(val)}</td></tr>' for rot, val in linhas)
     pedido_esc = esc(pedido)
-    nome_arquivo = f"dados_bancarios_pedido_{re.sub(r'[^0-9A-Za-z_-]', '', str(pedido))}.jpg"
+    nome_arquivo = f"ficha_pedido_{re.sub(r'[^0-9A-Za-z_-]', '', str(pedido))}.jpg"
 
     return f"""
     <div id="wrap">
