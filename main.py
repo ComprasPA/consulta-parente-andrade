@@ -337,6 +337,28 @@ def montar_linhas_em_cotacao(df_pc, df_sc):
     return linhas_cotacao
 
 
+def aplicar_compra_direta_por_pagamento(df):
+    """Condição de Pagamento "PAGO" = COMPRA DIRETA (decisão explícita do
+    usuário, 2026-10-16). Aplicado já na leitura da planilha, antes de
+    filtros e tela - assim o filtro de Status e a tabela concordam. A planilha
+    em si só é gravada na próxima importação do Protheus
+    (sincronizar_status_compra_direta_import). Exceções: Entrega preenchida
+    (ATENDIDO) e CONTRATO prevalecem. Não mexe no index (ver
+    carregar_dados_seguros)."""
+    por_nome = {str(c).upper().strip().replace("Ç", "C").replace("Ã", "A"): c for c in df.columns}
+    col_status = por_nome.get("STATUS")
+    col_condicao = por_nome.get("CONDICAO PAGAMENTO")
+    if not col_status or not col_condicao:
+        return df
+    col_entrega = por_nome.get("ENTREGA")
+    paga = df[col_condicao].astype(str).str.upper().str.strip() == "PAGO"
+    sem_entrega = df[col_entrega].astype(str).str.strip() == "" if col_entrega else True
+    nao_contrato = df[col_status].astype(str).str.upper().str.strip() != "CONTRATO"
+    df = df.copy()
+    df.loc[paga & sem_entrega & nao_contrato, col_status] = "COMPRA DIRETA"
+    return df
+
+
 # 4. CARREGAMENTO SEGURO DIRETO DA ABA "Pedidos" (+ Solicitações sem pedido, como "Em Cotação")
 @st.cache_data(ttl=60)
 def carregar_dados_seguros():
@@ -375,6 +397,7 @@ def carregar_dados_seguros():
             # excluída calcular um _row_idx errado (deslocado pela quantidade
             # de linhas excluídas acima dele) e gravar na linha física errada.
             df = df[df[col_status_bruto].astype(str).str.strip().str.upper() != STATUS_EXCLUIDO_TOTVS]
+            df = aplicar_compra_direta_por_pagamento(df)
 
         try:
             df_sc = _ler_aba_como_df(spreadsheet, "Solicitacoes")
@@ -517,17 +540,6 @@ def montar_df_painel(df_final, colunas_normalizadas):
 
     # Associa a linha física exata da planilha
     df_painel["_row_idx"] = [idx + 2 for idx in df_final.index]
-
-    # Condição de Pagamento "PAGO" = COMPRA DIRETA (decisão explícita do
-    # usuário, 2026-10-16). A planilha só é corrigida na próxima importação
-    # do Protheus (sincronizar_status_compra_direta_import); aqui a tela já
-    # mostra o status certo, com as mesmas exceções: Entrega preenchida
-    # (ATENDIDO) e CONTRATO prevalecem.
-    if "Status" in df_painel.columns and "Condição Pagamento" in df_painel.columns:
-        condicao_paga = df_painel["Condição Pagamento"].astype(str).str.upper().str.strip() == "PAGO"
-        sem_entrega = df_painel["Entrega"].astype(str).str.strip().isin(["", "nan", "None"]) if "Entrega" in df_painel.columns else True
-        nao_contrato = df_painel["Status"].astype(str).str.upper().str.strip() != "CONTRATO"
-        df_painel.loc[condicao_paga & sem_entrega & nao_contrato, "Status"] = "COMPRA DIRETA"
 
     col_status_tela = colunas_normalizadas.get("STATUS")
     if col_status_tela:
