@@ -364,6 +364,9 @@ def status_da_legenda_import(linha_origem) -> str:
 # pra nao mudar a opcao que ja existe no dropdown do Portal (main.py).
 CRITICIDADES_COMPRA_DIRETA_IMPORT = {"COMPRA DIRETA", "COMPRAS DIRETA"}
 STATUS_COMPRA_DIRETA_IMPORT = "COMPRA DIRETA"
+# Pedido cuja Condição de Pagamento é "PAGO" já foi quitado na compra - é
+# compra direta (decisão explícita do usuário, 2026-10-16).
+CONDICAO_PAGAMENTO_COMPRA_DIRETA_IMPORT = "PAGO"
 
 
 # Pedidos emitidos por esses usuarios do Totvs ("Nome Usuario" do MATA121) sao
@@ -801,7 +804,8 @@ def aplicar_no_google_sheets_import(worksheet, novas_linhas, atualizacoes):
 
 def sincronizar_status_compra_direta_import(spreadsheet) -> int:
     """Espelha em STATUS (aba Pedidos) quando a Solicitação daquele Pedido
-    tem CRITICIDADE = "COMPRA DIRETA" na aba Solicitacoes - decisão
+    tem CRITICIDADE = "COMPRA DIRETA" na aba Solicitacoes, ou quando a linha
+    do Pedido tem CONDIÇÃO PAGAMENTO = "PAGO" - decisão
     explícita do usuário: sempre prevalece, sobrescrevendo qualquer outro
     STATUS que a linha já tivesse - EXCETO quando o Pedido já tem ENTREGA
     preenchida (decisão explícita do usuário, 2026-09-24: "ATENDIDO impera
@@ -814,22 +818,18 @@ def sincronizar_status_compra_direta_import(spreadsheet) -> int:
     foram atualizadas."""
     ws_solicitacoes = spreadsheet.worksheet(ABA_SOLICITACOES_IMPORT)
     dados_sol = ws_solicitacoes.get_all_values()
-    if not dados_sol:
-        return 0
-    cabecalho_sol = dados_sol[0]
-    if "SOLICITAÇÃO" not in cabecalho_sol or "CRITICIDADE" not in cabecalho_sol:
-        return 0
-    idx_sc_sol = cabecalho_sol.index("SOLICITAÇÃO")
-    idx_criticidade = cabecalho_sol.index("CRITICIDADE")
-
     scs_compra_direta = set()
-    for linha in dados_sol[1:]:
-        if idx_criticidade < len(linha) and linha[idx_criticidade].strip().upper() in CRITICIDADES_COMPRA_DIRETA_IMPORT:
-            sc = limpar_numero_texto_import(linha[idx_sc_sol] if idx_sc_sol < len(linha) else "")
-            if sc:
-                scs_compra_direta.add(sc.zfill(6))
-    if not scs_compra_direta:
-        return 0
+    cabecalho_sol = dados_sol[0] if dados_sol else []
+    # Sem a aba/colunas de Criticidade a regra por Condição "PAGO" (abaixo)
+    # continua valendo - só a parte por SC fica vazia.
+    if "SOLICITAÇÃO" in cabecalho_sol and "CRITICIDADE" in cabecalho_sol:
+        idx_sc_sol = cabecalho_sol.index("SOLICITAÇÃO")
+        idx_criticidade = cabecalho_sol.index("CRITICIDADE")
+        for linha in dados_sol[1:]:
+            if idx_criticidade < len(linha) and linha[idx_criticidade].strip().upper() in CRITICIDADES_COMPRA_DIRETA_IMPORT:
+                sc = limpar_numero_texto_import(linha[idx_sc_sol] if idx_sc_sol < len(linha) else "")
+                if sc:
+                    scs_compra_direta.add(sc.zfill(6))
 
     ws_pedidos = spreadsheet.worksheet(ABA_PEDIDOS_IMPORT)
     dados_ped = ws_pedidos.get_all_values()
@@ -843,11 +843,19 @@ def sincronizar_status_compra_direta_import(spreadsheet) -> int:
     idx_status_ped = cabecalho_ped.index("STATUS")
     col_entrega_ped = resolver_coluna_real_import(cabecalho_ped, "ENTREGA", {})
     idx_entrega_ped = cabecalho_ped.index(col_entrega_ped) if col_entrega_ped else None
+    col_condicao_ped = resolver_coluna_real_import(cabecalho_ped, "CONDIÇÃO PAGAMENTO", ALIASES_PEDIDOS_IMPORT)
+    idx_condicao_ped = cabecalho_ped.index(col_condicao_ped) if col_condicao_ped else None
 
     celulas = []
     for i, linha in enumerate(dados_ped[1:], start=2):
         sc_pedido = limpar_numero_texto_import(linha[idx_sc_ped] if idx_sc_ped < len(linha) else "")
-        if sc_pedido and sc_pedido.zfill(6) in scs_compra_direta:
+        # Condição de pagamento PAGO = compra direta (decisão explícita do
+        # usuário, 2026-10-16): vale por linha, mesmo sem Criticidade na SC.
+        condicao_paga = (
+            idx_condicao_ped is not None and idx_condicao_ped < len(linha)
+            and linha[idx_condicao_ped].strip().upper() == CONDICAO_PAGAMENTO_COMPRA_DIRETA_IMPORT
+        )
+        if condicao_paga or (sc_pedido and sc_pedido.zfill(6) in scs_compra_direta):
             if idx_entrega_ped is not None and idx_entrega_ped < len(linha) and linha[idx_entrega_ped].strip():
                 continue  # ja atendido de verdade - Entrega nao pode ser desfeita
             status_atual = linha[idx_status_ped] if idx_status_ped < len(linha) else ""

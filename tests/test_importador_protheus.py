@@ -836,6 +836,45 @@ class TestSincronizarStatusCompraDireta:
         assert (celulas[0].row, celulas[0].col, celulas[0].value) == (2, 1, "COMPRA DIRETA")
 
 
+class TestCompraDiretaPorCondicaoPaga:
+    CAB_SOL = ["SOLICITAÇÃO", "ITEM SC", "PEDIDO", "STATUS", "CRITICIDADE"]
+    CAB_PED = ["STATUS", "SOLICITAÇÃO", "PEDIDO", "CONDIÇÃO PAGAMENTO", "ENTREGA"]
+
+    def _montar(self, linhas_ped):
+        ws_sol = _FakeWorksheetComDados([self.CAB_SOL, ["999999", "1", "1", "", "URGENTE"]])
+        ws_ped = _FakeWorksheetComDados([self.CAB_PED, *linhas_ped])
+        return _FakeSpreadsheetComAbas({"Solicitacoes": ws_sol, "Pedidos": ws_ped}), ws_ped
+
+    def test_condicao_pago_vira_compra_direta(self):
+        sheet, ws_ped = self._montar([["APROVADO", "140380", "177074", "PAGO", ""]])
+        assert ip.sincronizar_status_compra_direta_import(sheet) == 1
+        c = ws_ped.update_cells_chamado[0]
+        assert (c.row, c.col, c.value) == (2, 1, "COMPRA DIRETA")
+
+    def test_condicao_pago_com_espacos_e_minuscula(self):
+        sheet, ws_ped = self._montar([["ENVIADO AO FORNECEDOR", "140380", "177074", " pago ", ""]])
+        assert ip.sincronizar_status_compra_direta_import(sheet) == 1
+
+    def test_outras_condicoes_nao_mudam(self):
+        sheet, ws_ped = self._montar([["APROVADO", "140380", "177074", "A VISTA", ""], ["APROVADO", "140381", "177075", "PAGO PARCIAL", ""]])
+        assert ip.sincronizar_status_compra_direta_import(sheet) == 0
+        assert ws_ped.update_cells_chamado is None
+
+    def test_pago_com_entrega_nao_e_desfeito(self):
+        sheet, ws_ped = self._montar([["ATENDIDO", "140380", "177074", "PAGO", "10/10/2026"]])
+        assert ip.sincronizar_status_compra_direta_import(sheet) == 0
+
+    def test_pago_nao_sobrescreve_contrato(self):
+        sheet, ws_ped = self._montar([["CONTRATO", "140380", "177074", "PAGO", ""]])
+        assert ip.sincronizar_status_compra_direta_import(sheet) == 0
+
+    def test_pago_sem_colunas_de_criticidade_na_aba_solicitacoes(self):
+        ws_sol = _FakeWorksheetComDados([["SOLICITAÇÃO", "STATUS"]])
+        ws_ped = _FakeWorksheetComDados([self.CAB_PED, ["APROVADO", "140380", "177074", "PAGO", ""]])
+        sheet = _FakeSpreadsheetComAbas({"Solicitacoes": ws_sol, "Pedidos": ws_ped})
+        assert ip.sincronizar_status_compra_direta_import(sheet) == 1
+
+
 class TestForcarPedidoGeradoQuandoSemStatus:
     CABECALHO_SOL = ["SOLICITAÇÃO", "ITEM SC", "PEDIDO", "STATUS"]
 
