@@ -518,6 +518,17 @@ def montar_df_painel(df_final, colunas_normalizadas):
     # Associa a linha física exata da planilha
     df_painel["_row_idx"] = [idx + 2 for idx in df_final.index]
 
+    # Condição de Pagamento "PAGO" = COMPRA DIRETA (decisão explícita do
+    # usuário, 2026-10-16). A planilha só é corrigida na próxima importação
+    # do Protheus (sincronizar_status_compra_direta_import); aqui a tela já
+    # mostra o status certo, com as mesmas exceções: Entrega preenchida
+    # (ATENDIDO) e CONTRATO prevalecem.
+    if "Status" in df_painel.columns and "Condição Pagamento" in df_painel.columns:
+        condicao_paga = df_painel["Condição Pagamento"].astype(str).str.upper().str.strip() == "PAGO"
+        sem_entrega = df_painel["Entrega"].astype(str).str.strip().isin(["", "nan", "None"]) if "Entrega" in df_painel.columns else True
+        nao_contrato = df_painel["Status"].astype(str).str.upper().str.strip() != "CONTRATO"
+        df_painel.loc[condicao_paga & sem_entrega & nao_contrato, "Status"] = "COMPRA DIRETA"
+
     col_status_tela = colunas_normalizadas.get("STATUS")
     if col_status_tela:
         termos_excecao = ["SERVIÇO", "CANCELADO PELO SOLICITANTE", "REJEITADO PELO APROVADOR", "COMPRA DIRETA", STATUS_EXCLUIDO_TOTVS]
