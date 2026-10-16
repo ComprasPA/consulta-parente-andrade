@@ -1349,6 +1349,23 @@ class TestStatusContratoPorUsuario:
         assert (7, self.CAB.index("STATUS") + 1, "CONTRATO") in atualizacoes
         assert atualizadas == 1
 
+    def test_linha_nova_do_aprendiz_nasce_compra_direta(self):
+        linha = {"Numero": 300, "Produto": "5", "Nome Usuario": "aprendiz.compras", "Status Aprov": "Aprovado - Aguardando Entrega",
+                 "Dt Lib. PC": pd.Timestamp("2026-10-01")}
+        novas, *_ = self._rodar(linha, {})
+        assert novas[0][self.CAB.index("STATUS")] == "COMPRA DIRETA"
+
+    def test_linha_existente_do_aprendiz_vira_compra_direta(self):
+        indice = {("300", "0000000005"): {"row_num": 7, "valores": {"PEDIDO": "300", "PRODUTO": "0000000005", "STATUS": "APROVADO"}}}
+        linha = {"Numero": 300, "Produto": "5", "Nome Usuario": "APRENDIZ.COMPRAS", "Status Aprov": "Aprovado - Aguardando Entrega"}
+        _, atualizacoes, _, atualizadas, _ = self._rodar(linha, indice)
+        assert (7, self.CAB.index("STATUS") + 1, "COMPRA DIRETA") in atualizacoes
+        assert atualizadas == 1
+
+    def test_aprendiz_com_entrega_nao_vira_compra_direta(self):
+        assert ip.status_forcado_por_usuario_import({"Nome Usuario": "aprendiz.compras", "Dt. Dig.Nota": pd.Timestamp("2026-10-10")}) is None
+        assert ip.status_forcado_por_usuario_import({"Nome Usuario": "aprendiz.compras"}) == "COMPRA DIRETA"
+
     def test_outro_usuario_nao_e_afetado(self):
         linha = {"Numero": 201, "Produto": "6", "Nome Usuario": "DAIANA.LIMA", "Status Aprov": "Pendente (Nível 01)"}
         novas, *_ = self._rodar(linha, {})

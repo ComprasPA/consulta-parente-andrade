@@ -379,9 +379,24 @@ USUARIOS_PEDIDO_CONTRATO_IMPORT = {"BIANCAGEISSLER"}
 STATUS_CONTRATO_PEDIDO_IMPORT = "CONTRATO"
 
 
+# Pedidos emitidos por esse usuario (comprador) sao COMPRA DIRETA - decisao
+# explicita do usuario, 2026-10-16 ("todos os pedidos que o comprador for
+# aprendiz.compras"). Mesma regra de Compra Direta de sempre: Entrega
+# preenchida (ATENDIDO) prevalece e CONTRATO nunca e' sobrescrito.
+USUARIOS_PEDIDO_COMPRA_DIRETA_IMPORT = {"APRENDIZCOMPRAS"}
+
+
+def _usuario_normalizado_import(linha_origem) -> str:
+    return "".join(c for c in normalizar_status_import(linha_origem.get("Nome Usuario", "")) if c.isalnum())
+
+
 def status_forcado_por_usuario_import(linha_origem):
-    usuario = "".join(c for c in normalizar_status_import(linha_origem.get("Nome Usuario", "")) if c.isalnum())
-    return STATUS_CONTRATO_PEDIDO_IMPORT if usuario in USUARIOS_PEDIDO_CONTRATO_IMPORT else None
+    usuario = _usuario_normalizado_import(linha_origem)
+    if usuario in USUARIOS_PEDIDO_CONTRATO_IMPORT:
+        return STATUS_CONTRATO_PEDIDO_IMPORT
+    if usuario in USUARIOS_PEDIDO_COMPRA_DIRETA_IMPORT and not fmt_data_import(linha_origem.get("Dt. Dig.Nota", "")):
+        return STATUS_COMPRA_DIRETA_IMPORT
+    return None
 
 
 def nf_completa_import(linha_origem) -> bool:
