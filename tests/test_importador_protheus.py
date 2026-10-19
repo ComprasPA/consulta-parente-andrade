@@ -1401,3 +1401,15 @@ class TestPendenteNivelCruNaoPrendeOPedido:
     def test_pedido_preso_em_pendente_nivel_2_vira_aprovado_quando_totvs_aprova(self):
         linha = {"Status Aprov": "Aprovado - Aguardando Entrega", "Dt Lib. PC": "14/10/2026"}
         assert ip.valor_status_origem_import(linha) == "APROVADO"
+
+
+class TestCotacaoSeisDigitos:
+    @pytest.mark.parametrize("bruto,esperado", [
+        (21073, "021073"), (21253.0, "021253"), ("21253.0", "021253"),
+        ("021073", "021073"), (499, "000499"), ("XXXXXX", "XXXXXX"), ("", ""),
+    ])
+    def test_formata_cotacao(self, bruto, esperado):
+        assert ip.fmt_cotacao_import(bruto) == esperado
+
+    def test_mapa_de_solicitacoes_usa_formatador_de_cotacao(self):
+        assert ip.MAPA_SOLICITACOES_IMPORT["COTAÇÃO"]["tipo"] == "cotacao"

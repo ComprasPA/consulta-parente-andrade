@@ -87,7 +87,7 @@ CABECALHO_SOLICITACOES_IMPORT = [
 MAPA_SOLICITACOES_IMPORT = {
     "SOLICITAÇÃO":          {"origem": "Numero da SC", "tipo": "solicitacao"},
     "ITEM SC":              {"origem": "Item da SC",   "tipo": "texto"},
-    "COTAÇÃO":              {"origem": "Num. Cotacao", "tipo": "texto"},
+    "COTAÇÃO":              {"origem": "Num. Cotacao", "tipo": "cotacao"},
     "PEDIDO":               {"origem": "Num. Pedido",  "tipo": "inteiro"},
     "PRODUTO":              {"origem": "Produto",      "tipo": "produto"},
     "DESCRICAO":            {"origem": "Descricao",    "tipo": "texto"},
@@ -153,6 +153,14 @@ def fmt_produto_import(valor) -> str:
     if pd.isna(valor) or str(valor).strip() == "":
         return ""
     return limpar_numero_texto_import(valor).strip().zfill(10)
+
+
+def fmt_cotacao_import(valor) -> str:
+    """Cotação também tem 6 dígitos (ex.: 021073) - o Excel do Totvs entrega
+    como número (21073 / 21073.0) e perderia o zero à esquerda. Valor não
+    numérico (ex.: "XXXXXX") passa como texto."""
+    txt = limpar_numero_texto_import(valor).strip()
+    return txt.zfill(6) if txt.isdigit() else txt
 
 
 def fmt_solicitacao_import(valor) -> str:
@@ -221,6 +229,7 @@ FORMATADORES_IMPORT = {
     "texto": fmt_texto_import,
     "produto": fmt_produto_import,
     "solicitacao": fmt_solicitacao_import,
+    "cotacao": fmt_cotacao_import,
     "centro_custo": fmt_centro_custo_import,
     "numero": fmt_numero_import,
     "decimal": fmt_decimal_import,
