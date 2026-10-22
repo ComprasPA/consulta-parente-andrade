@@ -79,7 +79,9 @@ def carregar_arquivo(caminho) -> pd.DataFrame:
     saida = pd.DataFrame({
         "Solicitacao": df[col_num].apply(fmt_solicitacao),
         "CodScmScm": df[col_scm].fillna("").astype(str).str.strip(),
-        "Criticidade": df[col_crit].fillna("").astype(str).str.strip().str.upper(),
+        # Export "Solicitações" usa o plural "Emergenciais" - grava no singular,
+        # o valor que o Portal e o Panorama reconhecem.
+        "Criticidade": df[col_crit].fillna("").astype(str).str.strip().str.upper().replace({"EMERGENCIAIS": "EMERGENCIAL"}),
     })
     saida = saida[saida["Criticidade"] != ""]
     return saida

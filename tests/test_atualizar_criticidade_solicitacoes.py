@@ -126,3 +126,11 @@ def test_solicitacao_do_arquivo_nao_encontrada_na_base():
 
     assert atualizadas == 0
     assert nao_encontradas == 1
+
+
+def test_carregar_arquivo_converte_emergenciais_para_singular(tmp_path):
+    caminho = _escrever_xls(tmp_path, [
+        {"Código": "143170", "Código SCM": "SCM120432", "Criticidade": "Emergenciais"},
+    ])
+    df = acs.carregar_arquivo(caminho)
+    assert df.iloc[0]["Criticidade"] == "EMERGENCIAL"
