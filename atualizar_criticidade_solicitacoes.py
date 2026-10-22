@@ -15,6 +15,7 @@ Solicitação" do export (= COD SC SCM na base) como alternativa.
 
 Uso:
     python atualizar_criticidade_solicitacoes.py --arquivo "Cotações - ....xls"
+    python atualizar_criticidade_solicitacoes.py --arquivo "Solicitações - ....xlsx"
 """
 import argparse
 import tomllib
@@ -54,14 +55,26 @@ def carregar_arquivo(caminho) -> pd.DataFrame:
     df = pd.read_excel(caminho, sheet_name=0, header=0)
     df.columns = df.columns.astype(str).str.strip()
 
-    col_num = resolver_coluna(df.columns, "Protheus")
-    col_scm = resolver_coluna(df.columns, "Número Solicitação")
     col_crit = resolver_coluna(df.columns, "Criticidade")
+    col_num = resolver_coluna(df.columns, "Protheus", obrigatoria=False)
+    if col_num:
+        # Export da tela de Cotações
+        col_scm = resolver_coluna(df.columns, "Número Solicitação")
+    else:
+        # Export "Solicitações" (2026-10-22): "Código" = SOLICITAÇÃO (número
+        # da SC no Protheus) e "Código SCM" = COD SC SCM.
+        col_num = next((c for c in df.columns if c.lower() == "código"), None)
+        if col_num is None:
+            raise RuntimeError(f"Layout nao reconhecido. Colunas do arquivo: {list(df.columns)}")
+        col_scm = resolver_coluna(df.columns, "Código SCM")
 
     def fmt_solicitacao(v):
         if pd.isna(v):
             return ""
-        return str(int(v)).strip().zfill(6)
+        try:
+            return str(int(float(v))).strip().zfill(6)
+        except (TypeError, ValueError):
+            return ""
 
     saida = pd.DataFrame({
         "Solicitacao": df[col_num].apply(fmt_solicitacao),
