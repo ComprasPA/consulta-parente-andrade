@@ -875,6 +875,35 @@ class TestCompraDiretaPorCondicaoPaga:
         assert ip.sincronizar_status_compra_direta_import(sheet) == 1
 
 
+class TestRejeitarSolicitacoesAtendidasSemPedido:
+    CAB_SOL = ["SOLICITAÇÃO", "ITEM SC", "PEDIDO", "PRODUTO", "STATUS"]
+    CAB_PED = ["PEDIDO", "SOLICITAÇÃO", "PRODUTO", "STATUS"]
+
+    def _montar(self, linhas_sol, linhas_ped=()):
+        ws_sol = _FakeWorksheetComDados([self.CAB_SOL, *linhas_sol])
+        ws_ped = _FakeWorksheetComDados([self.CAB_PED, *linhas_ped])
+        return _FakeSpreadsheetComAbas({"Solicitacoes": ws_sol, "Pedidos": ws_ped}), ws_sol
+
+    def test_atendida_sem_pedido_vira_rejeitado(self):
+        sheet, ws = self._montar([["140380", "1", "", "5", "ATENDIDA"]])
+        assert ip.rejeitar_solicitacoes_atendidas_sem_pedido_import(sheet) == 1
+        c = ws.update_cells_chamado[0]
+        assert (c.row, c.col, c.value) == (2, 5, "REJEITADO")
+
+    def test_atendida_com_pedido_na_propria_linha_nao_muda(self):
+        sheet, ws = self._montar([["140380", "1", "177074", "5", "ATENDIDA"]])
+        assert ip.rejeitar_solicitacoes_atendidas_sem_pedido_import(sheet) == 0
+        assert ws.update_cells_chamado is None
+
+    def test_atendida_com_pedido_so_na_aba_pedidos_nao_muda(self):
+        sheet, ws = self._montar([["140380", "1", "", "5", "ATENDIDA"]], [["177074", "140380", "5", "ATENDIDO"]])
+        assert ip.rejeitar_solicitacoes_atendidas_sem_pedido_import(sheet) == 0
+
+    def test_outros_status_sem_pedido_nao_mudam(self):
+        sheet, ws = self._montar([["1", "1", "", "5", "EM COTAÇÃO"], ["2", "1", "", "5", "PARCIALMENTE ATENDIDA"], ["3", "1", "", "5", ""]])
+        assert ip.rejeitar_solicitacoes_atendidas_sem_pedido_import(sheet) == 0
+
+
 class TestForcarPedidoGeradoQuandoSemStatus:
     CABECALHO_SOL = ["SOLICITAÇÃO", "ITEM SC", "PEDIDO", "STATUS"]
 

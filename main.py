@@ -319,6 +319,12 @@ def montar_linhas_em_cotacao(df_pc, df_sc):
             status_reais_sc = candidatas[col_status_sc].astype(str).str.strip().values
             mask_com_status_real = status_reais_sc != ""
             linhas_cotacao.loc[mask_com_status_real, col_status_pc] = status_reais_sc[mask_com_status_real]
+            # Solicitação ATENDIDA sem Pedido (candidatas ja nao tem Pedido nem
+            # na propria SC nem na aba Pedidos) = REJEITADO - decisão explícita
+            # do usuário, 2026-10-22. A planilha é gravada na próxima
+            # importação (rejeitar_solicitacoes_atendidas_sem_pedido_import).
+            mask_atendida_sem_pedido = pd.Series(status_reais_sc).str.upper().isin(["ATENDIDA", "ATENDIDO"]).values
+            linhas_cotacao.loc[mask_atendida_sem_pedido, col_status_pc] = "REJEITADO"
 
     mapa_sc_para_pc = {
         "SOLICITACAO": col_solic_sc,

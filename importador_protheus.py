@@ -1005,6 +1005,54 @@ def forcar_pedido_gerado_quando_sem_status_import(spreadsheet) -> int:
     return len(celulas)
 
 
+STATUS_REJEITADO_SOLICITACOES_IMPORT = "REJEITADO"
+STATUS_SOLICITACAO_ATENDIDA_IMPORT = {"ATENDIDA", "ATENDIDO"}
+
+
+def rejeitar_solicitacoes_atendidas_sem_pedido_import(spreadsheet) -> int:
+    """Varredura geral (decisão explícita do usuário, 2026-10-22): Solicitação
+    ATENDIDA que não tem número de Pedido (nem na própria linha, nem na aba
+    Pedidos cruzando Solicitação+Produto - ver
+    carregar_mapa_pedidos_por_produto_import) vira REJEITADO. REJEITADO não
+    está em GATILHO_STATUS_SOLICITACOES_IMPORT, então um import posterior não
+    volta a linha para ATENDIDA. Devolve quantas linhas foram alteradas."""
+    ws_sol = spreadsheet.worksheet(ABA_SOLICITACOES_IMPORT)
+    dados_sol = ws_sol.get_all_values()
+    if not dados_sol:
+        return 0
+    cabecalho_sol = dados_sol[0]
+    col_pedido = resolver_coluna_real_import(cabecalho_sol, "PEDIDO", {})
+    col_sc = resolver_coluna_real_import(cabecalho_sol, "SOLICITAÇÃO", {})
+    col_produto = resolver_coluna_real_import(cabecalho_sol, "PRODUTO", {})
+    if not col_pedido or "STATUS" not in cabecalho_sol:
+        return 0
+    idx_pedido = cabecalho_sol.index(col_pedido)
+    idx_status = cabecalho_sol.index("STATUS")
+    idx_sc = cabecalho_sol.index(col_sc) if col_sc else None
+    idx_produto = cabecalho_sol.index(col_produto) if col_produto else None
+    pedidos_por_produto = carregar_mapa_pedidos_por_produto_import(spreadsheet)
+
+    celulas = []
+    for i, linha in enumerate(dados_sol[1:], start=2):
+        status_atual = (linha[idx_status] if idx_status < len(linha) else "").strip().upper()
+        if status_atual not in STATUS_SOLICITACAO_ATENDIDA_IMPORT:
+            continue
+        if (linha[idx_pedido] if idx_pedido < len(linha) else "").strip():
+            continue
+        if idx_sc is not None and idx_produto is not None:
+            chave = (
+                fmt_solicitacao_import(linha[idx_sc] if idx_sc < len(linha) else ""),
+                fmt_produto_import(linha[idx_produto] if idx_produto < len(linha) else ""),
+            )
+            if chave in pedidos_por_produto:
+                continue  # Pedido existe na aba Pedidos - so a SC nao recebeu a referencia
+        celulas.append(gspread.Cell(i, idx_status + 1, STATUS_REJEITADO_SOLICITACOES_IMPORT))
+
+    if celulas:
+        ws_sol.update_cells(celulas, value_input_option="RAW")
+    return len(celulas)
+
+
 def carregar_descricoes_solicitacoes_import(spreadsheet):
     """Monta um lookup (SOLICITAÇÃO, PRODUTO) -> DESCRICAO a partir da aba
     Solicitacoes, usado pra corrigir a Descricao vinda do relatorio de
@@ -1220,5 +1268,11 @@ def _sufixo_compra_direta_import(spreadsheet) -> str:
             partes.append(f" {corrigidos_sol} solicitação(ões) marcada(s) como 'PEDIDO GERADO' (já tinham Pedido mas nenhum status).")
     except Exception as e:
         partes.append(f" ⚠️ Falha ao forçar status Pedido Gerado em Solicitações: {e}")
+    try:
+        rejeitadas_sol = rejeitar_solicitacoes_atendidas_sem_pedido_import(spreadsheet)
+        if rejeitadas_sol:
+            partes.append(f" {rejeitadas_sol} solicitação(ões) ATENDIDA(S) sem Pedido marcada(s) como 'REJEITADO'.")
+    except Exception as e:
+        partes.append(f" ⚠️ Falha ao rejeitar Solicitações atendidas sem Pedido: {e}")
     return "".join(partes)
 
