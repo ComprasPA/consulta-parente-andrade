@@ -909,6 +909,24 @@ class TestRejeitarSolicitacoesAtendidasSemPedido:
         assert ip.rejeitar_solicitacoes_atendidas_sem_pedido_import(sheet) == 0
 
 
+class TestCorrigirMarcadorPagamento:
+    CAB = ["PEDIDO", "CONDIÇÃO PAGAMENTO", "PAGAMENTO"]
+
+    def _montar(self, linhas):
+        ws = _FakeWorksheetComDados([self.CAB, *linhas])
+        return _FakeSpreadsheetComAbas({"Pedidos": ws}), ws
+
+    def test_limpa_marcador_quando_condicao_a_vista(self):
+        sheet, ws = self._montar([["1", "A VISTA", "------"], ["2", "A VISTA", "------"]])
+        assert ip.corrigir_marcador_pagamento_import(sheet) == 2
+        assert all(c.value == "" and c.col == 3 for c in ws.update_cells_chamado)
+
+    def test_nao_mexe_em_prazo_nem_em_data_preenchida(self):
+        sheet, ws = self._montar([["1", "30 DIAS D", "------"], ["2", "A VISTA", "27/10/2026"], ["3", "A VISTA", ""]])
+        assert ip.corrigir_marcador_pagamento_import(sheet) == 0
+        assert ws.update_cells_chamado is None
+
+
 class TestForcarPedidoGeradoQuandoSemStatus:
     CABECALHO_SOL = ["SOLICITAÇÃO", "ITEM SC", "PEDIDO", "STATUS"]
 

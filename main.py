@@ -40,6 +40,7 @@ from comum import (
     gerar_bytes_excel,
 )
 from importador_protheus import (
+    CONDICOES_PAGAMENTO_SEM_MARCADOR_IMPORT,
     STATUS_EXCLUIDO_TOTVS,
     processar_upload_protheus,
 )
@@ -362,6 +363,12 @@ def aplicar_compra_direta_por_pagamento(df):
     nao_contrato = df[col_status].astype(str).str.upper().str.strip() != "CONTRATO"
     df = df.copy()
     df.loc[paga & sem_entrega & nao_contrato, col_status] = "COMPRA DIRETA"
+    # Marcador "------" de Pagamento preso numa condição que não é a prazo
+    # (ver corrigir_marcador_pagamento_import): a tela já mostra em branco.
+    col_pagamento = por_nome.get("PAGAMENTO")
+    if col_pagamento:
+        sem_marcador = df[col_condicao].astype(str).str.upper().str.strip().isin(CONDICOES_PAGAMENTO_SEM_MARCADOR_IMPORT)
+        df.loc[sem_marcador & (df[col_pagamento].astype(str).str.strip() == "------"), col_pagamento] = ""
     return df
 
 

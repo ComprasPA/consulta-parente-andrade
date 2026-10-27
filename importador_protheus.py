@@ -1104,6 +1104,39 @@ def rejeitar_solicitacoes_atendidas_sem_pedido_import(spreadsheet) -> int:
     return len(celulas)
 
 
+def corrigir_marcador_pagamento_import(spreadsheet) -> int:
+    """PAGAMENTO só recebe o marcador "------" (condição a prazo, sem data de
+    pagamento a esperar) quando a linha é criada, e o import nunca mais
+    recalcula - se a Condição Pagamento for corrigida depois (ex.: de A PRAZO
+    para A VISTA, ou o Totvs mandou outra condição na 1ª importação), o
+    "------" ficava preso e o SLA de pagamento ficava em branco. Esta varredura
+    limpa o "------" das linhas cuja condição atual é A VISTA/PAGO/ENT+PARC/
+    VENCIDO (CONDICOES_PAGAMENTO_SEM_MARCADOR_IMPORT). Devolve quantas
+    células foram limpas."""
+    ws = spreadsheet.worksheet(ABA_PEDIDOS_IMPORT)
+    dados = ws.get_all_values()
+    if not dados:
+        return 0
+    cabecalho = dados[0]
+    col_cond = resolver_coluna_real_import(cabecalho, "CONDIÇÃO PAGAMENTO", ALIASES_PEDIDOS_IMPORT)
+    col_pag = resolver_coluna_real_import(cabecalho, "PAGAMENTO", {})
+    if not col_cond or not col_pag:
+        return 0
+    idx_cond = cabecalho.index(col_cond)
+    idx_pag = cabecalho.index(col_pag)
+
+    celulas = []
+    for i, linha in enumerate(dados[1:], start=2):
+        pagamento = linha[idx_pag].strip() if idx_pag < len(linha) else ""
+        condicao = linha[idx_cond].strip().upper() if idx_cond < len(linha) else ""
+        if pagamento == "------" and condicao in CONDICOES_PAGAMENTO_SEM_MARCADOR_IMPORT:
+            celulas.append(gspread.Cell(i, idx_pag + 1, ""))
+
+    if celulas:
+        ws.update_cells(celulas, value_input_option="RAW")
+    return len(celulas)
+
+
 def carregar_descricoes_solicitacoes_import(spreadsheet):
     """Monta um lookup (SOLICITAÇÃO, PRODUTO) -> DESCRICAO a partir da aba
     Solicitacoes, usado pra corrigir a Descricao vinda do relatorio de
@@ -1341,5 +1374,11 @@ def _sufixo_compra_direta_import(spreadsheet) -> str:
             partes.append(f" {rejeitadas_sol} solicitação(ões) ATENDIDA(S) sem Pedido marcada(s) como 'REJEITADO'.")
     except Exception as e:
         partes.append(f" ⚠️ Falha ao rejeitar Solicitações atendidas sem Pedido: {e}")
+    try:
+        limpos = corrigir_marcador_pagamento_import(spreadsheet)
+        if limpos:
+            partes.append(f" {limpos} pedido(s) com Condição A VISTA/PAGO tiveram o marcador '------' de Pagamento removido.")
+    except Exception as e:
+        partes.append(f" ⚠️ Falha ao corrigir marcador de Pagamento: {e}")
     return "".join(partes)
 
