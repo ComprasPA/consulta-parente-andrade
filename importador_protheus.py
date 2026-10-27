@@ -333,21 +333,32 @@ STATUS_TERMINAIS_SEM_REALERTA_IMPORT = {
 # lancado a mao por atualizar_pendencias_abertas.py/Portal do Comprador,
 # ver GATILHO_STATUS_SOLICITACOES_IMPORT).
 MAPA_LEGENDA_STATUS_IMPORT = {
+    # Grade de status atualizada pelo usuario em 2026-10-27 (tabela
+    # "PLANILHA = NOMENCLATURA PAINEL"). Chaves sem acento/maiusculas.
+    "INTEGRACAO MODULO GESTAO DE CONTRATOS": "CONTRATO",
     "SOLICITACAO BLOQUEADA": "BLOQUEADA",
     "SOLICITACAO EM PROCESSO DE COTACAO": "EM COTAÇÃO",
-    "SOLICITACAO PARCIALMENTE ATENDIDA": "PARCIALMENTE ATENDIDA",
-    "SOLICITACAO PENDENTE": "PENDENTE",
-    "SOLICITACAO REJEITADA": "REJEITADA",
-    "SOLICITACAO TOTALMENTE ATENDIDA": "ATENDIDA",
+    "SOLICITACAO ENCERRADA NA COTACAO": "REJEITADA",
+    "SOLICITACAO PARCIALMENTE ATENDIDA": "PARCIALMENTE ATENDIDO",
+    "SOLICITACAO PENDENTE": "AGUARDANDO COTAÇÃO",
+    "SOLICITACAO REJEITADA": "REJEITADO",
+    "SOLICITACAO TOTALMENTE ATENDIDA": "ATENDIDO",
 }
 # So recalcula o STATUS quando o valor atual e' um dos que essa propria
 # importacao gera (ou esta em branco) - protege status manuais lancados por
 # OUTRO pipeline (REJEITADO/CONTRATO/REVISAR, ver atualizar_pendencias_
 # abertas.py e Portal do Comprador) de serem sobrescritos so por a
 # Solicitacao ter reaparecido num import comum.
-GATILHO_STATUS_SOLICITACOES_IMPORT = {normalizar_status_import("")} | {
-    normalizar_status_import(v) for v in MAPA_LEGENDA_STATUS_IMPORT.values()
-}
+GATILHO_STATUS_SOLICITACOES_IMPORT = {normalizar_status_import(v) for v in (
+    "",
+    # gerados por este import (grade nova, 2026-10-27)
+    "BLOQUEADA", "EM COTAÇÃO", "REJEITADA", "PARCIALMENTE ATENDIDO", "AGUARDANDO COTAÇÃO", "ATENDIDO",
+    # grade antiga - ainda na base, migram pro valor novo no proximo import
+    "PENDENTE", "PARCIALMENTE ATENDIDA", "ATENDIDA",
+)}
+# CONTRATO e REJEITADO tambem sao lancados a mao (Portal do Comprador/
+# atualizar_pendencias_abertas.py) - ficam FORA do gatilho pra continuarem
+# protegidos: o import pode escrever esses valores, mas nunca os desfaz.
 
 
 def status_da_legenda_import(linha_origem) -> str:

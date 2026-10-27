@@ -209,10 +209,10 @@ class TestStatusDaLegenda:
     @pytest.mark.parametrize("legenda,esperado", [
         ("Solicitacao bloqueada", "BLOQUEADA"),
         ("Solicitação em processo de cotação", "EM COTAÇÃO"),
-        ("Solicitacao parcialmente atendida", "PARCIALMENTE ATENDIDA"),
-        ("Solicitacao Pendente", "PENDENTE"),
-        ("Solicitacao rejeitada", "REJEITADA"),
-        ("Solicitacao totalmente atendida", "ATENDIDA"),
+        ("Solicitacao parcialmente atendida", "PARCIALMENTE ATENDIDO"),
+        ("Solicitacao Pendente", "AGUARDANDO COTAÇÃO"),
+        ("Solicitacao rejeitada", "REJEITADO"),
+        ("Solicitacao totalmente atendida", "ATENDIDO"),
     ])
     def test_mapeia_cada_legenda_conhecida(self, legenda, esperado):
         assert ip.status_da_legenda_import({"Legenda": legenda}) == esperado
@@ -230,9 +230,13 @@ class TestStatusDaLegenda:
         for manual in ("REJEITADO", "CONTRATO", "REVISAR"):
             assert ip.normalizar_status_import(manual) not in ip.GATILHO_STATUS_SOLICITACOES_IMPORT
 
-    def test_gatilho_inclui_todos_os_proprios_valores_e_branco(self):
+    def test_gatilho_inclui_valores_automaticos_e_branco(self):
+        # CONTRATO e REJEITADO sao gerados pela Legenda mas tambem lancados a
+        # mao - ficam fora do gatilho (protegidos).
         assert ip.normalizar_status_import("") in ip.GATILHO_STATUS_SOLICITACOES_IMPORT
         for valor in ip.MAPA_LEGENDA_STATUS_IMPORT.values():
+            if valor in ("CONTRATO", "REJEITADO"):
+                continue
             assert ip.normalizar_status_import(valor) in ip.GATILHO_STATUS_SOLICITACOES_IMPORT
 
 
@@ -271,7 +275,7 @@ class TestImportSolicitacoesAtualizaStatusPelaLegenda:
         novas, atualizacoes, dup, atualizadas, chaves = self._rodar(df, indice={})
         assert len(novas) == 1
         col_status = CABECALHO_DESTINO_SC.index("STATUS")
-        assert novas[0][col_status] == "ATENDIDA"
+        assert novas[0][col_status] == "ATENDIDO"
 
     def test_solicitacao_existente_pendente_atualiza_para_atendida(self):
         indice = self._indice_existente(SOLICITAÇÃO="141500", **{"ITEM SC": "1"}, STATUS="PENDENTE")
@@ -281,7 +285,7 @@ class TestImportSolicitacoesAtualizaStatusPelaLegenda:
         }])
         novas, atualizacoes, dup, atualizadas, chaves = self._rodar(df, indice)
         col_status = CABECALHO_DESTINO_SC.index("STATUS") + 1
-        assert (5, col_status, "ATENDIDA") in atualizacoes
+        assert (5, col_status, "ATENDIDO") in atualizacoes
 
     def test_status_manual_rejeitado_nao_e_sobrescrito(self):
         # REJEITADO foi lançado a mão por outro pipeline (não é o "REJEITADA"
@@ -1442,3 +1446,26 @@ class TestCotacaoSeisDigitos:
 
     def test_mapa_de_solicitacoes_usa_formatador_de_cotacao(self):
         assert ip.MAPA_SOLICITACOES_IMPORT["COTAÇÃO"]["tipo"] == "cotacao"
+
+
+class TestGradeStatusSolicitacoes20261027:
+    @pytest.mark.parametrize("legenda,esperado", [
+        ("Integração Módulo Gestão de Contratos", "CONTRATO"),
+        ("Solicitação Bloqueada", "BLOQUEADA"),
+        ("Solicitação em Processo de Cotação", "EM COTAÇÃO"),
+        ("Solicitação Encerrada na Cotação", "REJEITADA"),
+        ("Solicitação Parcialmente Atendida", "PARCIALMENTE ATENDIDO"),
+        ("Solicitação Pendente", "AGUARDANDO COTAÇÃO"),
+        ("Solicitação Rejeitada", "REJEITADO"),
+        ("Solicitação Totalmente Atendida", "ATENDIDO"),
+    ])
+    def test_legenda_para_status(self, legenda, esperado):
+        assert ip.status_da_legenda_import({"Legenda": legenda}) == esperado
+
+    @pytest.mark.parametrize("atual", ["PENDENTE", "ATENDIDA", "PARCIALMENTE ATENDIDA", "AGUARDANDO COTAÇÃO", ""])
+    def test_status_antigos_e_automaticos_podem_ser_recalculados(self, atual):
+        assert ip.normalizar_status_import(atual) in ip.GATILHO_STATUS_SOLICITACOES_IMPORT
+
+    @pytest.mark.parametrize("manual", ["REJEITADO", "CONTRATO", "REVISAR", "PEDIDO GERADO"])
+    def test_status_manuais_continuam_protegidos(self, manual):
+        assert ip.normalizar_status_import(manual) not in ip.GATILHO_STATUS_SOLICITACOES_IMPORT
