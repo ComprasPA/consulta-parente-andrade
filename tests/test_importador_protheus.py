@@ -1504,3 +1504,30 @@ class TestArquivoComAbaExtraNaFrente:
         pd.DataFrame([["Listagem do Browse", ""], ["Cod SC. SCM", "Numero da SC"], ["SCM1", "1"]]).to_excel(caminho, index=False, header=False)
         with open(caminho, "rb") as fh:
             assert ip.detectar_tipo_arquivo_import(io.BytesIO(fh.read())) == "SC"
+
+
+class TestColunasDescricaoPorConteudo:
+    def _df(self, primeira, segunda):
+        return pd.DataFrame({"Descricao": primeira, "Descricao.1": segunda})
+
+    def test_condicao_primeiro_formato_antigo(self):
+        df = ip.normalizar_colunas_descricao_pc_import(self._df(["A VISTA", "30 DIAS D"], ["PROTETOR SOLAR 4L", "CALCA PROT M"]))
+        assert list(df["Descricao"]) == ["A VISTA", "30 DIAS D"]
+        assert list(df["Descricao.1"]) == ["PROTETOR SOLAR 4L", "CALCA PROT M"]
+
+    def test_condicao_depois_formato_de_23_10(self):
+        df = ip.normalizar_colunas_descricao_pc_import(self._df(["COTOVELO 90GR PVC 100MM", "SERRA MANUAL 300X13"], ["30/60 DD", "ENT+15"]))
+        assert list(df["Descricao"]) == ["30/60 DD", "ENT+15"]
+        assert list(df["Descricao.1"]) == ["COTOVELO 90GR PVC 100MM", "SERRA MANUAL 300X13"]
+
+    def test_uma_coluna_so_e_a_do_item(self):
+        df = ip.normalizar_colunas_descricao_pc_import(pd.DataFrame({"Descricao": ["LUVA SEG"]}))
+        assert list(df["Descricao.1"]) == ["LUVA SEG"] and list(df["Descricao"]) == [""]
+
+    @pytest.mark.parametrize("v", ["A VISTA", "30 DIAS D", "30/60 DD", "A PRAZO", "PAGO", "ENT+30,60,90,120,150", "12D", "30%+30%+40%", "CARTAO CREDITO", "30, 60, 90 DDL", "VENCIDO", "ENTR + 1 PARC", "Á PRAZO 28 DIAS", "6 PARCELAS"])
+    def test_reconhece_condicoes_reais(self, v):
+        assert ip._parece_condicao_pagamento_import([v]) == 1.0
+
+    @pytest.mark.parametrize("v", ["COTOVELO 90GR PVC BR PTA/BOLS 100MM", "PROTETOR SOLAR FATOR 60FPS BMB 4L", "SERRA MANUAL SEMI-RIG BIMETAL GERAL 300X13X0,6MM 18D"])
+    def test_nao_confunde_descricao_de_item(self, v):
+        assert ip._parece_condicao_pagamento_import([v]) == 0.0

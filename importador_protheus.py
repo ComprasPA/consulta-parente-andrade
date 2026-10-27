@@ -1189,26 +1189,42 @@ def obter_ou_criar_aba_import(spreadsheet, nome_aba, cabecalho_padrao=None):
         return aba
 
 
+_RE_CONDICAO_PAGAMENTO_IMPORT = re.compile(
+    r"^(A VISTA|À VISTA|A PRAZO|PAGO|VENCIDO|ANTECIPADO|CART[AÃ]O\b.*|BOLETO\b.*|ENTR?\s*\+.*|[AÁÀ] PRAZO\b.*"
+    r"|\d+\s*PARCELAS?\b.*|\d+([\s,/%+]+\d+)*\s*(%|DIAS?|DDL?|DD|D)?(\s*D)?)$"
+)
+
+
+def _parece_condicao_pagamento_import(serie) -> float:
+    """Fracao dos valores preenchidos que tem cara de condicao de pagamento
+    ("A VISTA", "30 DIAS D", "30/60 DD", "ENT+15", "PAGO"...)."""
+    valores = [str(v).strip().upper() for v in serie if str(v).strip() and str(v).strip().lower() != "nan"]
+    if not valores:
+        return 0.0
+    return sum(1 for v in valores if len(v) <= 30 and _RE_CONDICAO_PAGAMENTO_IMPORT.match(v)) / len(valores)
+
+
 def normalizar_colunas_descricao_pc_import(df):
-    """O relatorio de Pedidos do Totvs (Listagem do Browse OU o MATA121
-    nativo) traz DUAS colunas chamadas "Descricao" quando a coluna
-    "Condição Pagamento" esta visivel no browse no momento do export - a
-    PRIMEIRA e na verdade a Condição de Pagamento, a SEGUNDA (que o pandas
-    renomeia sozinho pra "Descricao.1" por ja existir uma igual) e a
-    Descricao real do item (ver MAPA_PEDIDOS_IMPORT). Quando o usuario tira
-    essa coluna do browse (ja aconteceu, tentando contornar um crash do
-    Totvs - ver conversa 2026-09-28), o export vem com UMA SO "Descricao",
-    que e a real - sem esse ajuste, a condicao de pagamento (inexistente
-    nesse arquivo) ficava recebendo a propria Descricao do item, e a
-    Descricao real ficava em branco (caso real, 2026-10-01: Pedidos
-    180691/180698/180713/180714, vindos de um arquivo sem a coluna
-    Condição Pagamento visivel). Devolve o DataFrame ajustado pra
-    MAPA_PEDIDOS_IMPORT sempre poder usar a mesma origem fixa nos dois
-    casos."""
-    if "Descricao.1" not in df.columns and "Descricao" in df.columns:
-        df = df.rename(columns={"Descricao": "Descricao.1"})
-        df["Descricao"] = ""
-    return df
+    """O relatorio de Pedidos do Totvs traz DUAS colunas com o MESMO nome
+    "Descricao" (o pandas renomeia a 2a pra "Descricao.1"): uma e a descricao
+    do item, a outra a Condicao de Pagamento - e a ORDEM entre elas muda
+    (ate 22/10/2026 a condicao vinha primeiro; a partir do export de
+    23/10/2026 veio depois, e o painel passou a mostrar descricao no lugar do
+    prazo). Como o nome nao distingue as duas, decide PELO CONTEUDO: a coluna
+    com cara de condicao de pagamento vira "Descricao" (origem de CONDIÇÃO
+    PAGAMENTO no MAPA) e a outra vira "Descricao.1" (origem de DESCRICAO).
+    Com uma "Descricao" so (coluna de condicao fora do browse), ela e a do
+    item e a condicao fica em branco."""
+    candidatas = [c for c in df.columns if str(c) == "Descricao" or str(c).startswith("Descricao.")]
+    if not candidatas:
+        return df
+    if len(candidatas) == 1:
+        return df.rename(columns={candidatas[0]: "Descricao.1"}).assign(Descricao="")
+    notas = {c: _parece_condicao_pagamento_import(df[c]) for c in candidatas}
+    col_condicao = max(candidatas, key=lambda c: notas[c])
+    col_item = next(c for c in candidatas if c != col_condicao)
+    df = df.rename(columns={col_condicao: "__condicao__", col_item: "__item__"})
+    return df.rename(columns={"__condicao__": "Descricao", "__item__": "Descricao.1"})
 
 
 def processar_arquivo_pc_import(arquivo, spreadsheet):
