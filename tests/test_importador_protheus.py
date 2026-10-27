@@ -1,3 +1,4 @@
+import io
 """Testes da logica pura de importacao (Protheus -> Google Sheets).
 
 Cobre normalizacao/formatacao de valores, deteccao de tipo de arquivo (PC/SC),
@@ -1482,3 +1483,24 @@ class TestPendenteComAcentoQuebrado:
 
     def test_status_manual_continua_fora_do_gatilho(self):
         assert ip.normalizar_status_import("ENVIADO AO FORNECEDOR") not in ip.STATUS_GATILHO_SUBSTITUICAO_IMPORT
+
+
+class TestArquivoComAbaExtraNaFrente:
+    def _arquivo(self, tmp_path, colunas):
+        caminho = tmp_path / "mata121.xlsx"
+        with pd.ExcelWriter(caminho) as w:
+            pd.DataFrame([["Rótulos de Linha", "PLANILHA"]]).to_excel(w, sheet_name="Planilha1", index=False, header=False)
+            pd.DataFrame([["Listagem do Browse"] + [""] * (len(colunas) - 1), colunas, ["x"] * len(colunas)]).to_excel(
+                w, sheet_name="Listagem do Browse", index=False, header=False)
+        return caminho
+
+    def test_reconhece_pc_mesmo_com_planilha1_na_frente(self, tmp_path):
+        caminho = self._arquivo(tmp_path, ["Dt. Dig.Nota", "Num da Nota", "Numero", "Produto", "Status Aprov"])
+        with open(caminho, "rb") as fh:
+            assert ip.detectar_tipo_arquivo_import(io.BytesIO(fh.read())) == "PC"
+
+    def test_formato_antigo_so_com_uma_aba_continua_funcionando(self, tmp_path):
+        caminho = tmp_path / "mata110.xlsx"
+        pd.DataFrame([["Listagem do Browse", ""], ["Cod SC. SCM", "Numero da SC"], ["SCM1", "1"]]).to_excel(caminho, index=False, header=False)
+        with open(caminho, "rb") as fh:
+            assert ip.detectar_tipo_arquivo_import(io.BytesIO(fh.read())) == "SC"

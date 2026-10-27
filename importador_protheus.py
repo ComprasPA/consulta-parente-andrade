@@ -558,10 +558,32 @@ def carregar_indice_existentes_import(worksheet, campos_chave, aliases):
     return indice, cabecalho_real
 
 
+ABA_DADOS_TOTVS_IMPORT = "Listagem do Browse"
+
+
+def aba_de_dados_totvs_import(arquivo):
+    """O export do Totvs traz os dados na aba "Listagem do Browse". Caso real
+    (27/10/2026): o arquivo chegou com uma aba "Planilha1" (tabela de status)
+    na frente - ler a 1a aba fazia o arquivo nao ser reconhecido. Usa a aba
+    pelo nome; sem ela, a 1a aba (formato antigo)."""
+    try:
+        if hasattr(arquivo, "seek"):
+            nomes = pd.ExcelFile(arquivo).sheet_names
+        else:
+            with pd.ExcelFile(arquivo) as planilha:  # caminho: fecha o arquivo (senao trava o move no Windows)
+                nomes = planilha.sheet_names
+    except Exception:
+        return 0
+    finally:
+        if hasattr(arquivo, "seek"):
+            arquivo.seek(0)
+    return ABA_DADOS_TOTVS_IMPORT if ABA_DADOS_TOTVS_IMPORT in nomes else 0
+
+
 def detectar_tipo_arquivo_import(arquivo):
     arquivo.seek(0)
     try:
-        amostra = pd.read_excel(arquivo, header=1, nrows=1)
+        amostra = pd.read_excel(arquivo, sheet_name=aba_de_dados_totvs_import(arquivo), header=1, nrows=1)
     except Exception:
         return None
     finally:
@@ -1198,7 +1220,7 @@ def processar_arquivo_pc_import(arquivo, spreadsheet):
     correcao_descricao = carregar_descricoes_solicitacoes_import(spreadsheet)
 
     arquivo.seek(0)
-    df = pd.read_excel(arquivo, header=1)
+    df = pd.read_excel(arquivo, sheet_name=aba_de_dados_totvs_import(arquivo), header=1)
     df = normalizar_colunas_descricao_pc_import(df)
     novas_linhas, atualizacoes, duplicadas, atualizadas, chaves_deste_arquivo = processar_linhas_import(
         df, MAPA_PEDIDOS_IMPORT, cabecalho_real, ALIASES_PEDIDOS_IMPORT, CAMPOS_MANUAIS_PEDIDOS_IMPORT,
@@ -1224,7 +1246,7 @@ def processar_arquivo_sc_import(arquivo, spreadsheet):
     mapa_pedidos_por_produto = carregar_mapa_pedidos_por_produto_import(spreadsheet)
 
     arquivo.seek(0)
-    df = pd.read_excel(arquivo, header=1)
+    df = pd.read_excel(arquivo, sheet_name=aba_de_dados_totvs_import(arquivo), header=1)
     novas_linhas, atualizacoes, duplicadas, atualizadas, _ = processar_linhas_import(
         df, MAPA_SOLICITACOES_IMPORT, cabecalho_real, {}, CAMPOS_MANUAIS_SOLICITACOES_IMPORT,
         CHAVE_SOLICITACOES_IMPORT, indice_existentes,
