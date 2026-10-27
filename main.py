@@ -903,12 +903,15 @@ if tem_busca_ativa:
                         "SERVIÇO",
                         "COMPRA DIRETA",
                         "CORREÇÃO DE PROCESSO",
-                        "ATENDIDO",
-                        "ATENDIDO PARCIALMENTE",
-                        "REJEITADO",
+                        # Grade de status do MATA121 (usuario, 2026-10-27)
                         "APROVADO",
+                        "ENTREGA PARCIAL",
+                        "ATENDIDO",
                         "BLOQUEADO",
-                        "PENDENTE DE APROVAÇÃO"
+                        "ESTORNADO",
+                        "ERRO",
+                        "PENDENTE DE APROVAÇÃO",
+                        "REJEITADO",
                     ]
                     lista_historico_status = sorted(list(set(status_existentes + status_oficiais)))
 

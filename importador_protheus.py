@@ -267,6 +267,8 @@ STATUS_GATILHO_SUBSTITUICAO_IMPORT = {
     # status nativos do Totvs, nao lancados a mao, entao podem ser recalculados.
     *(normalizar_status_import(f"Pendente (Nível {n})") for n in ("1", "2", "3", "4", "5", "01", "02", "03", "04", "05")),
     normalizar_status_import("S/Aprovador"),
+    # Estornado e' status nativo do Totvs (grade 2026-10-27) - recalculavel.
+    normalizar_status_import("Estornado"),
 }
 
 MAPA_STATUS_APROV_TEXTO_IMPORT = {
@@ -283,8 +285,8 @@ MAPA_STATUS_APROV_TEXTO_IMPORT = {
     # (fica visível na base em vez de ser mapeado no chute).
     normalizar_status_import("Aprovado - Totalmente Entregue"): "Atendido",  # correção do usuário 2026-10-05: já entregue = ATENDIDO, não APROVADO
     normalizar_status_import("Aprovado - Aguardando Entrega"): "Aprovado",
-    normalizar_status_import("Aprovado - Entregue Parcial"): "Aprovado",
-    normalizar_status_import("Estornado"): "Bloqueado",
+    normalizar_status_import("Aprovado - Entregue Parcial"): "Entrega Parcial",  # grade 2026-10-27
+    normalizar_status_import("Estornado"): "Estornado",  # grade 2026-10-27 (antes BLOQUEADO)
     normalizar_status_import("Pendente (Nível 01)"): TEXTO_PENDENTE_APROVACAO_IMPORT,
     normalizar_status_import("Pendente (Nível 1)"): TEXTO_PENDENTE_APROVACAO_IMPORT,
     normalizar_status_import("Pendente (Nível 02)"): TEXTO_PENDENTE_APROVACAO_IMPORT,

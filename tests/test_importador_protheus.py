@@ -128,9 +128,9 @@ class TestValorStatusOrigem:
     @pytest.mark.parametrize("texto_totvs, esperado", [
         ("Aprovado - Totalmente Entregue", "ATENDIDO"),
         ("Aprovado - Aguardando Entrega", "APROVADO"),
-        ("Aprovado - Entregue Parcial", "APROVADO"),
+        ("Aprovado - Entregue Parcial", "ENTREGA PARCIAL"),
         ("Bloqueado", "BLOQUEADO"),
-        ("Estornado", "BLOQUEADO"),
+        ("Estornado", "ESTORNADO"),
         ("Rejeitado", "REJEITADO"),
         ("Pendente (Nível 01)", "PENDENTE DE APROVAÇÃO"),
         ("Pendente (Nível 02)", "PENDENTE DE APROVAÇÃO"),
