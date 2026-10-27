@@ -239,7 +239,21 @@ FORMATADORES_IMPORT = {
 
 TEXTO_PENDENTE_APROVACAO_IMPORT = "Pendente de Aprovação"
 
-STATUS_GATILHO_SUBSTITUICAO_IMPORT = {
+def e_pendente_de_nivel_import(texto) -> bool:
+    """"Pendente (Nível 01)", "Pendente (N vel 2)" (acento perdido no export
+    do Totvs, caso real 27/10/2026), "Pendente (Nivel 3)"... - qualquer
+    pendencia por nivel de alcada, independente da grafia."""
+    return normalizar_status_import(texto).startswith("PENDENTE (")
+
+
+class _GatilhoPedidosImport(set):
+    """Conjunto de status recalculaveis que tambem aceita qualquer
+    "PENDENTE (...)" cru ja gravado na base (ver e_pendente_de_nivel)."""
+    def __contains__(self, item):
+        return set.__contains__(self, item) or e_pendente_de_nivel_import(item)
+
+
+STATUS_GATILHO_SUBSTITUICAO_IMPORT = _GatilhoPedidosImport({
     normalizar_status_import(""),
     normalizar_status_import("Em aprovação"),
     normalizar_status_import("Pendente"),
@@ -269,7 +283,7 @@ STATUS_GATILHO_SUBSTITUICAO_IMPORT = {
     normalizar_status_import("S/Aprovador"),
     # Estornado e' status nativo do Totvs (grade 2026-10-27) - recalculavel.
     normalizar_status_import("Estornado"),
-}
+})
 
 MAPA_STATUS_APROV_TEXTO_IMPORT = {
     normalizar_status_import("Pendente"): TEXTO_PENDENTE_APROVACAO_IMPORT,
@@ -452,6 +466,8 @@ def valor_status_origem_import(linha_origem) -> str:
     estão, só "Aprovado" sem data vira "Pendente de Aprovação")."""
     bruto = fmt_texto_import(linha_origem.get("Status Aprov", ""))
     valor = MAPA_STATUS_APROV_TEXTO_IMPORT.get(normalizar_status_import(bruto), bruto)
+    if e_pendente_de_nivel_import(bruto):
+        valor = TEXTO_PENDENTE_APROVACAO_IMPORT
     valor = valor.upper()
 
     # Regra dos 3 fatores (decisão explícita do usuário, 2026-10-05): ATENDIDO

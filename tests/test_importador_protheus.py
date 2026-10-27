@@ -1469,3 +1469,16 @@ class TestGradeStatusSolicitacoes20261027:
     @pytest.mark.parametrize("manual", ["REJEITADO", "CONTRATO", "REVISAR", "PEDIDO GERADO"])
     def test_status_manuais_continuam_protegidos(self, manual):
         assert ip.normalizar_status_import(manual) not in ip.GATILHO_STATUS_SOLICITACOES_IMPORT
+
+
+class TestPendenteComAcentoQuebrado:
+    @pytest.mark.parametrize("bruto", ["Pendente (N vel 01)", "Pendente (N vel 2)", "Pendente (Nivel 03)", "PENDENTE (NÍVEL 4)"])
+    def test_vira_pendente_de_aprovacao(self, bruto):
+        assert ip.valor_status_origem_import({"Status Aprov": bruto, "Dt Lib. PC": ""}) == "PENDENTE DE APROVAÇÃO"
+
+    @pytest.mark.parametrize("cru", ["PENDENTE (N VEL 01)", "PENDENTE (N VEL 2)", "PENDENTE (NÍVEL 7)"])
+    def test_status_cru_ja_gravado_e_recalculavel(self, cru):
+        assert ip.normalizar_status_import(cru) in ip.STATUS_GATILHO_SUBSTITUICAO_IMPORT
+
+    def test_status_manual_continua_fora_do_gatilho(self):
+        assert ip.normalizar_status_import("ENVIADO AO FORNECEDOR") not in ip.STATUS_GATILHO_SUBSTITUICAO_IMPORT
