@@ -282,10 +282,22 @@ def montar_linhas_em_cotacao(df_pc, df_sc):
     if df_sc.empty or not col_solic_pc or not col_produto_pc:
         return pd.DataFrame(columns=df_pc.columns)
 
+    def _norm_sc(v):
+        v = str(v).strip().split(".")[0].lstrip("0")
+        return v.zfill(6) if v else ""
+
+    def _norm_produto(v):
+        v = str(v).strip().split(".")[0]
+        return v.zfill(10) if v.isdigit() else v
+
+    # Chaves normalizadas (zeros a esquerda, sufixo .0 do Excel): a mesma
+    # SC/Produto escrita de outro jeito na aba Solicitacoes nao casava e a
+    # Solicitacao ja atendida aparecia duplicada ao lado do proprio Pedido.
     chaves_com_pedido = set(zip(
-        df_pc[col_solic_pc].astype(str).str.strip(),
-        df_pc[col_produto_pc].astype(str).str.strip(),
+        df_pc[col_solic_pc].map(_norm_sc),
+        df_pc[col_produto_pc].map(_norm_produto),
     ))
+    scs_com_pedido = {sc for sc, _ in chaves_com_pedido if sc}
 
     colunas_normalizadas_sc = {c.upper().strip().replace('Í', 'I').replace('Ã', 'A').replace('Ç', 'C'): c for c in df_sc.columns}
     col_solic_sc = colunas_normalizadas_sc.get("SOLICITAÇÃO") or colunas_normalizadas_sc.get("SOLICITACAO")
@@ -300,10 +312,23 @@ def montar_linhas_em_cotacao(df_pc, df_sc):
         return pd.DataFrame(columns=df_pc.columns)
 
     chaves_sc = list(zip(
-        sem_pedido[col_solic_sc].astype(str).str.strip(),
-        sem_pedido[col_produto_sc].astype(str).str.strip(),
+        sem_pedido[col_solic_sc].map(_norm_sc),
+        sem_pedido[col_produto_sc].map(_norm_produto),
     ))
-    candidatas = sem_pedido[[chave not in chaves_com_pedido for chave in chaves_sc]]
+    col_status_sc_filtro = colunas_normalizadas_sc.get("STATUS")
+    status_sc_filtro = (
+        sem_pedido[col_status_sc_filtro].astype(str).str.strip().str.upper().tolist()
+        if col_status_sc_filtro else [""] * len(sem_pedido)
+    )
+    # Solicitação ja atendida (ATENDIDA/PARCIALMENTE ATENDIDA/PEDIDO GERADO)
+    # cuja SC ja tem Pedido no painel nao aparece de novo - so o Pedido. As
+    # demais seguem pela chave SC+Produto (um item ainda sem pedido de uma SC
+    # com outros itens ja pedidos continua aparecendo).
+    status_atendidos = {"ATENDIDA", "ATENDIDO", "PARCIALMENTE ATENDIDA", "PEDIDO GERADO"}
+    candidatas = sem_pedido[[
+        chave not in chaves_com_pedido and not (status in status_atendidos and chave[0] in scs_com_pedido)
+        for chave, status in zip(chaves_sc, status_sc_filtro)
+    ]]
     if candidatas.empty:
         return pd.DataFrame(columns=df_pc.columns)
 
