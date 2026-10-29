@@ -422,15 +422,52 @@ STATUS_CONTRATO_PEDIDO_IMPORT = "CONTRATO"
 USUARIOS_PEDIDO_COMPRA_DIRETA_IMPORT = {"APRENDIZCOMPRAS"}
 
 
+# Item de Pedido com preço unitário ou quantidade ZERADOS = ERRO (decisão
+# explícita do usuário, 2026-10-29). Só vale zero explícito: campo em branco
+# ou não numérico nunca dispara (Solicitação "em cotação" não tem preço).
+# Prevalece sobre COMPRA DIRETA, mas não sobre CONTRATO nem sobre ENTREGA
+# preenchida (ATENDIDO).
+STATUS_ERRO_VALOR_ZERADO_IMPORT = "ERRO"
+
+
+def numero_para_float_import(valor):
+    """Converte número vindo do arquivo (float/int) ou da planilha ("R$ 343,29",
+    "1.234,50", "343.29", "0") em float. Devolve None se vazio/não numérico."""
+    if valor is None:
+        return None
+    if isinstance(valor, (int, float)):
+        return None if pd.isna(valor) else float(valor)
+    txt = str(valor).replace("R$", "").replace(" ", " ").strip()
+    if txt == "" or txt.lower() == "nan":
+        return None
+    if "," in txt:
+        txt = txt.replace(".", "").replace(",", ".")
+    try:
+        return float(txt)
+    except ValueError:
+        return None
+
+
+def tem_valor_zerado_import(quantidade, preco_unitario) -> bool:
+    return any(numero_para_float_import(v) == 0 for v in (quantidade, preco_unitario))
+
+
 def _usuario_normalizado_import(linha_origem) -> str:
     return "".join(c for c in normalizar_status_import(linha_origem.get("Nome Usuario", "")) if c.isalnum())
 
 
 def status_forcado_por_usuario_import(linha_origem):
+    # NF (Num da Nota + Dt. Dig.Nota) prevalece sobre qualquer status forcado
+    # (decisão explícita do usuário, 2026-10-28): depois de inserida, não se altera.
+    if nf_completa_import(linha_origem):
+        return None
     usuario = _usuario_normalizado_import(linha_origem)
     if usuario in USUARIOS_PEDIDO_CONTRATO_IMPORT:
         return STATUS_CONTRATO_PEDIDO_IMPORT
-    if usuario in USUARIOS_PEDIDO_COMPRA_DIRETA_IMPORT and not fmt_data_import(linha_origem.get("Dt. Dig.Nota", "")):
+    sem_entrega = not fmt_data_import(linha_origem.get("Dt. Dig.Nota", ""))
+    if sem_entrega and tem_valor_zerado_import(linha_origem.get("Quantidade"), linha_origem.get("Prc Unitario")):
+        return STATUS_ERRO_VALOR_ZERADO_IMPORT
+    if usuario in USUARIOS_PEDIDO_COMPRA_DIRETA_IMPORT and sem_entrega:
         return STATUS_COMPRA_DIRETA_IMPORT
     return None
 
@@ -441,10 +478,12 @@ def nf_completa_import(linha_origem) -> bool:
 
 
 def atendido_confirmado_import(linha_origem) -> bool:
-    """Os 3 fatores juntos: Dt. Dig.Nota + Num da Nota + Status Aprov =
-    "Aprovado - Totalmente Entregue" (regra do usuário, 2026-10-05)."""
-    status = normalizar_status_import(fmt_texto_import(linha_origem.get("Status Aprov", "")))
-    return nf_completa_import(linha_origem) and status == normalizar_status_import("Aprovado - Totalmente Entregue")
+    """Num da Nota + Dt. Dig.Nota preenchidos = ATENDIDO. Decisão explícita do
+    usuário (2026-10-28): a NF digitada prevalece sobre todas as demais
+    informações e status do sistema (inclusive "Status Aprov" do Totvs) e,
+    depois de inserida, o status não se altera mais. Substitui a regra dos 3
+    fatores de 2026-10-05, que também exigia "Aprovado - Totalmente Entregue"."""
+    return nf_completa_import(linha_origem)
 
 
 def valor_status_origem_import(linha_origem) -> str:
@@ -718,6 +757,16 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
                     atualizacoes.append((info["row_num"], cabecalho_destino.index(col_status) + 1, STATUS_ATENDIDO_IMPORT))
                     alterou = True
 
+            # NF digitada (Num da Nota + Dt. Dig.Nota) prevalece sobre tudo,
+            # inclusive a barreira de ENVIO e o status que o Totvs reporta
+            # (decisão explícita do usuário, 2026-10-28).
+            if col_status and nf_completa_import(linha_origem):
+                coluna_status_nf = cabecalho_destino.index(col_status) + 1
+                if normalizar_status_import(valores_atuais.get(col_status, "")) != normalizar_status_import(STATUS_ATENDIDO_IMPORT):
+                    atualizacoes[:] = [a for a in atualizacoes if not (a[0] == info["row_num"] and a[1] == coluna_status_nf)]
+                    atualizacoes.append((info["row_num"], coluna_status_nf, STATUS_ATENDIDO_IMPORT))
+                    alterou = True
+
             # Status forcado por regra de negocio (ex.: usuario do Totvs ->
             # CONTRATO): sobrepoe qualquer outro calculo acima, inclusive a
             # barreira de ENVIO. Tira atualizacoes anteriores da mesma celula
@@ -743,6 +792,8 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
             if novo_status:
                 linha_final[cabecalho_destino.index(col_status)] = novo_status
         if col_status and valores_por_campo.get("ENTREGA", "") and (confirma_atendido is None or confirma_atendido(linha_origem)):
+            linha_final[cabecalho_destino.index(col_status)] = STATUS_ATENDIDO_IMPORT
+        if col_status and nf_completa_import(linha_origem):
             linha_final[cabecalho_destino.index(col_status)] = STATUS_ATENDIDO_IMPORT
         if col_status and status_forcado:
             alvo_forcado = status_forcado(linha_origem)
@@ -918,6 +969,7 @@ def sincronizar_status_compra_direta_import(spreadsheet) -> int:
     idx_status_ped = cabecalho_ped.index("STATUS")
     col_entrega_ped = resolver_coluna_real_import(cabecalho_ped, "ENTREGA", {})
     idx_entrega_ped = cabecalho_ped.index(col_entrega_ped) if col_entrega_ped else None
+    idx_valor_zerado = _indices_valor_zerado_pedidos_import(cabecalho_ped)
     col_condicao_ped = resolver_coluna_real_import(cabecalho_ped, "CONDIÇÃO PAGAMENTO", ALIASES_PEDIDOS_IMPORT)
     idx_condicao_ped = cabecalho_ped.index(col_condicao_ped) if col_condicao_ped else None
 
@@ -935,7 +987,10 @@ def sincronizar_status_compra_direta_import(spreadsheet) -> int:
                 continue  # ja atendido de verdade - Entrega nao pode ser desfeita
             status_atual = linha[idx_status_ped] if idx_status_ped < len(linha) else ""
             # CONTRATO (definido por usuario do Totvs, ver USUARIOS_PEDIDO_CONTRATO_IMPORT)
-            # nunca e' sobrescrito por esta sincronizacao.
+            # nunca e' sobrescrito por esta sincronizacao; ERRO por valor
+            # zerado (marcar_erro_valores_zerados_import) tambem nao.
+            if linha_pedido_com_valor_zerado_import(linha, *idx_valor_zerado):
+                continue
             if status_atual.strip().upper() not in (STATUS_COMPRA_DIRETA_IMPORT, STATUS_CONTRATO_PEDIDO_IMPORT):
                 celulas.append(gspread.Cell(i, idx_status_ped + 1, STATUS_COMPRA_DIRETA_IMPORT))
 
@@ -1131,6 +1186,56 @@ def corrigir_marcador_pagamento_import(spreadsheet) -> int:
         condicao = linha[idx_cond].strip().upper() if idx_cond < len(linha) else ""
         if pagamento == "------" and condicao in CONDICOES_PAGAMENTO_SEM_MARCADOR_IMPORT:
             celulas.append(gspread.Cell(i, idx_pag + 1, ""))
+
+    if celulas:
+        ws.update_cells(celulas, value_input_option="RAW")
+    return len(celulas)
+
+
+def _indices_valor_zerado_pedidos_import(cabecalho):
+    col_qtd = resolver_coluna_real_import(cabecalho, "QTD", {})
+    col_preco = resolver_coluna_real_import(cabecalho, "PREÇO UNITÁRIO", ALIASES_PEDIDOS_IMPORT)
+    col_entrega = resolver_coluna_real_import(cabecalho, "ENTREGA", {})
+    return (
+        cabecalho.index(col_qtd) if col_qtd else None,
+        cabecalho.index(col_preco) if col_preco else None,
+        cabecalho.index(col_entrega) if col_entrega else None,
+    )
+
+
+def linha_pedido_com_valor_zerado_import(linha, idx_qtd, idx_preco, idx_entrega) -> bool:
+    """Regra de ERRO por valor zerado aplicada a uma linha da aba Pedidos
+    (ver STATUS_ERRO_VALOR_ZERADO_IMPORT). Entrega preenchida não conta."""
+    if idx_entrega is not None and idx_entrega < len(linha) and linha[idx_entrega].strip():
+        return False
+    qtd = linha[idx_qtd] if idx_qtd is not None and idx_qtd < len(linha) else None
+    preco = linha[idx_preco] if idx_preco is not None and idx_preco < len(linha) else None
+    return tem_valor_zerado_import(qtd, preco)
+
+
+def marcar_erro_valores_zerados_import(spreadsheet) -> int:
+    """Varredura geral (decisão explícita do usuário, 2026-10-29): linha da
+    aba Pedidos com QTD ou PREÇO UNITÁRIO zerados recebe STATUS = ERRO, exceto
+    CONTRATO e linha com ENTREGA preenchida. Sobrescreve COMPRA DIRETA (ver
+    sincronizar_status_compra_direta_import, que por sua vez não desfaz o
+    ERRO). Devolve quantas linhas foram alteradas."""
+    ws = spreadsheet.worksheet(ABA_PEDIDOS_IMPORT)
+    dados = ws.get_all_values()
+    if not dados or "STATUS" not in dados[0]:
+        return 0
+    cabecalho = dados[0]
+    idx_status = cabecalho.index("STATUS")
+    idx_qtd, idx_preco, idx_entrega = _indices_valor_zerado_pedidos_import(cabecalho)
+    if idx_qtd is None and idx_preco is None:
+        return 0
+
+    celulas = []
+    for i, linha in enumerate(dados[1:], start=2):
+        status = (linha[idx_status] if idx_status < len(linha) else "").strip().upper()
+        if status in (STATUS_ERRO_VALOR_ZERADO_IMPORT, STATUS_CONTRATO_PEDIDO_IMPORT):
+            continue
+        if linha_pedido_com_valor_zerado_import(linha, idx_qtd, idx_preco, idx_entrega):
+            celulas.append(gspread.Cell(i, idx_status + 1, STATUS_ERRO_VALOR_ZERADO_IMPORT))
 
     if celulas:
         ws.update_cells(celulas, value_input_option="RAW")
@@ -1374,6 +1479,12 @@ def _sufixo_compra_direta_import(spreadsheet) -> str:
             partes.append(f" {rejeitadas_sol} solicitação(ões) ATENDIDA(S) sem Pedido marcada(s) como 'REJEITADO'.")
     except Exception as e:
         partes.append(f" ⚠️ Falha ao rejeitar Solicitações atendidas sem Pedido: {e}")
+    try:
+        com_erro = marcar_erro_valores_zerados_import(spreadsheet)
+        if com_erro:
+            partes.append(f" {com_erro} pedido(s) com preço ou quantidade zerados marcado(s) como 'ERRO'.")
+    except Exception as e:
+        partes.append(f" ⚠️ Falha ao marcar ERRO por valor zerado: {e}")
     try:
         limpos = corrigir_marcador_pagamento_import(spreadsheet)
         if limpos:

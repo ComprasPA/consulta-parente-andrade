@@ -41,6 +41,7 @@ from comum import (
 )
 from importador_protheus import (
     CONDICOES_PAGAMENTO_SEM_MARCADOR_IMPORT,
+    numero_para_float_import,
     STATUS_EXCLUIDO_TOTVS,
     processar_upload_protheus,
 )
@@ -397,6 +398,30 @@ def aplicar_compra_direta_por_pagamento(df):
     return df
 
 
+def aplicar_erro_valor_zerado(df):
+    """Item com preço unitário ou quantidade ZERADOS = ERRO (decisão explícita
+    do usuário, 2026-10-29), já na leitura - igual ao PAGO. Só zero explícito
+    conta (linhas "Em Cotação" não têm preço). Exceções: CONTRATO e Entrega
+    preenchida. A planilha é gravada na próxima importação
+    (marcar_erro_valores_zerados_import)."""
+    def _chave(c):
+        return "".join(ch for ch in unicodedata.normalize("NFD", str(c).upper()) if unicodedata.category(ch) != "Mn").strip()
+    por_nome = {_chave(c): c for c in df.columns}
+    col_status, col_qtd, col_preco = por_nome.get("STATUS"), por_nome.get("QTD"), por_nome.get("PRECO UNITARIO")
+    if not col_status or not (col_qtd or col_preco):
+        return df
+    zerado = pd.Series(False, index=df.index)
+    for col in (col_qtd, col_preco):
+        if col:
+            zerado |= df[col].map(lambda v: numero_para_float_import(v) == 0)
+    col_entrega = por_nome.get("ENTREGA")
+    sem_entrega = df[col_entrega].astype(str).str.strip() == "" if col_entrega else True
+    nao_contrato = df[col_status].astype(str).str.upper().str.strip() != "CONTRATO"
+    df = df.copy()
+    df.loc[zerado & sem_entrega & nao_contrato, col_status] = "ERRO"
+    return df
+
+
 # 4. CARREGAMENTO SEGURO DIRETO DA ABA "Pedidos" (+ Solicitações sem pedido, como "Em Cotação")
 @st.cache_data(ttl=60)
 def carregar_dados_seguros():
@@ -435,7 +460,7 @@ def carregar_dados_seguros():
             # excluída calcular um _row_idx errado (deslocado pela quantidade
             # de linhas excluídas acima dele) e gravar na linha física errada.
             df = df[df[col_status_bruto].astype(str).str.strip().str.upper() != STATUS_EXCLUIDO_TOTVS]
-            df = aplicar_compra_direta_por_pagamento(df)
+            df = aplicar_erro_valor_zerado(aplicar_compra_direta_por_pagamento(df))
 
         try:
             df_sc = _ler_aba_como_df(spreadsheet, "Solicitacoes")

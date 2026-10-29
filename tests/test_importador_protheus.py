@@ -156,10 +156,11 @@ class TestValorStatusOrigem:
         assert ip.valor_status_origem_import({**base, "Num da Nota": "000123 - 1"}) == "APROVADO"
         assert ip.valor_status_origem_import(base) == "APROVADO"
 
-    def test_atendido_confirmado_exige_os_3_fatores(self):
+    def test_atendido_confirmado_e_so_nf_mais_data_de_digitacao(self):
+        """Decisão do usuário (2026-10-28): a NF prevalece sobre o Status Aprov."""
         ok = {"Status Aprov": "Aprovado - Totalmente Entregue", "Dt. Dig.Nota": pd.Timestamp("2026-09-20"), "Num da Nota": "000123 - 1"}
         assert ip.atendido_confirmado_import(ok) is True
-        assert ip.atendido_confirmado_import({**ok, "Status Aprov": "Aprovado - Aguardando Entrega"}) is False
+        assert ip.atendido_confirmado_import({**ok, "Status Aprov": "Aprovado - Entregue Parcial"}) is True
         assert ip.atendido_confirmado_import({**ok, "Num da Nota": ""}) is False
         assert ip.atendido_confirmado_import({**ok, "Dt. Dig.Nota": None}) is False
 
@@ -927,6 +928,56 @@ class TestCorrigirMarcadorPagamento:
         assert ws.update_cells_chamado is None
 
 
+class TestErroPorValorZerado:
+    CAB = ["STATUS", "SOLICITAÇÃO", "PEDIDO", "QTD", " PREÇO UNITÁRIO ", "ENTREGA"]
+
+    def _sheet(self, linhas):
+        ws = _FakeWorksheetComDados([self.CAB, *linhas])
+        sol = _FakeWorksheetComDados([["SOLICITAÇÃO", "STATUS", "CRITICIDADE"]])
+        return _FakeSpreadsheetComAbas({"Pedidos": ws, "Solicitacoes": sol}), ws
+
+    def test_parser_numeros(self):
+        f = ip.numero_para_float_import
+        assert f("R$ 0,00") == 0 and f(" R$ 0,00 ") == 0 and f("0") == 0 and f(0.0) == 0
+        assert f("R$ 343,29") == 343.29 and f("1.234,50") == 1234.5 and f("343.29") == 343.29
+        assert f("") is None and f(None) is None and f("abc") is None and f(float("nan")) is None
+
+    def test_varredura_marca_erro_preco_ou_qtd_zerados(self):
+        sheet, ws = self._sheet([
+            ["APROVADO", "1", "10", "5", " R$ 0,00 ", ""],
+            ["APROVADO", "2", "11", "0", " R$ 10,00 ", ""],
+            ["APROVADO", "3", "12", "5", " R$ 10,00 ", ""],
+        ])
+        assert ip.marcar_erro_valores_zerados_import(sheet) == 2
+        assert [(c.row, c.value) for c in ws.update_cells_chamado] == [(2, "ERRO"), (3, "ERRO")]
+
+    def test_excecoes_contrato_entrega_e_ja_erro(self):
+        sheet, ws = self._sheet([
+            ["CONTRATO", "1", "10", "5", " R$ 0,00 ", ""],
+            ["ATENDIDO", "2", "11", "0", " R$ 10,00 ", "10/10/2026"],
+            ["ERRO", "3", "12", "0", "R$ 0,00", ""],
+            ["APROVADO", "4", "13", "", "", ""],
+        ])
+        assert ip.marcar_erro_valores_zerados_import(sheet) == 0
+        assert ws.update_cells_chamado is None
+
+    def test_sync_compra_direta_nao_desfaz_erro(self):
+        ws = _FakeWorksheetComDados([self.CAB + ["CONDIÇÃO PAGAMENTO"], ["ERRO", "1", "10", "5", " R$ 0,00 ", "", "PAGO"]])
+        sol = _FakeWorksheetComDados([["SOLICITAÇÃO", "STATUS", "CRITICIDADE"]])
+        sheet = _FakeSpreadsheetComAbas({"Pedidos": ws, "Solicitacoes": sol})
+        assert ip.sincronizar_status_compra_direta_import(sheet) == 0
+
+    def test_import_forca_erro_antes_de_compra_direta_mas_nao_de_contrato(self):
+        f = ip.status_forcado_por_usuario_import
+        assert f({"Nome Usuario": "X", "Quantidade": 0, "Prc Unitario": 5.0}) == "ERRO"
+        assert f({"Nome Usuario": "X", "Quantidade": 2, "Prc Unitario": 0.0}) == "ERRO"
+        assert f({"Nome Usuario": "aprendiz.compras", "Quantidade": 2, "Prc Unitario": 0.0}) == "ERRO"
+        assert f({"Nome Usuario": "BIANCAGEISSLER", "Quantidade": 0, "Prc Unitario": 0.0}) == "CONTRATO"
+        assert f({"Nome Usuario": "X", "Quantidade": 0, "Prc Unitario": 0.0, "Dt. Dig.Nota": pd.Timestamp("2026-10-10")}) is None
+        assert f({"Nome Usuario": "X", "Quantidade": 2, "Prc Unitario": 5.0}) is None
+        assert f({"Nome Usuario": "X"}) is None
+
+
 class TestForcarPedidoGeradoQuandoSemStatus:
     CABECALHO_SOL = ["SOLICITAÇÃO", "ITEM SC", "PEDIDO", "STATUS"]
 
@@ -1227,6 +1278,19 @@ class TestEnvioProtegeStatusDeRecalculoNaImportacao:
         col_status = CABECALHO_REAL_PEDIDOS.index("STATUS") + 1
         assert (8, col_status, ip.TEXTO_PENDENTE_APROVACAO_IMPORT.upper()) in atualizacoes
 
+    def test_nf_digitada_vira_atendido_mesmo_com_envio_preenchido(self):
+        """NF (Num da Nota + Dt. Dig.Nota) prevalece sobre a barreira do ENVIO
+        e sobre o status do Totvs, mesmo entrega parcial (2026-10-28, pedido 180655)."""
+        indice = _indice_pedido_existente(
+            PEDIDO="104", PRODUTO="0000000010", SOLICITAÇÃO="003419",
+            **{"STATUS": "ENVIADO AO FORNECEDOR", "ENVIO": "19/10/2026"},
+        )
+        df = _linha_origem_pedido(Numero=104, Produto=10, **{
+            "Status Aprov": "Aprovado - Entregue Parcial", "Num da Nota": "000077277 - 1", "Dt. Dig.Nota": pd.Timestamp("2026-10-21")})
+        _, atualizacoes, *_ = _rodar_import_pedidos(df, indice)
+        col_status = CABECALHO_REAL_PEDIDOS.index("STATUS") + 1
+        assert (8, col_status, "ATENDIDO") in atualizacoes
+
     def test_aprovado_com_envio_preenchido_nao_regride(self):
         """Mesmo cenario do teste acima, mas o pedido JA tem ENVIO preenchido
         (agente ja tratou) - a barreira do ENVIO tem que segurar mesmo com
@@ -1400,6 +1464,17 @@ class TestStatusContratoPorUsuario:
         _, atualizacoes, _, atualizadas, _ = self._rodar(linha, indice)
         assert (7, self.CAB.index("STATUS") + 1, "CONTRATO") in atualizacoes
         assert atualizadas == 1
+
+    def test_nf_completa_prevalece_sobre_o_status_forcado(self):
+        """NF (Num da Nota + Dt. Dig.Nota) prevalece sobre CONTRATO (2026-10-28)."""
+        nf = {"Num da Nota": "000123 - 1", "Dt. Dig.Nota": pd.Timestamp("2026-10-20")}
+        assert ip.status_forcado_por_usuario_import({"Nome Usuario": "BIANCAGEISSLER", **nf}) is None
+        linha = {"Numero": 200, "Produto": "5", "Nome Usuario": "BIANCAGEISSLER", "Status Aprov": "Aprovado - Totalmente Entregue", **nf}
+        novas, *_ = self._rodar(linha, {})
+        assert novas[0][self.CAB.index("STATUS")] == "ATENDIDO"
+        indice = {("200", "0000000005"): {"row_num": 7, "valores": {"PEDIDO": "200", "PRODUTO": "0000000005", "STATUS": "CONTRATO"}}}
+        _, atualizacoes, *_ = self._rodar(linha, indice)
+        assert (7, self.CAB.index("STATUS") + 1, "ATENDIDO") in atualizacoes
 
     def test_linha_nova_do_aprendiz_nasce_compra_direta(self):
         linha = {"Numero": 300, "Produto": "5", "Nome Usuario": "aprendiz.compras", "Status Aprov": "Aprovado - Aguardando Entrega",
