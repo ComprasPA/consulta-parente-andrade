@@ -951,9 +951,10 @@ class TestErroPorValorZerado:
         assert ip.marcar_erro_valores_zerados_import(sheet) == 2
         assert [(c.row, c.value) for c in ws.update_cells_chamado] == [(2, "ERRO"), (3, "ERRO")]
 
-    def test_excecoes_contrato_entrega_e_ja_erro(self):
+    def test_excecoes_contrato_compra_direta_entrega_e_ja_erro(self):
         sheet, ws = self._sheet([
             ["CONTRATO", "1", "10", "5", " R$ 0,00 ", ""],
+            ["COMPRA DIRETA", "5", "14", "5", " R$ 0,00 ", ""],
             ["ATENDIDO", "2", "11", "0", " R$ 10,00 ", "10/10/2026"],
             ["ERRO", "3", "12", "0", "R$ 0,00", ""],
             ["APROVADO", "4", "13", "", "", ""],
@@ -961,17 +962,18 @@ class TestErroPorValorZerado:
         assert ip.marcar_erro_valores_zerados_import(sheet) == 0
         assert ws.update_cells_chamado is None
 
-    def test_sync_compra_direta_nao_desfaz_erro(self):
+    def test_sync_compra_direta_prevalece_sobre_erro(self):
         ws = _FakeWorksheetComDados([self.CAB + ["CONDIÇÃO PAGAMENTO"], ["ERRO", "1", "10", "5", " R$ 0,00 ", "", "PAGO"]])
         sol = _FakeWorksheetComDados([["SOLICITAÇÃO", "STATUS", "CRITICIDADE"]])
         sheet = _FakeSpreadsheetComAbas({"Pedidos": ws, "Solicitacoes": sol})
-        assert ip.sincronizar_status_compra_direta_import(sheet) == 0
+        assert ip.sincronizar_status_compra_direta_import(sheet) == 1
+        assert [(c.row, c.value) for c in ws.update_cells_chamado] == [(2, "COMPRA DIRETA")]
 
-    def test_import_forca_erro_antes_de_compra_direta_mas_nao_de_contrato(self):
+    def test_import_compra_direta_e_contrato_prevalecem_sobre_erro(self):
         f = ip.status_forcado_por_usuario_import
         assert f({"Nome Usuario": "X", "Quantidade": 0, "Prc Unitario": 5.0}) == "ERRO"
         assert f({"Nome Usuario": "X", "Quantidade": 2, "Prc Unitario": 0.0}) == "ERRO"
-        assert f({"Nome Usuario": "aprendiz.compras", "Quantidade": 2, "Prc Unitario": 0.0}) == "ERRO"
+        assert f({"Nome Usuario": "aprendiz.compras", "Quantidade": 2, "Prc Unitario": 0.0}) == "COMPRA DIRETA"
         assert f({"Nome Usuario": "BIANCAGEISSLER", "Quantidade": 0, "Prc Unitario": 0.0}) == "CONTRATO"
         assert f({"Nome Usuario": "X", "Quantidade": 0, "Prc Unitario": 0.0, "Dt. Dig.Nota": pd.Timestamp("2026-10-10")}) is None
         assert f({"Nome Usuario": "X", "Quantidade": 2, "Prc Unitario": 5.0}) is None

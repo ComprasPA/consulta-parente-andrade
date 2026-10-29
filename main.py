@@ -401,8 +401,8 @@ def aplicar_compra_direta_por_pagamento(df):
 def aplicar_erro_valor_zerado(df):
     """Item com preço unitário ou quantidade ZERADOS = ERRO (decisão explícita
     do usuário, 2026-10-29), já na leitura - igual ao PAGO. Só zero explícito
-    conta (linhas "Em Cotação" não têm preço). Exceções: CONTRATO e Entrega
-    preenchida. A planilha é gravada na próxima importação
+    conta (linhas "Em Cotação" não têm preço). Exceções: CONTRATO, COMPRA
+    DIRETA (acima de ERRO) e Entrega preenchida. A planilha é gravada na próxima importação
     (marcar_erro_valores_zerados_import)."""
     def _chave(c):
         return "".join(ch for ch in unicodedata.normalize("NFD", str(c).upper()) if unicodedata.category(ch) != "Mn").strip()
@@ -416,9 +416,9 @@ def aplicar_erro_valor_zerado(df):
             zerado |= df[col].map(lambda v: numero_para_float_import(v) == 0)
     col_entrega = por_nome.get("ENTREGA")
     sem_entrega = df[col_entrega].astype(str).str.strip() == "" if col_entrega else True
-    nao_contrato = df[col_status].astype(str).str.upper().str.strip() != "CONTRATO"
+    nao_protegido = ~df[col_status].astype(str).str.upper().str.strip().isin(["CONTRATO", "COMPRA DIRETA"])
     df = df.copy()
-    df.loc[zerado & sem_entrega & nao_contrato, col_status] = "ERRO"
+    df.loc[zerado & sem_entrega & nao_protegido, col_status] = "ERRO"
     return df
 
 

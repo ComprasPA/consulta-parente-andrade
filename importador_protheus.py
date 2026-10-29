@@ -425,7 +425,8 @@ USUARIOS_PEDIDO_COMPRA_DIRETA_IMPORT = {"APRENDIZCOMPRAS"}
 # Item de Pedido com preço unitário ou quantidade ZERADOS = ERRO (decisão
 # explícita do usuário, 2026-10-29). Só vale zero explícito: campo em branco
 # ou não numérico nunca dispara (Solicitação "em cotação" não tem preço).
-# Prevalece sobre COMPRA DIRETA, mas não sobre CONTRATO nem sobre ENTREGA
+# NÃO prevalece sobre COMPRA DIRETA (decisão do usuário, 2026-10-29: compra
+# direta está acima de ERRO), nem sobre CONTRATO, nem sobre ENTREGA
 # preenchida (ATENDIDO).
 STATUS_ERRO_VALOR_ZERADO_IMPORT = "ERRO"
 
@@ -465,10 +466,10 @@ def status_forcado_por_usuario_import(linha_origem):
     if usuario in USUARIOS_PEDIDO_CONTRATO_IMPORT:
         return STATUS_CONTRATO_PEDIDO_IMPORT
     sem_entrega = not fmt_data_import(linha_origem.get("Dt. Dig.Nota", ""))
-    if sem_entrega and tem_valor_zerado_import(linha_origem.get("Quantidade"), linha_origem.get("Prc Unitario")):
-        return STATUS_ERRO_VALOR_ZERADO_IMPORT
     if usuario in USUARIOS_PEDIDO_COMPRA_DIRETA_IMPORT and sem_entrega:
         return STATUS_COMPRA_DIRETA_IMPORT
+    if sem_entrega and tem_valor_zerado_import(linha_origem.get("Quantidade"), linha_origem.get("Prc Unitario")):
+        return STATUS_ERRO_VALOR_ZERADO_IMPORT
     return None
 
 
@@ -969,7 +970,6 @@ def sincronizar_status_compra_direta_import(spreadsheet) -> int:
     idx_status_ped = cabecalho_ped.index("STATUS")
     col_entrega_ped = resolver_coluna_real_import(cabecalho_ped, "ENTREGA", {})
     idx_entrega_ped = cabecalho_ped.index(col_entrega_ped) if col_entrega_ped else None
-    idx_valor_zerado = _indices_valor_zerado_pedidos_import(cabecalho_ped)
     col_condicao_ped = resolver_coluna_real_import(cabecalho_ped, "CONDIÇÃO PAGAMENTO", ALIASES_PEDIDOS_IMPORT)
     idx_condicao_ped = cabecalho_ped.index(col_condicao_ped) if col_condicao_ped else None
 
@@ -987,10 +987,8 @@ def sincronizar_status_compra_direta_import(spreadsheet) -> int:
                 continue  # ja atendido de verdade - Entrega nao pode ser desfeita
             status_atual = linha[idx_status_ped] if idx_status_ped < len(linha) else ""
             # CONTRATO (definido por usuario do Totvs, ver USUARIOS_PEDIDO_CONTRATO_IMPORT)
-            # nunca e' sobrescrito por esta sincronizacao; ERRO por valor
-            # zerado (marcar_erro_valores_zerados_import) tambem nao.
-            if linha_pedido_com_valor_zerado_import(linha, *idx_valor_zerado):
-                continue
+            # nunca e' sobrescrito por esta sincronizacao. Ja ERRO por valor
+            # zerado SIM: compra direta esta acima de ERRO.
             if status_atual.strip().upper() not in (STATUS_COMPRA_DIRETA_IMPORT, STATUS_CONTRATO_PEDIDO_IMPORT):
                 celulas.append(gspread.Cell(i, idx_status_ped + 1, STATUS_COMPRA_DIRETA_IMPORT))
 
@@ -1216,9 +1214,9 @@ def linha_pedido_com_valor_zerado_import(linha, idx_qtd, idx_preco, idx_entrega)
 def marcar_erro_valores_zerados_import(spreadsheet) -> int:
     """Varredura geral (decisão explícita do usuário, 2026-10-29): linha da
     aba Pedidos com QTD ou PREÇO UNITÁRIO zerados recebe STATUS = ERRO, exceto
-    CONTRATO e linha com ENTREGA preenchida. Sobrescreve COMPRA DIRETA (ver
-    sincronizar_status_compra_direta_import, que por sua vez não desfaz o
-    ERRO). Devolve quantas linhas foram alteradas."""
+    CONTRATO, COMPRA DIRETA e linha com ENTREGA preenchida (compra direta
+    está acima de ERRO; a sincronização de compra direta roda antes e desfaz
+    um ERRO que tenha ficado numa linha de compra direta). Devolve quantas linhas foram alteradas."""
     ws = spreadsheet.worksheet(ABA_PEDIDOS_IMPORT)
     dados = ws.get_all_values()
     if not dados or "STATUS" not in dados[0]:
@@ -1232,7 +1230,7 @@ def marcar_erro_valores_zerados_import(spreadsheet) -> int:
     celulas = []
     for i, linha in enumerate(dados[1:], start=2):
         status = (linha[idx_status] if idx_status < len(linha) else "").strip().upper()
-        if status in (STATUS_ERRO_VALOR_ZERADO_IMPORT, STATUS_CONTRATO_PEDIDO_IMPORT):
+        if status in (STATUS_ERRO_VALOR_ZERADO_IMPORT, STATUS_CONTRATO_PEDIDO_IMPORT, STATUS_COMPRA_DIRETA_IMPORT):
             continue
         if linha_pedido_com_valor_zerado_import(linha, idx_qtd, idx_preco, idx_entrega):
             celulas.append(gspread.Cell(i, idx_status + 1, STATUS_ERRO_VALOR_ZERADO_IMPORT))
