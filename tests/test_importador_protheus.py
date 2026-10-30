@@ -603,11 +603,23 @@ class TestDetectarPedidosExcluidos:
             ("100", "0000000005"): {
                 "row_num": 3,
                 "valores": {"PEDIDO": "100", "PRODUTO": "0000000005", "STATUS": "PENDENTE",
-                            "DATA PEDIDO": self._hoje_menos(60), "ENTREGA": ""},
+                            "DATA PEDIDO": self._hoje_menos(120), "ENTREGA": ""},
             }
         }
         atualizacoes = ip.detectar_pedidos_excluidos_import(indice, chaves_deste_arquivo=set(), cabecalho_real=self.CABECALHO)
         assert atualizacoes == []
+
+    def test_marca_excluido_com_50_dias_mesmo_enviado_ao_fornecedor(self):
+        # Caso real 180211: 50 dias, ENVIADO AO FORNECEDOR, sumiu do MATA121.
+        indice = {
+            ("180211", "0000008211"): {
+                "row_num": 7244,
+                "valores": {"PEDIDO": "180211", "PRODUTO": "0000008211", "STATUS": "ENVIADO AO FORNECEDOR",
+                            "DATA PEDIDO": self._hoje_menos(50), "ENTREGA": ""},
+            }
+        }
+        atualizacoes = ip.detectar_pedidos_excluidos_import(indice, chaves_deste_arquivo=set(), cabecalho_real=self.CABECALHO)
+        assert [(r, v) for r, _, v in atualizacoes] == [(7244, ip.STATUS_EXCLUIDO_TOTVS_IMPORT)]
 
 
 # ---------------------------------------------------------------------------

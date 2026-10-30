@@ -319,7 +319,11 @@ MAPA_STATUS_APROV_TEXTO_IMPORT = {
 # la, mas a importacao nunca remove linha da base - sem isso o pedido ficaria
 # preso pra sempre com o status antigo, parecendo ainda em aberto.
 STATUS_EXCLUIDO_TOTVS_IMPORT = STATUS_EXCLUIDO_TOTVS
-DIAS_JANELA_EXCLUSAO_TOTVS_IMPORT = 30
+# Decisao explicita do usuario, 2026-10-30: o MATA121 traz os ultimos 90
+# dias, entao qualquer pedido emitido nesse periodo que nao veio no arquivo
+# (e nao tem Entrega) sumiu do Totvs - caso real: 180211, 50 dias, ficou
+# preso em ENVIADO AO FORNECEDOR com a janela antiga de 30.
+DIAS_JANELA_EXCLUSAO_TOTVS_IMPORT = 90
 # ENTREGA ganhando data (na importacao) sempre forca esse status - decisao
 # explicita do usuario, sem excecao mesmo pra status como EXCLUÍDO DO TOTVS.
 STATUS_ATENDIDO_IMPORT = "ATENDIDO"
