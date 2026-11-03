@@ -226,43 +226,95 @@ def renderizar_card_dados_bancarios(pedido, fornecedor, cnpj, regime, banco, age
     """
 
 
+def interpretar_valor_digitado(texto):
+    """Converte '5.865,00', '5865,00', '5865' ou 'R$ 5.865,00' em float;
+    devolve None se o texto não for um valor reconhecível."""
+    dado = str(texto or "").replace("R$", "").replace(" ", "").strip()
+    if re.fullmatch(r"\d{1,3}(\.\d{3})+(,\d{1,2})?", dado):
+        dado = dado.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"\d+(,\d{1,2})?", dado):
+        dado = dado.replace(",", ".")
+    elif not re.fullmatch(r"\d+\.\d{1,2}", dado):
+        return None
+    return round(float(dado), 2)
+
+
+def _restaurar_valor_popup(chave_valor, texto_soma):
+    st.session_state[chave_valor] = texto_soma
+
+
 @st.dialog("🏦 Dados Bancários do Fornecedor")
 def abrir_popup_dados_bancarios():
     numero_pedido_popup = st.text_input("Número do Pedido de Compras", key="popup_num_pedido", placeholder="Ex: 179723")
+    pedido_digitado = re.sub(r"\.0$", "", numero_pedido_popup.strip())
     if st.button("🔍 Buscar", key="popup_btn_buscar", type="primary"):
-        if not numero_pedido_popup.strip():
+        st.session_state.pop("popup_resultado", None)
+        if not pedido_digitado:
             st.warning("Digite um número de pedido.")
         else:
-            resultado = buscar_pedido_fornecedor_valor(numero_pedido_popup)
+            resultado = buscar_pedido_fornecedor_valor(pedido_digitado)
             if not resultado:
-                st.error(f"Nenhum pedido ativo encontrado com o número {numero_pedido_popup.strip()}.")
+                st.error(f"Nenhum pedido ativo encontrado com o número {pedido_digitado}.")
             else:
                 fornecedor, valor_total, qtd_itens = resultado
-                cadastro = buscar_cadastro_fornecedor_bancario(fornecedor)
-                if not cadastro:
-                    st.warning(f"Fornecedor **{fornecedor}** ainda não tem dados bancários cadastrados.")
-                    st.link_button(
-                        "🏦 Inserir Dados Bancários",
-                        "https://dados-bancarios-fornecedores.streamlit.app/",
-                        type="primary",
-                    )
-                else:
-                    components.html(
-                        renderizar_card_dados_bancarios(
-                            pedido=re.sub(r"\.0$", "", numero_pedido_popup.strip()), fornecedor=fornecedor,
-                            cnpj=cadastro.get("CNPJ", ""), regime=cadastro.get("REGIME_TRIBUTARIO", ""),
-                            banco=cadastro.get("BANCO", ""), agencia=cadastro.get("AGENCIA", ""),
-                            conta=cadastro.get("CONTA", ""), pix=cadastro.get("PIX", ""), email=cadastro.get("EMAIL", ""),
-                            contato=cadastro.get("CONTATO", ""), vendedor=cadastro.get("VENDEDOR", ""),
-                            valor_formatado=formatar_moeda_br(valor_total),
-                        ),
-                        height=490, scrolling=False,
-                    )
-                    st.caption(f"{qtd_itens} item(ns) somados deste pedido.")
-                    st.link_button(
-                        "✏️ Editar Dados Bancários",
-                        "https://dados-bancarios-fornecedores.streamlit.app/",
-                    )
+                # guardado em session_state: editar o valor refaz a execução do
+                # popup e o botão Buscar já não estaria mais "clicado"
+                st.session_state["popup_resultado"] = {
+                    "pedido": pedido_digitado, "fornecedor": fornecedor, "valor_total": valor_total,
+                    "qtd_itens": qtd_itens, "cadastro": buscar_cadastro_fornecedor_bancario(fornecedor),
+                }
+                st.session_state.pop(f"popup_valor_editado_{pedido_digitado}", None)
+
+    guardado = st.session_state.get("popup_resultado")
+    if not guardado or guardado["pedido"] != pedido_digitado:
+        return
+    fornecedor, valor_total, cadastro = guardado["fornecedor"], guardado["valor_total"], guardado["cadastro"]
+    if not cadastro:
+        st.warning(f"Fornecedor **{fornecedor}** ainda não tem dados bancários cadastrados.")
+        st.link_button(
+            "🏦 Inserir Dados Bancários",
+            "https://dados-bancarios-fornecedores.streamlit.app/",
+            type="primary",
+        )
+        return
+
+    # o TOTVS não informa desconto no relatório: o valor parte da soma dos itens
+    # mas pode ser ajustado antes de copiar a imagem
+    chave_valor = f"popup_valor_editado_{pedido_digitado}"
+    texto_soma = formatar_moeda_br(valor_total).replace("R$ ", "")
+    st.session_state.setdefault(chave_valor, texto_soma)
+    col_valor, col_restaurar = st.columns([3, 1], vertical_alignment="bottom")
+    texto_valor = col_valor.text_input(
+        "Valor do pedido (R$) - editável antes de copiar a imagem", key=chave_valor,
+        help=f"Soma dos itens no TOTVS: {formatar_moeda_br(valor_total)}. Ajuste se houver desconto no pedido.",
+    )
+    col_restaurar.button(
+        "↩ Usar a soma", key="popup_btn_restaurar_valor", on_click=_restaurar_valor_popup,
+        args=(chave_valor, texto_soma), disabled=(texto_valor.strip() == texto_soma),
+    )
+    valor_editado = interpretar_valor_digitado(texto_valor)
+    if valor_editado is None:
+        st.warning("Valor inválido - o card está usando a soma dos itens. Digite no formato 5.865,00.")
+        valor_editado = valor_total
+    elif abs(valor_editado - valor_total) > 0.004:
+        st.caption(f"Valor ajustado manualmente (soma dos itens: {formatar_moeda_br(valor_total)}).")
+
+    components.html(
+        renderizar_card_dados_bancarios(
+            pedido=pedido_digitado, fornecedor=fornecedor,
+            cnpj=cadastro.get("CNPJ", ""), regime=cadastro.get("REGIME_TRIBUTARIO", ""),
+            banco=cadastro.get("BANCO", ""), agencia=cadastro.get("AGENCIA", ""),
+            conta=cadastro.get("CONTA", ""), pix=cadastro.get("PIX", ""), email=cadastro.get("EMAIL", ""),
+            contato=cadastro.get("CONTATO", ""), vendedor=cadastro.get("VENDEDOR", ""),
+            valor_formatado=formatar_moeda_br(valor_editado),
+        ),
+        height=490, scrolling=False,
+    )
+    st.caption(f"{guardado['qtd_itens']} item(ns) somados deste pedido.")
+    st.link_button(
+        "✏️ Editar Dados Bancários",
+        "https://dados-bancarios-fornecedores.streamlit.app/",
+    )
 
 
 def montar_linhas_em_cotacao(df_pc, df_sc):
