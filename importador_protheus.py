@@ -324,6 +324,10 @@ STATUS_EXCLUIDO_TOTVS_IMPORT = STATUS_EXCLUIDO_TOTVS
 # (e nao tem Entrega) sumiu do Totvs - caso real: 180211, 50 dias, ficou
 # preso em ENVIADO AO FORNECEDOR com a janela antiga de 30.
 DIAS_JANELA_EXCLUSAO_TOTVS_IMPORT = 90
+# Caso real (05/11/2026): um MATA121 com so 2 linhas marcou 1.114 linhas
+# como excluidas. Se o arquivo nao traz pelo menos esta fracao das chaves
+# da base dentro da janela, ele e parcial/filtrado e a exclusao nao roda.
+FRACAO_MINIMA_ARQUIVO_EXCLUSAO_IMPORT = 0.5
 # ENTREGA ganhando data (na importacao) sempre forca esse status - decisao
 # explicita do usuario, sem excecao mesmo pra status como EXCLUÍDO DO TOTVS.
 STATUS_ATENDIDO_IMPORT = "ATENDIDO"
@@ -823,6 +827,13 @@ def detectar_pedidos_excluidos_import(indice_existentes, chaves_deste_arquivo, c
 
     hoje = datetime.now().date()
     atualizacoes = []
+    na_janela = 0
+    for info in indice_existentes.values():
+        data_pedido = parse_data_br(info["valores"].get(col_data_pedido, ""))
+        if data_pedido is not None and (hoje - data_pedido).days <= DIAS_JANELA_EXCLUSAO_TOTVS_IMPORT:
+            na_janela += 1
+    if na_janela and len(chaves_deste_arquivo) < FRACAO_MINIMA_ARQUIVO_EXCLUSAO_IMPORT * na_janela:
+        return []
     for chave, info in indice_existentes.items():
         if chave in chaves_deste_arquivo:
             continue

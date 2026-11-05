@@ -558,7 +558,10 @@ class TestDetectarPedidosExcluidos:
                             "DATA PEDIDO": self._hoje_menos(5), "ENTREGA": ""},
             }
         }
-        atualizacoes = ip.detectar_pedidos_excluidos_import(indice, chaves_deste_arquivo=set(), cabecalho_real=self.CABECALHO)
+        # Um pedido que veio no arquivo: sem isso o arquivo parece parcial.
+        indice[("999", "0000000005")] = {"row_num": 99, "valores": {"PEDIDO": "999", "PRODUTO": "0000000005",
+            "STATUS": "APROVADO", "DATA PEDIDO": self._hoje_menos(5), "ENTREGA": ""}}
+        atualizacoes = ip.detectar_pedidos_excluidos_import(indice, chaves_deste_arquivo={("999", "0000000005")}, cabecalho_real=self.CABECALHO)
         assert len(atualizacoes) == 1
         row_num, col, valor = atualizacoes[0]
         assert row_num == 3
@@ -609,6 +612,33 @@ class TestDetectarPedidosExcluidos:
         atualizacoes = ip.detectar_pedidos_excluidos_import(indice, chaves_deste_arquivo=set(), cabecalho_real=self.CABECALHO)
         assert atualizacoes == []
 
+    def test_arquivo_parcial_nao_marca_ninguem(self):
+        # Caso real 05/11/2026: MATA121 com 2 linhas marcou 1.114 como excluidas.
+        indice = {
+            (str(n), "0000000005"): {
+                "row_num": n,
+                "valores": {"PEDIDO": str(n), "PRODUTO": "0000000005", "STATUS": "ENVIADO AO FORNECEDOR",
+                            "DATA PEDIDO": self._hoje_menos(10), "ENTREGA": ""},
+            }
+            for n in range(100, 110)
+        }
+        atualizacoes = ip.detectar_pedidos_excluidos_import(
+            indice, chaves_deste_arquivo={("100", "0000000005"), ("101", "0000000005")}, cabecalho_real=self.CABECALHO)
+        assert atualizacoes == []
+
+    def test_arquivo_completo_marca_so_quem_sumiu(self):
+        indice = {
+            (str(n), "0000000005"): {
+                "row_num": n,
+                "valores": {"PEDIDO": str(n), "PRODUTO": "0000000005", "STATUS": "ENVIADO AO FORNECEDOR",
+                            "DATA PEDIDO": self._hoje_menos(10), "ENTREGA": ""},
+            }
+            for n in range(100, 110)
+        }
+        chaves = {(str(n), "0000000005") for n in range(100, 109)}
+        atualizacoes = ip.detectar_pedidos_excluidos_import(indice, chaves_deste_arquivo=chaves, cabecalho_real=self.CABECALHO)
+        assert [r for r, _, _ in atualizacoes] == [109]
+
     def test_marca_excluido_com_50_dias_mesmo_enviado_ao_fornecedor(self):
         # Caso real 180211: 50 dias, ENVIADO AO FORNECEDOR, sumiu do MATA121.
         indice = {
@@ -618,7 +648,10 @@ class TestDetectarPedidosExcluidos:
                             "DATA PEDIDO": self._hoje_menos(50), "ENTREGA": ""},
             }
         }
-        atualizacoes = ip.detectar_pedidos_excluidos_import(indice, chaves_deste_arquivo=set(), cabecalho_real=self.CABECALHO)
+        # Um pedido que veio no arquivo: sem isso o arquivo parece parcial.
+        indice[("999", "0000000005")] = {"row_num": 99, "valores": {"PEDIDO": "999", "PRODUTO": "0000000005",
+            "STATUS": "APROVADO", "DATA PEDIDO": self._hoje_menos(5), "ENTREGA": ""}}
+        atualizacoes = ip.detectar_pedidos_excluidos_import(indice, chaves_deste_arquivo={("999", "0000000005")}, cabecalho_real=self.CABECALHO)
         assert [(r, v) for r, _, v in atualizacoes] == [(7244, ip.STATUS_EXCLUIDO_TOTVS_IMPORT)]
 
 
