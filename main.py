@@ -649,7 +649,7 @@ def montar_df_painel(df_final, colunas_normalizadas):
             elif tipo_campo == "numero":
                 df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
             else:
-                df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '').str.strip()
+                df_painel[nome_exibicao_tela] = valores_originais.astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace(['nan', 'None', 'NONE', 'NaT'], '')
         else:
             df_painel[nome_exibicao_tela] = ""
 

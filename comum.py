@@ -456,7 +456,10 @@ def validar_formato_data(txt):
 
 def formatar_para_dd_mm_aaaa(valor):
     txt = str(valor).strip()
-    if txt == "" or txt.lower() in ["nan", "none", "0", "n/a"]:
+    # "None"/"nan"/"NaT" sao lixo de conversao (str(None)) - na tela vira vazio.
+    if txt.lower() in ["nan", "none", "nat", "null"]:
+        return ""
+    if txt == "" or txt.lower() in ["0", "n/a"]:
         return txt
     try:
         if re.match(r'^\d{5}$', txt):

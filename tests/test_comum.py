@@ -68,6 +68,10 @@ class TestFormatarParaDdMmAaaa:
     def test_vazio_mantem_vazio(self):
         assert comum.formatar_para_dd_mm_aaaa("") == ""
 
+    def test_none_e_nan_viram_vazio(self):
+        for lixo in (None, "None", "NONE", "nan", "NaT"):
+            assert comum.formatar_para_dd_mm_aaaa(lixo) == ""
+
     def test_nao_data_mantem_original(self):
         assert comum.formatar_para_dd_mm_aaaa("texto qualquer") == "texto qualquer"
 
