@@ -18,9 +18,8 @@ import importlib
 import os
 import comum as _comum
 import importador_protheus as _importador_protheus
-import visual_pa as _visual_pa
 
-for _modulo in (_comum, _importador_protheus, _visual_pa):
+for _modulo in (_comum, _importador_protheus):
     if getattr(_modulo, "_MTIME_AO_IMPORTAR", None) != os.path.getmtime(_modulo.__file__):
         importlib.reload(_modulo)
 
@@ -66,7 +65,6 @@ st.set_page_config(
 
 # 2. ESTILOS COMPARTILHADOS
 aplicar_estilos()
-_visual_pa.aplicar_visual_pa()  # visual PA (paleta/cabeçalho) por cima dos estilos do comum
 
 # Sentinela de _row_idx pras linhas sinteticas "Em Cotação" (Solicitação sem
 # Pedido ainda) - bem acima de qualquer linha real possivel na aba Pedidos,
@@ -222,8 +220,8 @@ def renderizar_card_dados_bancarios(pedido, fornecedor, cnpj, regime, banco, age
     td.rotulo {{ width:1%; white-space:nowrap; background:#D3D3D3; font-weight:700; padding-left:10px; padding-right:6px; }}
     td.valor {{ background:#ffffff; }}
     #botoes {{ margin-top:22px; display:flex; align-items:center; flex-wrap:wrap; gap:10px; }}
-    #botoes button {{ background:#619935; color:#FFFFFF; border:none; padding:10px 16px; border-radius:10px; cursor:pointer; font-weight:600; font-size:13px; }}
-    #botoes button:hover {{ background:#4C7D27; }}
+    #botoes button {{ background:#00C2D6; color:#06212E; border:none; padding:10px 16px; border-radius:6px; cursor:pointer; font-weight:600; font-size:13px; }}
+    #botoes button:hover {{ background:#00A8B8; }}
     #status {{ font-size:13px; color:#5B6459; }}
     </style>
     """
