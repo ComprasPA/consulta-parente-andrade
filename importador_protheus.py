@@ -74,6 +74,12 @@ ALIASES_PEDIDOS_IMPORT = {
 }
 CAMPOS_MANUAIS_PEDIDOS_IMPORT = ["STATUS", "ENVIO", "LOGISTICA"]
 CHAVE_PEDIDOS_IMPORT = ("PEDIDO", "PRODUTO")
+# Pedido sem Solicitacao existe (compra lancada direto no Totvs, ex.: 181787)
+# e TEM que ser importado - antes a SC era obrigatoria, a linha era descartada
+# e o pedido ainda acabava marcado EXCLUIDO DO TOTVS por "nao estar no
+# arquivo" (decisao do usuario, 2026-11-12). A chave (PEDIDO, PRODUTO) ja
+# descarta linha de rodape/total sem numero.
+CAMPOS_OBRIGATORIOS_PEDIDOS_IMPORT = ()
 # Campos onde o arquivo do Totvs sempre prevalece (mesmo que a celula ja
 # tenha um valor diferente) - o restante dos campos so preenche em branco.
 CAMPOS_SEMPRE_SOBRESCREVE_PEDIDOS_IMPORT = ("ENTREGA", "QTD ENTREGUE")
@@ -1393,7 +1399,7 @@ def processar_arquivo_pc_import(arquivo, spreadsheet):
         df, MAPA_PEDIDOS_IMPORT, cabecalho_real, ALIASES_PEDIDOS_IMPORT, CAMPOS_MANUAIS_PEDIDOS_IMPORT,
         CHAVE_PEDIDOS_IMPORT, indice_existentes,
         campo_status="STATUS", calcular_status=valor_status_origem_import, gatilho_status=STATUS_GATILHO_SUBSTITUICAO_IMPORT,
-        campos_obrigatorios=("SOLICITAÇÃO",),
+        campos_obrigatorios=CAMPOS_OBRIGATORIOS_PEDIDOS_IMPORT,
         campos_sempre_sobrescreve=CAMPOS_SEMPRE_SOBRESCREVE_PEDIDOS_IMPORT,
         correcao_descricao=correcao_descricao,
         confirma_atendido=atendido_confirmado_import,

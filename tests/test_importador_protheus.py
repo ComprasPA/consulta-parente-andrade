@@ -1121,9 +1121,20 @@ def _rodar_import_pedidos(df_origem, indice_existentes):
         ip.CHAVE_PEDIDOS_IMPORT, indice_existentes,
         campo_status="STATUS", calcular_status=ip.valor_status_origem_import,
         gatilho_status=ip.STATUS_GATILHO_SUBSTITUICAO_IMPORT,
-        campos_obrigatorios=("SOLICITAÇÃO",),
+        campos_obrigatorios=ip.CAMPOS_OBRIGATORIOS_PEDIDOS_IMPORT,
         campos_sempre_sobrescreve=ip.CAMPOS_SEMPRE_SOBRESCREVE_PEDIDOS_IMPORT,
     )
+
+
+class TestPedidoSemSolicitacao:
+    """Pedido lancado direto no Totvs, sem SC (ex.: 181787): a linha tem que
+    entrar no import e contar como presente no arquivo - senao o pedido some
+    da atualizacao e ainda vira EXCLUIDO DO TOTVS."""
+
+    def test_pedido_sem_sc_e_importado_e_conta_como_presente(self):
+        novas, _, _, _, chaves = _rodar_import_pedidos(_linha_origem_pedido(**{"Numero da SC": ""}), {})
+        assert len(novas) == 1
+        assert [c[0] for c in chaves] == ["100"]
 
 
 class TestReimportacaoPreenchendoCelulasVazias:
@@ -1257,7 +1268,7 @@ class TestCorrecaoDescricaoViaSolicitacoes:
             ip.CHAVE_PEDIDOS_IMPORT, indice_existentes={},
             campo_status="STATUS", calcular_status=ip.valor_status_origem_import,
             gatilho_status=ip.STATUS_GATILHO_SUBSTITUICAO_IMPORT,
-            campos_obrigatorios=("SOLICITAÇÃO",),
+            campos_obrigatorios=ip.CAMPOS_OBRIGATORIOS_PEDIDOS_IMPORT,
             campos_sempre_sobrescreve=ip.CAMPOS_SEMPRE_SOBRESCREVE_PEDIDOS_IMPORT,
             correcao_descricao=correcao,
         )
@@ -1272,7 +1283,7 @@ class TestCorrecaoDescricaoViaSolicitacoes:
             ip.CHAVE_PEDIDOS_IMPORT, indice_existentes={},
             campo_status="STATUS", calcular_status=ip.valor_status_origem_import,
             gatilho_status=ip.STATUS_GATILHO_SUBSTITUICAO_IMPORT,
-            campos_obrigatorios=("SOLICITAÇÃO",),
+            campos_obrigatorios=ip.CAMPOS_OBRIGATORIOS_PEDIDOS_IMPORT,
             campos_sempre_sobrescreve=ip.CAMPOS_SEMPRE_SOBRESCREVE_PEDIDOS_IMPORT,
             correcao_descricao={("999999", "9999999999"): "Nao deveria ser usada"},
         )
