@@ -81,7 +81,7 @@ SENTINELA_ROW_IDX_EM_COTACAO = 10_000_000
 # ------------------------------------------------------------------
 # POPUP DE DADOS BANCÁRIOS (busca por Pedido) - lê as mesmas abas
 # "Pedidos" e "CadastroFornecedores" que o app companheiro
-# Central de Fornecedores PA (dados-bancarios-fornecedores.streamlit.app) usa e mantém, então mostra o
+# Central de Fornecedores PA (central-fornecedores.streamlit.app) usa e mantém, então mostra o
 # mesmo card aqui dentro do portal sem precisar abrir o outro app.
 ABA_CADASTRO_FORNECEDORES = "CadastroFornecedores"
 CABECALHO_CADASTRO_FORNECEDORES = ["FORNECEDOR", "CNPJ", "REGIME_TRIBUTARIO", "BANCO", "AGENCIA", "CONTA", "PIX", "EMAIL", "CONTATO", "VENDEDOR"]
@@ -274,7 +274,7 @@ def abrir_popup_dados_bancarios():
         st.warning(f"Fornecedor **{fornecedor}** ainda não tem dados bancários cadastrados.")
         st.link_button(
             "🏢 Cadastrar na Central de Fornecedores PA",
-            "https://dados-bancarios-fornecedores.streamlit.app/",
+            "https://central-fornecedores.streamlit.app/",
             type="primary",
         )
         return
@@ -314,7 +314,7 @@ def abrir_popup_dados_bancarios():
     st.caption(f"{guardado['qtd_itens']} item(ns) somados deste pedido.")
     st.link_button(
         "🏢 Editar na Central de Fornecedores PA",
-        "https://dados-bancarios-fornecedores.streamlit.app/",
+        "https://central-fornecedores.streamlit.app/",
     )
 
 
