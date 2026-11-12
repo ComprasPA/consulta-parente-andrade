@@ -149,8 +149,9 @@ def renderizar_card_dados_bancarios(pedido, fornecedor, cnpj, regime, banco, age
         return html_lib.escape(str(valor)) if valor else ""
 
     linhas = [
+        ("CONTATO", contato), ("VENDEDOR", vendedor),
         ("CNPJ", cnpj), ("REGIME TRIB.", regime), ("BANCO", banco), ("AGÊNCIA", agencia), ("CONTA", conta),
-        ("PIX", pix), ("E-MAIL", email), ("CONTATO", contato), ("VENDEDOR", vendedor),
+        ("PIX", pix), ("E-MAIL", email),
         ("VALOR DO PEDIDO", valor_formatado),
     ]
     linhas_html = "".join(f'<tr><td class="rotulo">{rot}</td><td class="valor">{esc(val)}</td></tr>' for rot, val in linhas)
