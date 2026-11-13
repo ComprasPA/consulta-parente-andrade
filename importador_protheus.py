@@ -82,7 +82,11 @@ CHAVE_PEDIDOS_IMPORT = ("PEDIDO", "PRODUTO")
 CAMPOS_OBRIGATORIOS_PEDIDOS_IMPORT = ()
 # Campos onde o arquivo do Totvs sempre prevalece (mesmo que a celula ja
 # tenha um valor diferente) - o restante dos campos so preenche em branco.
-CAMPOS_SEMPRE_SOBRESCREVE_PEDIDOS_IMPORT = ("ENTREGA", "QTD ENTREGUE")
+# DATA LIBERACAO tambem: o Totvs troca a Dt Lib. PC quando o pedido e'
+# alterado e reaprovado (caso real 181815: 09/11 no painel x 12/11 no Totvs),
+# e o campo nao e' editavel no painel - entao o Totvs sempre prevalece
+# (decisao do usuario, 2026-11-13).
+CAMPOS_SEMPRE_SOBRESCREVE_PEDIDOS_IMPORT = ("ENTREGA", "QTD ENTREGUE", "DATA LIBERAÇÃO")
 
 CABECALHO_SOLICITACOES_IMPORT = [
     "SOLICITAÇÃO", "ITEM SC", "COTAÇÃO", "PEDIDO", "PRODUTO", "DESCRICAO",

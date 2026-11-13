@@ -1161,6 +1161,22 @@ class TestReimportacaoPreenchendoCelulasVazias:
         assert (8, col_liberacao, "05/09/2026") in atualizacoes
         assert (8, col_status, "APROVADO") in atualizacoes
 
+    def test_data_liberacao_diferente_e_sobrescrita_pelo_totvs(self):
+        """Caso 181815: painel com 09/11, Totvs reaprovou em 12/11 - vale o Totvs.
+        Arquivo sem Dt Lib. PC nao apaga a data que ja existe."""
+        indice = _indice_pedido_existente(
+            PEDIDO="100", PRODUTO="0000000005", SOLICITAÇÃO="003419",
+            **{"DATA PEDIDO": "01/09/2026", "DATA LIBERAÇÃO": "09/11/2026", "STATUS": "APROVADO"},
+        )
+        col_liberacao = CABECALHO_REAL_PEDIDOS.index("DATA LIBERAÇÃO") + 1
+        df = _linha_origem_pedido(**{"Dt Lib. PC": pd.Timestamp("2026-11-12"), "Status Aprov": "Aprovado"})
+        _, atualizacoes, _, _, _ = _rodar_import_pedidos(df, indice)
+        assert (8, col_liberacao, "12/11/2026") in atualizacoes
+
+        df_vazio = _linha_origem_pedido(**{"Dt Lib. PC": "", "Status Aprov": "Aprovado"})
+        _, atualizacoes, _, _, _ = _rodar_import_pedidos(df_vazio, indice)
+        assert not any(a[1] == col_liberacao for a in atualizacoes)
+
     def test_entrega_preenche_e_forca_status_atendido(self):
         """Pedido ja aprovado, com Previsão De Entrega definida, mas sem
         Entrega ainda. Arquivo novo traz a Entrega (Dt. Dig.Nota) - deve
