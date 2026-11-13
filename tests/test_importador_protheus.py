@@ -1713,3 +1713,10 @@ class TestLiberacaoSoComPedidoAprovado:
         assert out["Dt Lib. PC"].tolist()[2] == pd.Timestamp("2026-11-09")
         assert out["Dt Lib. PC"].tolist()[4] == pd.Timestamp("2026-11-09")
         assert out["Dt Lib. PC"].tolist()[5] == ""
+
+    def test_entregue_sem_prefixo_aprovado_tambem_vale(self):
+        df = pd.DataFrame({
+            "Status Aprov": ["Entregue Parcial", "Totalmente Entregue", "Aguardando Entrega"],
+            "Dt Lib. PC": [pd.Timestamp("2026-11-09")] * 3,
+        })
+        assert ip.liberacao_so_aprovado_import(df)["Dt Lib. PC"].tolist() == [pd.Timestamp("2026-11-09")] * 2 + [""]

@@ -1367,16 +1367,21 @@ def _parece_condicao_pagamento_import(serie) -> float:
 
 def liberacao_so_aprovado_import(df):
     """Dt Lib. PC so vale com o pedido 100% aprovado - so as 3 condicoes:
-    "Aprovado - Aguardando Entrega", "Aprovado - Entregue Parcial" e
-    "Aprovado - Totalmente Entregue". O
+    "Aprovado - Aguardando Entrega", "Entregue Parcial" e "Totalmente
+    Entregue". O
     Totvs tambem preenche essa data em pedido "Pendente (Nivel 02/03)" -
     aprovacao de um nivel so -, que nao pode virar Aprovação PC no painel
     (decisao do usuario, 2026-11-13)."""
     if "Dt Lib. PC" not in df.columns or "Status Aprov" not in df.columns:
         return df
-    aprovado = df["Status Aprov"].fillna("").astype(str).str.strip().str.upper().isin(
-        ["APROVADO - AGUARDANDO ENTREGA", "APROVADO - ENTREGUE PARCIAL", "APROVADO - TOTALMENTE ENTREGUE"]
-    )
+    # "Entregue Parcial" e "Totalmente Entregue" podem vir com ou sem o
+    # prefixo "Aprovado - " (o MATA121 de 04/11 traz com prefixo).
+    status = df["Status Aprov"].fillna("").astype(str).str.upper().str.split().str.join(" ")
+    aprovado = status.isin([
+        "APROVADO - AGUARDANDO ENTREGA",
+        "ENTREGUE PARCIAL", "APROVADO - ENTREGUE PARCIAL",
+        "TOTALMENTE ENTREGUE", "APROVADO - TOTALMENTE ENTREGUE",
+    ])
     df = df.copy()
     df["Dt Lib. PC"] = df["Dt Lib. PC"].astype(object)
     df.loc[~aprovado, "Dt Lib. PC"] = ""
