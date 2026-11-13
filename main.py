@@ -84,7 +84,7 @@ SENTINELA_ROW_IDX_EM_COTACAO = 10_000_000
 # Central de Fornecedores PA (central-fornecedores.streamlit.app) usa e mantém, então mostra o
 # mesmo card aqui dentro do portal sem precisar abrir o outro app.
 ABA_CADASTRO_FORNECEDORES = "CadastroFornecedores"
-CABECALHO_CADASTRO_FORNECEDORES = ["FORNECEDOR", "CNPJ", "REGIME_TRIBUTARIO", "BANCO", "AGENCIA", "CONTA", "PIX", "EMAIL", "CONTATO", "VENDEDOR"]
+CABECALHO_CADASTRO_FORNECEDORES = ["FORNECEDOR", "CNPJ", "REGIME_TRIBUTARIO", "BANCO", "AGENCIA", "CONTA", "PIX", "EMAIL", "CONTATO", "TELEFONE_FIXO", "VENDEDOR"]
 
 
 @st.cache_data(ttl=120)
@@ -162,6 +162,7 @@ def buscar_contato_fornecedor(nome_fornecedor: str) -> dict:
         "CONTATO": str(linha.get("CONTATO", "")).strip(),
         "VENDEDOR": str(linha.get("VENDEDOR", "")).strip(),
         "EMAIL": str(linha.get("EMAIL", "")).strip(),
+        "TELEFONE_FIXO": str(linha.get("TELEFONE_FIXO", "")).strip(),
         "ENDERECO": str(linha.get(col_endereco, "")).strip() if col_endereco else "",
     }
 
@@ -193,7 +194,10 @@ def abrir_popup_contato_fornecedor():
     if not contato:
         st.warning("Este fornecedor ainda não está no cadastro de fornecedores.")
         return
-    for rotulo, chave in (("Contato", "CONTATO"), ("Vendedor", "VENDEDOR"), ("E-mail", "EMAIL"), ("Endereço", "ENDERECO")):
+    for rotulo, chave in (
+        ("Contato (celular/WhatsApp)", "CONTATO"), ("Vendedor", "VENDEDOR"), ("E-mail", "EMAIL"),
+        ("Telefone fixo", "TELEFONE_FIXO"), ("Endereço", "ENDERECO"),
+    ):
         valor = contato.get(chave, "")
         if valor:
             st.caption(rotulo)
@@ -202,7 +206,7 @@ def abrir_popup_contato_fornecedor():
             st.caption(f"{rotulo}: não cadastrado")
 
 
-def renderizar_card_dados_bancarios(pedido, fornecedor, cnpj, regime, banco, agencia, conta, pix, email, contato, vendedor, valor_formatado):
+def renderizar_card_dados_bancarios(pedido, fornecedor, cnpj, regime, banco, agencia, conta, pix, email, contato, vendedor, valor_formatado, fixo=""):
     """Mesmo card visual (fundo branco/cinza claro, formato de tabela) do
     app Central de Fornecedores PA, embutido aqui pra mostrar no popup
     sem sair do portal."""
@@ -210,8 +214,12 @@ def renderizar_card_dados_bancarios(pedido, fornecedor, cnpj, regime, banco, age
     def esc(valor):
         return html_lib.escape(str(valor)) if valor else ""
 
-    linhas = [
-        ("CONTATO", contato), ("VENDEDOR", vendedor), ("E-MAIL", email),
+    # CONTATO = celular/WhatsApp. Sem celular, o card mostra o fixo no lugar; com os dois,
+    # o fixo ganha uma linha própria (igual ao card da Central de Fornecedores PA).
+    linhas = [("CONTATO", contato or fixo), ("VENDEDOR", vendedor), ("E-MAIL", email)]
+    if contato and fixo:
+        linhas.append(("TELEFONE FIXO", fixo))
+    linhas += [
         ("CNPJ", cnpj), ("REGIME TRIB.", regime), ("BANCO", banco), ("AGÊNCIA", agencia), ("CONTA", conta),
         ("PIX", pix),
         ("VALOR DO PEDIDO", valor_formatado),
@@ -369,6 +377,7 @@ def abrir_popup_dados_bancarios():
             banco=cadastro.get("BANCO", ""), agencia=cadastro.get("AGENCIA", ""),
             conta=cadastro.get("CONTA", ""), pix=cadastro.get("PIX", ""), email=cadastro.get("EMAIL", ""),
             contato=cadastro.get("CONTATO", ""), vendedor=cadastro.get("VENDEDOR", ""),
+            fixo=cadastro.get("TELEFONE_FIXO", ""),
             valor_formatado=formatar_moeda_br(valor_editado),
         ),
         height=490, scrolling=False,
