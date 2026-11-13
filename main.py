@@ -981,11 +981,13 @@ with st.container(key="acoes_painel_wrap"):
     else:
         btn_salvar_dados = False
 
-    if st.session_state.autenticado and st.session_state.departamento_ativo == "compras":
+    # O gestor visualiza e edita tudo: vê os dois popups (compras = dados bancários,
+    # almoxarifado = contato/endereço).
+    if st.session_state.autenticado and st.session_state.departamento_ativo in ("compras", "gestor"):
         if st.button("🏦 Dados Bancários", key="btn_abrir_dados_bancarios"):
             abrir_popup_dados_bancarios()
 
-    if st.session_state.autenticado and st.session_state.departamento_ativo == "almoxarifado":
+    if st.session_state.autenticado and st.session_state.departamento_ativo in ("almoxarifado", "gestor"):
         if st.button("📇 Contato do Fornecedor", key="btn_abrir_contato_fornecedor"):
             abrir_popup_contato_fornecedor()
 
