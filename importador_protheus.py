@@ -302,7 +302,7 @@ MAPA_STATUS_APROV_TEXTO_IMPORT = {
     # duplicando o conceito de "Pendente de Aprovação" com dois textos
     # diferentes (decisão do usuário 2026-09-28: usar sempre um só).
     normalizar_status_import("Em aprovação"): TEXTO_PENDENTE_APROVACAO_IMPORT,
-    normalizar_status_import("Não possui controle de Aprovação"): "Aprovado",
+    normalizar_status_import("Não possui controle de Aprovação"): "Erro",  # decisão do usuário 2026-11-13 (antes APROVADO)
     # Novo vocabulário de "Status Aprov" do MATA121 (decisão explícita do
     # usuário, 2026-10-02 - tabela "PLANILHA DE ATUALIZAÇÃO = NOVO STATUS NO
     # PORTAL SGC"). Valor desconhecido continua passando cru em CAIXA ALTA
@@ -534,7 +534,9 @@ def valor_status_origem_import(linha_origem) -> str:
     # faltando a data da NF ou o número da NF, o pedido NÃO está atendido e
     # volta a ser tratado como APROVADO (a barreira de Dt Lib. PC abaixo ainda vale).
     if normalizar_status_import(valor) == normalizar_status_import(STATUS_ATENDIDO_IMPORT) and not nf_completa_import(linha_origem):
-        valor = "APROVADO"
+        # Decisão do usuário 2026-11-13: "Totalmente Entregue" sem a NF
+        # completa é ERRO (antes voltava a APROVADO).
+        valor = "ERRO"
 
     if normalizar_status_import(valor) == normalizar_status_import("Aprovado") and not fmt_texto_import(linha_origem.get("Dt Lib. PC", "")):
         return TEXTO_PENDENTE_APROVACAO_IMPORT.upper()

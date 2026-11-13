@@ -150,11 +150,11 @@ class TestValorStatusOrigem:
 
     def test_totalmente_entregue_sem_nf_nao_e_atendido(self):
         # Regra dos 3 fatores (2026-10-05): sem Dt. Dig.Nota ou sem Num da Nota
-        # o pedido NAO esta atendido - volta a APROVADO.
+        # o pedido NAO esta atendido - vira ERRO (decisão do usuário 2026-11-13).
         base = {"Status Aprov": "Aprovado - Totalmente Entregue", "Dt Lib. PC": pd.Timestamp("2026-09-05")}
-        assert ip.valor_status_origem_import({**base, "Dt. Dig.Nota": pd.Timestamp("2026-09-20")}) == "APROVADO"
-        assert ip.valor_status_origem_import({**base, "Num da Nota": "000123 - 1"}) == "APROVADO"
-        assert ip.valor_status_origem_import(base) == "APROVADO"
+        assert ip.valor_status_origem_import({**base, "Dt. Dig.Nota": pd.Timestamp("2026-09-20")}) == "ERRO"
+        assert ip.valor_status_origem_import({**base, "Num da Nota": "000123 - 1"}) == "ERRO"
+        assert ip.valor_status_origem_import(base) == "ERRO"
 
     def test_atendido_confirmado_e_so_nf_mais_data_de_digitacao(self):
         """Decisão do usuário (2026-10-28): a NF prevalece sobre o Status Aprov."""
@@ -171,9 +171,9 @@ class TestValorStatusOrigem:
         linha = {"Status Aprov": "Pendente"}
         assert ip.valor_status_origem_import(linha) == "PENDENTE DE APROVAÇÃO".upper()
 
-    def test_sem_controle_aprovacao_vira_aprovado(self):
+    def test_sem_controle_aprovacao_vira_erro(self):
         linha = {"Status Aprov": "Não possui controle de Aprovação", "Dt Lib. PC": pd.Timestamp("2026-09-05")}
-        assert ip.valor_status_origem_import(linha) == "APROVADO"
+        assert ip.valor_status_origem_import(linha) == "ERRO"
 
     def test_em_aprovacao_vira_texto_completo_pendente(self):
         # "Em aprovação" e "Pendente" são grafias diferentes do Totvs pro
@@ -1720,3 +1720,27 @@ class TestLiberacaoSoComPedidoAprovado:
             "Dt Lib. PC": [pd.Timestamp("2026-11-09")] * 3,
         })
         assert ip.liberacao_so_aprovado_import(df)["Dt Lib. PC"].tolist() == [pd.Timestamp("2026-11-09")] * 2 + [""]
+
+    def test_pedido_volta_para_aprovacao_e_ganha_a_nova_data(self):
+        """Aprovado em 09/11, volta pra Pendente (Nível 02) com a Dt Lib. PC
+        de um nível só, e é reaprovado em 12/11: a data do painel só muda
+        na reaprovação, e muda pra nova."""
+        indice = _indice_pedido_existente(
+            PEDIDO="100", PRODUTO="0000000005", SOLICITAÇÃO="003419",
+            **{"DATA PEDIDO": "01/11/2026", "DATA LIBERAÇÃO": "09/11/2026", "STATUS": "APROVADO"},
+        )
+        col_lib = CABECALHO_REAL_PEDIDOS.index("DATA LIBERAÇÃO") + 1
+        col_st = CABECALHO_REAL_PEDIDOS.index("STATUS") + 1
+
+        pendente = ip.liberacao_so_aprovado_import(_linha_origem_pedido(
+            **{"Status Aprov": "Pendente (Nível 02)", "Dt Lib. PC": pd.Timestamp("2026-11-10")}))
+        _, atualizacoes, _, _, _ = _rodar_import_pedidos(pendente, indice)
+        assert (8, col_st, "PENDENTE DE APROVAÇÃO") in atualizacoes
+        assert not any(a[1] == col_lib for a in atualizacoes)
+
+        indice[("100", "0000000005")]["valores"]["STATUS"] = "PENDENTE DE APROVAÇÃO"
+        reaprovado = ip.liberacao_so_aprovado_import(_linha_origem_pedido(
+            **{"Status Aprov": "Aprovado - Aguardando Entrega", "Dt Lib. PC": pd.Timestamp("2026-11-12")}))
+        _, atualizacoes, _, _, _ = _rodar_import_pedidos(reaprovado, indice)
+        assert (8, col_lib, "12/11/2026") in atualizacoes
+        assert (8, col_st, "APROVADO") in atualizacoes
