@@ -1365,6 +1365,21 @@ def _parece_condicao_pagamento_import(serie) -> float:
     return sum(1 for v in valores if len(v) <= 30 and _RE_CONDICAO_PAGAMENTO_IMPORT.match(v)) / len(valores)
 
 
+def liberacao_so_aprovado_import(df):
+    """Dt Lib. PC so vale com o pedido 100% aprovado ("Aprovado - Aguardando
+    Entrega", ou ja "Aprovado - Entregue Parcial/Totalmente Entregue"). O
+    Totvs tambem preenche essa data em pedido "Pendente (Nivel 02/03)" -
+    aprovacao de um nivel so -, que nao pode virar Aprovação PC no painel
+    (decisao do usuario, 2026-11-13)."""
+    if "Dt Lib. PC" not in df.columns or "Status Aprov" not in df.columns:
+        return df
+    aprovado = df["Status Aprov"].fillna("").astype(str).str.strip().str.upper().str.startswith("APROVADO")
+    df = df.copy()
+    df["Dt Lib. PC"] = df["Dt Lib. PC"].astype(object)
+    df.loc[~aprovado, "Dt Lib. PC"] = ""
+    return df
+
+
 def normalizar_colunas_descricao_pc_import(df):
     """O relatorio de Pedidos do Totvs traz DUAS colunas com o MESMO nome
     "Descricao" (o pandas renomeia a 2a pra "Descricao.1"): uma e a descricao
@@ -1399,6 +1414,7 @@ def processar_arquivo_pc_import(arquivo, spreadsheet):
     arquivo.seek(0)
     df = pd.read_excel(arquivo, sheet_name=aba_de_dados_totvs_import(arquivo), header=1)
     df = normalizar_colunas_descricao_pc_import(df)
+    df = liberacao_so_aprovado_import(df)
     novas_linhas, atualizacoes, duplicadas, atualizadas, chaves_deste_arquivo = processar_linhas_import(
         df, MAPA_PEDIDOS_IMPORT, cabecalho_real, ALIASES_PEDIDOS_IMPORT, CAMPOS_MANUAIS_PEDIDOS_IMPORT,
         CHAVE_PEDIDOS_IMPORT, indice_existentes,

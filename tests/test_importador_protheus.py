@@ -1698,3 +1698,16 @@ class TestColunasDescricaoPorConteudo:
     @pytest.mark.parametrize("v", ["COTOVELO 90GR PVC BR PTA/BOLS 100MM", "PROTETOR SOLAR FATOR 60FPS BMB 4L", "SERRA MANUAL SEMI-RIG BIMETAL GERAL 300X13X0,6MM 18D"])
     def test_nao_confunde_descricao_de_item(self, v):
         assert ip._parece_condicao_pagamento_import([v]) == 0.0
+
+
+class TestLiberacaoSoComPedidoAprovado:
+    def test_pendente_nivel_2_perde_a_data_e_aprovado_mantem(self):
+        df = pd.DataFrame({
+            "Status Aprov": ["Pendente (N vel 02)", "Aprovado - Aguardando Entrega", "Aprovado - Totalmente Entregue", "Bloqueado"],
+            "Dt Lib. PC": [pd.Timestamp("2026-11-09")] * 4,
+        })
+        out = ip.liberacao_so_aprovado_import(df)
+        assert out["Dt Lib. PC"].tolist()[0] == ""
+        assert out["Dt Lib. PC"].tolist()[3] == ""
+        assert out["Dt Lib. PC"].tolist()[1] == pd.Timestamp("2026-11-09")
+        assert out["Dt Lib. PC"].tolist()[2] == pd.Timestamp("2026-11-09")
