@@ -1722,9 +1722,8 @@ class TestLiberacaoSoComPedidoAprovado:
         assert ip.liberacao_so_aprovado_import(df)["Dt Lib. PC"].tolist() == [pd.Timestamp("2026-11-09")] * 2 + [""]
 
     def test_pedido_volta_para_aprovacao_e_ganha_a_nova_data(self):
-        """Aprovado em 09/11, volta pra Pendente (Nível 02) com a Dt Lib. PC
-        de um nível só, e é reaprovado em 12/11: a data do painel só muda
-        na reaprovação, e muda pra nova."""
+        """Aprovado em 09/11, volta pra Pendente (Nível 02): a Aprovação PC é
+        apagada. Reaprovado em 12/11: entra a data nova."""
         indice = _indice_pedido_existente(
             PEDIDO="100", PRODUTO="0000000005", SOLICITAÇÃO="003419",
             **{"DATA PEDIDO": "01/11/2026", "DATA LIBERAÇÃO": "09/11/2026", "STATUS": "APROVADO"},
@@ -1736,11 +1735,23 @@ class TestLiberacaoSoComPedidoAprovado:
             **{"Status Aprov": "Pendente (Nível 02)", "Dt Lib. PC": pd.Timestamp("2026-11-10")}))
         _, atualizacoes, _, _, _ = _rodar_import_pedidos(pendente, indice)
         assert (8, col_st, "PENDENTE DE APROVAÇÃO") in atualizacoes
-        assert not any(a[1] == col_lib for a in atualizacoes)
+        assert (8, col_lib, "") in atualizacoes  # voltou pra aprovação: a data sai
 
         indice[("100", "0000000005")]["valores"]["STATUS"] = "PENDENTE DE APROVAÇÃO"
+        indice[("100", "0000000005")]["valores"]["DATA LIBERAÇÃO"] = ""
         reaprovado = ip.liberacao_so_aprovado_import(_linha_origem_pedido(
             **{"Status Aprov": "Aprovado - Aguardando Entrega", "Dt Lib. PC": pd.Timestamp("2026-11-12")}))
         _, atualizacoes, _, _, _ = _rodar_import_pedidos(reaprovado, indice)
         assert (8, col_lib, "12/11/2026") in atualizacoes
         assert (8, col_st, "APROVADO") in atualizacoes
+
+    def test_rejeitado_ou_bloqueado_nao_apaga_a_data(self):
+        indice = _indice_pedido_existente(
+            PEDIDO="100", PRODUTO="0000000005", SOLICITAÇÃO="003419",
+            **{"DATA PEDIDO": "01/11/2026", "DATA LIBERAÇÃO": "09/11/2026", "STATUS": "APROVADO"},
+        )
+        col_lib = CABECALHO_REAL_PEDIDOS.index("DATA LIBERAÇÃO") + 1
+        for st in ("Rejeitado", "Bloqueado"):
+            df = ip.liberacao_so_aprovado_import(_linha_origem_pedido(**{"Status Aprov": st}))
+            _, atualizacoes, _, _, _ = _rodar_import_pedidos(df, indice)
+            assert not any(a[1] == col_lib for a in atualizacoes)

@@ -256,6 +256,21 @@ def e_pendente_de_nivel_import(texto) -> bool:
     return normalizar_status_import(texto).startswith("PENDENTE (")
 
 
+def voltou_para_aprovacao_import(linha_origem) -> bool:
+    """Status Aprov do Totvs = pedido em aprovação (Pendente, Pendente
+    (Nível N), Em aprovação). Se ele já tinha Aprovação PC no painel, é
+    porque voltou pra aprovação depois de aprovado - a data sai e só volta
+    na nova aprovação (decisão do usuário, 2026-11-13)."""
+    bruto = linha_origem.get("Status Aprov", "")
+    if bruto is None or (isinstance(bruto, float) and pd.isna(bruto)):
+        return False
+    texto = normalizar_status_import(str(bruto))
+    return e_pendente_de_nivel_import(texto) or texto in (
+        normalizar_status_import("Pendente"), normalizar_status_import("Em aprovação"),
+        normalizar_status_import(TEXTO_PENDENTE_APROVACAO_IMPORT),
+    )
+
+
 class _GatilhoPedidosImport(set):
     """Conjunto de status recalculaveis que tambem aceita qualquer
     "PENDENTE (...)" cru ja gravado na base (ver e_pendente_de_nivel)."""
@@ -727,6 +742,10 @@ def processar_linhas_import(df_origem, mapa, cabecalho_destino, aliases, campos_
                     continue
                 valor_atual = valores_atuais.get(col_real, "").strip()
                 novo_valor = valores_por_campo.get(campo_tela, "")
+                if campo_tela == "DATA LIBERAÇÃO" and valor_atual and voltou_para_aprovacao_import(linha_origem):
+                    atualizacoes.append((info["row_num"], cabecalho_destino.index(col_real) + 1, ""))
+                    alterou = True
+                    continue
                 if campo_tela in campos_sempre_sobrescreve:
                     # Campos onde o arquivo do Totvs sempre prevalece, mesmo
                     # se ja tiver um valor diferente - nao sao mais editaveis
