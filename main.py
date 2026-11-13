@@ -140,6 +140,68 @@ def buscar_cadastro_fornecedor_bancario(nome_fornecedor: str) -> dict:
     return {col: str(linhas.iloc[0].get(col, "")) for col in CABECALHO_CADASTRO_FORNECEDORES}
 
 
+def buscar_contato_fornecedor(nome_fornecedor: str) -> dict:
+    """Só contato/endereço do fornecedor (Almoxarifado) - de propósito NÃO lê
+    banco/agência/conta/PIX, pra esses dados nem chegarem na sessão desse
+    perfil. Compara o nome sem diferença de espaços repetidos (o TOTVS grava
+    "B A  ELETRICA", o cadastro tem 1 espaço). ENDEREÇO é a coluna ENDERECO da
+    aba CadastroFornecedores, se existir (hoje o app companheiro não a tem)."""
+    client, _ = obter_client_gspread()
+    spreadsheet = client.open_by_key(FILE_ID)
+    df = _ler_aba_como_df(spreadsheet, ABA_CADASTRO_FORNECEDORES)
+    if df.empty or "FORNECEDOR" not in df.columns:
+        return {}
+    def _chave(nome):
+        return " ".join(str(nome or "").split()).upper()
+    linhas = df[df["FORNECEDOR"].map(_chave) == _chave(nome_fornecedor)]
+    if linhas.empty:
+        return {}
+    linha = linhas.iloc[0]
+    col_endereco = next((c for c in df.columns if str(c).upper().strip().replace("Ç", "C") == "ENDERECO"), None)
+    return {
+        "CONTATO": str(linha.get("CONTATO", "")).strip(),
+        "VENDEDOR": str(linha.get("VENDEDOR", "")).strip(),
+        "EMAIL": str(linha.get("EMAIL", "")).strip(),
+        "ENDERECO": str(linha.get(col_endereco, "")).strip() if col_endereco else "",
+    }
+
+
+@st.dialog("📇 Contato do Fornecedor")
+def abrir_popup_contato_fornecedor():
+    st.session_state.setdefault("popup_contato_pedido", str(st.session_state.filtro_pc_val or "").strip())
+    numero_pedido = st.text_input("Número do Pedido de Compras", key="popup_contato_pedido", placeholder="Ex: 179723")
+    pedido_digitado = re.sub(r"\.0$", "", numero_pedido.strip())
+    if st.button("🔍 Buscar", key="popup_contato_btn_buscar", type="primary"):
+        st.session_state.pop("popup_contato_resultado", None)
+        if not pedido_digitado:
+            st.warning("Digite um número de pedido.")
+        else:
+            resultado = buscar_pedido_fornecedor_valor(pedido_digitado)
+            if not resultado:
+                st.error(f"Nenhum pedido ativo encontrado com o número {pedido_digitado}.")
+            else:
+                fornecedor = resultado[0]
+                st.session_state["popup_contato_resultado"] = {
+                    "pedido": pedido_digitado, "fornecedor": fornecedor, "contato": buscar_contato_fornecedor(fornecedor),
+                }
+
+    guardado = st.session_state.get("popup_contato_resultado")
+    if not guardado or guardado["pedido"] != pedido_digitado:
+        return
+    st.markdown(f"**{html_lib.escape(guardado['fornecedor'])}**")
+    contato = guardado["contato"]
+    if not contato:
+        st.warning("Este fornecedor ainda não está no cadastro de fornecedores.")
+        return
+    for rotulo, chave in (("Contato", "CONTATO"), ("Vendedor", "VENDEDOR"), ("E-mail", "EMAIL"), ("Endereço", "ENDERECO")):
+        valor = contato.get(chave, "")
+        if valor:
+            st.caption(rotulo)
+            st.code(valor, language=None, wrap_lines=True)
+        else:
+            st.caption(f"{rotulo}: não cadastrado")
+
+
 def renderizar_card_dados_bancarios(pedido, fornecedor, cnpj, regime, banco, agencia, conta, pix, email, contato, vendedor, valor_formatado):
     """Mesmo card visual (fundo branco/cinza claro, formato de tabela) do
     app Central de Fornecedores PA, embutido aqui pra mostrar no popup
@@ -922,6 +984,10 @@ with st.container(key="acoes_painel_wrap"):
     if st.session_state.autenticado and st.session_state.departamento_ativo == "compras":
         if st.button("🏦 Dados Bancários", key="btn_abrir_dados_bancarios"):
             abrir_popup_dados_bancarios()
+
+    if st.session_state.autenticado and st.session_state.departamento_ativo == "almoxarifado":
+        if st.button("📇 Contato do Fornecedor", key="btn_abrir_contato_fornecedor"):
+            abrir_popup_contato_fornecedor()
 
 if st.session_state.autenticado and st.session_state.departamento_ativo in ("compras", "gestor"):
     if st.session_state.mostrar_popup_importar:
