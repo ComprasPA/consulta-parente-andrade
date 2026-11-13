@@ -1703,11 +1703,13 @@ class TestColunasDescricaoPorConteudo:
 class TestLiberacaoSoComPedidoAprovado:
     def test_pendente_nivel_2_perde_a_data_e_aprovado_mantem(self):
         df = pd.DataFrame({
-            "Status Aprov": ["Pendente (N vel 02)", "Aprovado - Aguardando Entrega", "Aprovado - Totalmente Entregue", "Bloqueado"],
-            "Dt Lib. PC": [pd.Timestamp("2026-11-09")] * 4,
+            "Status Aprov": ["Pendente (N vel 02)", "Aprovado - Aguardando Entrega", "Aprovado - Totalmente Entregue", "Bloqueado", "Aprovado - Entregue Parcial", "Liberado Direto"],
+            "Dt Lib. PC": [pd.Timestamp("2026-11-09")] * 6,
         })
         out = ip.liberacao_so_aprovado_import(df)
         assert out["Dt Lib. PC"].tolist()[0] == ""
         assert out["Dt Lib. PC"].tolist()[3] == ""
         assert out["Dt Lib. PC"].tolist()[1] == pd.Timestamp("2026-11-09")
         assert out["Dt Lib. PC"].tolist()[2] == pd.Timestamp("2026-11-09")
+        assert out["Dt Lib. PC"].tolist()[4] == pd.Timestamp("2026-11-09")
+        assert out["Dt Lib. PC"].tolist()[5] == ""
