@@ -876,7 +876,7 @@ rotulo_seta = "Filtros Avançados ▲" if st.session_state.gaveta_aberta else "F
 
 with st.expander(rotulo_seta, expanded=st.session_state.gaveta_aberta):
     with st.form("form_filtros", clear_on_submit=False):
-        mostrar_filtro_cnpj = st.session_state.autenticado and st.session_state.departamento_ativo == "almoxarifado"
+        mostrar_filtro_cnpj = st.session_state.autenticado and st.session_state.departamento_ativo in ("almoxarifado", "gestor")
         if mostrar_filtro_cnpj:
             f1, f2, f3, f4, f5, f6 = st.columns(6)
         else:
