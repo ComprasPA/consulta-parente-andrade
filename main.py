@@ -494,6 +494,14 @@ def montar_linhas_em_cotacao(df_pc, df_sc):
     return linhas_cotacao
 
 
+STATUS_SO_GESTOR = "ATENDIDO"
+
+
+def pode_marcar_atendido_manual():
+    """ATENDIDO só entra pelo relatório do Totvs; a mão, só o perfil gestor."""
+    return str(st.session_state.get("departamento_ativo", "")).strip().lower() == "gestor"
+
+
 def aplicar_compra_direta_por_pagamento(df):
     """Condição de Pagamento "PAGO" = COMPRA DIRETA (decisão explícita do
     usuário, 2026-10-16). Aplicado já na leitura da planilha, antes de
@@ -1101,6 +1109,11 @@ if tem_busca_ativa:
                         "REJEITADO",
                     ]
                     lista_historico_status = sorted(list(set(status_existentes + status_oficiais)))
+                    # ATENDIDO vem do relatorio do Totvs (NF registrada) - so o
+                    # perfil gestor pode escolher a mao (decisao do usuario,
+                    # 2026-11-19; casos 179229/177863/180465 marcados a mao).
+                    if not pode_marcar_atendido_manual():
+                        lista_historico_status = [s for s in lista_historico_status if s.strip().upper() != STATUS_SO_GESTOR]
 
                     opcoes_logistica = [
                         "RETIRADO DO ALMOXARIFADO SEDE",
@@ -1291,6 +1304,9 @@ if tem_busca_ativa:
                                                 continue
                                             pedido_num = str(linha_df.get("Pedido", "")).strip()
                                             for col, valor_novo in mudancas.items():
+                                                if col == "Status" and str(valor_novo).strip().upper() == STATUS_SO_GESTOR and not pode_marcar_atendido_manual():
+                                                    divergencias.append(f"Pedido {pedido_num} — Status: **{STATUS_SO_GESTOR}** só vem do relatório do Totvs (ou pelo perfil gestor). Não gravado.")
+                                                    continue
                                                 col_config_item = next((item for item in DICIONARIO_COLUNAS_EXATAS if item["tela"] == col), None)
                                                 if not col_config_item:
                                                     continue
