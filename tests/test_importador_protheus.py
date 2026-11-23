@@ -1760,7 +1760,7 @@ class TestLiberacaoSoComPedidoAprovado:
 class TestCriticidadeMata110:
     @pytest.mark.parametrize("totvs, base", [
         ("Rotineira", "ROTINEIRA"), ("Emergencial", "EMERGENCIAL"), ("Emergenciais", "EMERGENCIAL"),
-        ("Compra Direta", "COMPRAS DIRETA"), ("Correcao", "CORREÇÃO DE PROCESSO"),
+        ("Compra Direta", "COMPRA DIRETA"), ("Compras Direta", "COMPRA DIRETA"), ("Correcao", "CORREÇÃO DE PROCESSO"),
         ("Correção de Processo", "CORREÇÃO DE PROCESSO"), ("", ""), (None, ""), ("Outra Coisa", "OUTRA COISA"),
     ])
     def test_vocabulario_da_base(self, totvs, base):

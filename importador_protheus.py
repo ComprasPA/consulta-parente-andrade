@@ -238,8 +238,8 @@ def fmt_pagamento_calc_import(valor) -> str:
 
 def fmt_criticidade_import(valor) -> str:
     """Criticidade do MATA110 ("Rotineira", "Emergencial", "Compra Direta",
-    "Correcao") no vocabulario que a base ja usa (ROTINEIRA, EMERGENCIAL,
-    COMPRAS DIRETA, CORREÇÃO DE PROCESSO) - decisao do usuario, 2026-11-23:
+    "Correcao") no vocabulario da base (ROTINEIRA, EMERGENCIAL, COMPRA
+    DIRETA - no singular, correcao do usuario 2026-11-23 -, CORREÇÃO DE PROCESSO) - decisao do usuario, 2026-11-23:
     a Criticidade agora vem do Totvs a cada importacao. Valor desconhecido
     passa em CAIXA ALTA."""
     txt = fmt_texto_import(valor).upper()
@@ -252,7 +252,7 @@ def fmt_criticidade_import(valor) -> str:
     if chave.startswith("ROTINEIR"):
         return "ROTINEIRA"
     if chave in ("COMPRA DIRETA", "COMPRAS DIRETA", "COMPRAS DIRETAS"):
-        return "COMPRAS DIRETA"
+        return "COMPRA DIRETA"
     if chave.startswith("CORRECAO"):
         return "CORREÇÃO DE PROCESSO"
     return " ".join(txt.split())
