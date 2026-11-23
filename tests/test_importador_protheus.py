@@ -1755,3 +1755,31 @@ class TestLiberacaoSoComPedidoAprovado:
             df = ip.liberacao_so_aprovado_import(_linha_origem_pedido(**{"Status Aprov": st}))
             _, atualizacoes, _, _, _ = _rodar_import_pedidos(df, indice)
             assert not any(a[1] == col_lib for a in atualizacoes)
+
+
+class TestCriticidadeMata110:
+    @pytest.mark.parametrize("totvs, base", [
+        ("Rotineira", "ROTINEIRA"), ("Emergencial", "EMERGENCIAL"), ("Emergenciais", "EMERGENCIAL"),
+        ("Compra Direta", "COMPRAS DIRETA"), ("Correcao", "CORREÇÃO DE PROCESSO"),
+        ("Correção de Processo", "CORREÇÃO DE PROCESSO"), ("", ""), (None, ""), ("Outra Coisa", "OUTRA COISA"),
+    ])
+    def test_vocabulario_da_base(self, totvs, base):
+        assert ip.fmt_criticidade_import(totvs) == base
+
+    def test_criticidade_do_totvs_sobrescreve_e_vazio_nao_apaga(self):
+        cab = ip.CABECALHO_SOLICITACOES_IMPORT + ["STATUS"]
+        atual = {c: "" for c in cab}
+        atual.update({"SOLICITAÇÃO": "143284", "ITEM SC": "01", "CRITICIDADE": "ROTINEIRA"})
+        indice = {("143284", "01"): {"row_num": 5, "valores": atual}}
+        col = cab.index("CRITICIDADE") + 1
+
+        def rodar(crit):
+            df = pd.DataFrame([{"Numero da SC": "143284", "Item da SC": "01", "Criticidade": crit}])
+            return ip.processar_linhas_import(
+                df, ip.MAPA_SOLICITACOES_IMPORT, cab, {}, ip.CAMPOS_MANUAIS_SOLICITACOES_IMPORT,
+                ip.CHAVE_SOLICITACOES_IMPORT, indice,
+                campos_sempre_sobrescreve=ip.CAMPOS_SEMPRE_SOBRESCREVE_SOLICITACOES_IMPORT,
+            )[1]
+
+        assert (5, col, "EMERGENCIAL") in rodar("Emergencial")
+        assert not any(a[1] == col for a in rodar(""))

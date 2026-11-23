@@ -92,7 +92,7 @@ CABECALHO_SOLICITACOES_IMPORT = [
     "SOLICITAÇÃO", "ITEM SC", "COTAÇÃO", "PEDIDO", "PRODUTO", "DESCRICAO",
     "QTD", "UM", "CENTRO DE CUSTO", "DESC CENTRO DE CUSTO",
     "DATA EMISSAO", "DATA APROVACAO", "FILIAL", "QTD EM PEDIDO", "COD SC SCM",
-    "LEGENDA",
+    "LEGENDA", "CRITICIDADE",
 ]
 MAPA_SOLICITACOES_IMPORT = {
     "SOLICITAÇÃO":          {"origem": "Numero da SC", "tipo": "solicitacao"},
@@ -111,6 +111,7 @@ MAPA_SOLICITACOES_IMPORT = {
     "QTD EM PEDIDO":        {"origem": "Quant.em Ped", "tipo": "numero"},
     "COD SC SCM":           {"origem": "Cod SC. SCM",  "tipo": "texto"},
     "LEGENDA":              {"origem": "Legenda",      "tipo": "texto"},
+    "CRITICIDADE":          {"origem": "Criticidade",  "tipo": "criticidade"},
 }
 CHAVE_SOLICITACOES_IMPORT = ("SOLICITAÇÃO", "ITEM SC")
 CAMPOS_MANUAIS_SOLICITACOES_IMPORT = ["STATUS"]
@@ -119,7 +120,8 @@ CAMPOS_MANUAIS_SOLICITACOES_IMPORT = ["STATUS"]
 # ver GATILHO_STATUS_SOLICITACOES_IMPORT), a LEGENDA e so um espelho do que o
 # Totvs diz agora - decisao explicita do usuario, 2026-09-30: sempre
 # atualizar com a versao mais recente do arquivo do dia, sem excecao.
-CAMPOS_SEMPRE_SOBRESCREVE_SOLICITACOES_IMPORT = ("LEGENDA",)
+# CRITICIDADE: o Totvs (MATA110) sempre prevalece quando traz valor (2026-11-23).
+CAMPOS_SEMPRE_SOBRESCREVE_SOLICITACOES_IMPORT = ("LEGENDA", "CRITICIDADE")
 
 
 def normalizar_nome_import(nome) -> str:
@@ -234,6 +236,28 @@ def fmt_pagamento_calc_import(valor) -> str:
     return "------"
 
 
+def fmt_criticidade_import(valor) -> str:
+    """Criticidade do MATA110 ("Rotineira", "Emergencial", "Compra Direta",
+    "Correcao") no vocabulario que a base ja usa (ROTINEIRA, EMERGENCIAL,
+    COMPRAS DIRETA, CORREÇÃO DE PROCESSO) - decisao do usuario, 2026-11-23:
+    a Criticidade agora vem do Totvs a cada importacao. Valor desconhecido
+    passa em CAIXA ALTA."""
+    txt = fmt_texto_import(valor).upper()
+    chave = "".join(c for c in unicodedata.normalize("NFD", txt) if unicodedata.category(c) != "Mn")
+    chave = " ".join(chave.split())
+    if not chave:
+        return ""
+    if chave.startswith("EMERGENC"):
+        return "EMERGENCIAL"
+    if chave.startswith("ROTINEIR"):
+        return "ROTINEIRA"
+    if chave in ("COMPRA DIRETA", "COMPRAS DIRETA", "COMPRAS DIRETAS"):
+        return "COMPRAS DIRETA"
+    if chave.startswith("CORRECAO"):
+        return "CORREÇÃO DE PROCESSO"
+    return " ".join(txt.split())
+
+
 FORMATADORES_IMPORT = {
     "inteiro": fmt_inteiro_import,
     "texto": fmt_texto_import,
@@ -245,6 +269,7 @@ FORMATADORES_IMPORT = {
     "decimal": fmt_decimal_import,
     "data": fmt_data_import,
     "pagamento_calc": fmt_pagamento_calc_import,
+    "criticidade": fmt_criticidade_import,
 }
 
 TEXTO_PENDENTE_APROVACAO_IMPORT = "Pendente de Aprovação"

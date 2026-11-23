@@ -494,6 +494,33 @@ def montar_linhas_em_cotacao(df_pc, df_sc):
     return linhas_cotacao
 
 
+def _chave_solicitacao(valor):
+    return str(valor).strip().split(".")[0].lstrip("0")
+
+
+def adicionar_criticidade_da_solicitacao(df, df_sc):
+    """Coluna CRITICIDADE (só leitura) para a tela, vinda da aba Solicitacoes
+    pelo número da SC - lá ela é gravada a cada importação do MATA110
+    (decisão do usuário, 2026-11-23). Não existe na aba Pedidos, então o
+    "Salvar Alterações" nunca grava nela. Não mexe no index."""
+    df = df.copy()
+    df["CRITICIDADE"] = ""
+    if df_sc is None or df_sc.empty:
+        return df
+    por_nome = {str(c).upper().strip().replace("Ç", "C").replace("Ã", "A"): c for c in df_sc.columns}
+    col_sc, col_crit = por_nome.get("SOLICITACAO"), por_nome.get("CRITICIDADE")
+    col_sc_pc = next((c for c in df.columns if str(c).upper().strip().replace("Ç", "C").replace("Ã", "A") == "SOLICITACAO"), None)
+    if not col_sc or not col_crit or not col_sc_pc:
+        return df
+    mapa = {}
+    for sc, crit in zip(df_sc[col_sc], df_sc[col_crit]):
+        chave, crit = _chave_solicitacao(sc), str(crit).strip()
+        if chave and crit and chave not in mapa:
+            mapa[chave] = crit
+    df["CRITICIDADE"] = df[col_sc_pc].map(lambda v: mapa.get(_chave_solicitacao(v), ""))
+    return df
+
+
 STATUS_SO_GESTOR = "ATENDIDO"
 
 
@@ -594,6 +621,7 @@ def carregar_dados_seguros():
             df = df[df[col_status_bruto].astype(str).str.strip().str.upper() != STATUS_EXCLUIDO_TOTVS]
             df = aplicar_erro_valor_zerado(aplicar_compra_direta_por_pagamento(df))
 
+        df_sc = pd.DataFrame()
         try:
             df_sc = _ler_aba_como_df(spreadsheet, "Solicitacoes")
             linhas_cotacao = montar_linhas_em_cotacao(df, df_sc)
@@ -601,6 +629,7 @@ def carregar_dados_seguros():
                 df = pd.concat([df, linhas_cotacao])
         except Exception:
             pass  # "Em Cotação" e um extra - se der erro, so segue com os Pedidos normais
+        df = adicionar_criticidade_da_solicitacao(df, df_sc)
 
         return df
     except Exception as e:
@@ -630,7 +659,8 @@ DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": ["STATUS"], "tela": "Status", "tipo": "texto"},
     {"planilha": ["CENTRO DE CUSTO"], "tela": "Centro De Custo", "tipo": "texto"},
     {"planilha": ["SOLICITAÇÃO", "SOLICITACAO"], "tela": "Solicitação", "tipo": "texto"},
-    {"planilha": ["PEDIDO"], "tela": "Pedido", "tipo": "pedido"},   
+    {"planilha": ["CRITICIDADE"], "tela": "Criticidade", "tipo": "texto"},
+    {"planilha": ["PEDIDO"], "tela": "Pedido", "tipo": "pedido"},
     {"planilha": ["CONDIÇÃO PAGAMENTO"], "tela": "Condição Pagamento", "tipo": "texto"},
     {"planilha": ["DATA PEDIDO"], "tela": "Emissão Pc", "tipo": "data"},
     {"planilha": ["DATA LIBERAÇÃO", "DATA LIBERACAO"], "tela": "Aprovação Pc", "tipo": "data"},
