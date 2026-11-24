@@ -1215,11 +1215,10 @@ if tem_busca_ativa:
                                 campos_permitidos_compras = ["Status", "Envio Pc", "Pagamento Pc", "Previsão De Entrega", "NF Remessa"]
                                 if nome_tela in campos_permitidos_compras:
                                     if nome_tela == "Status":
-                                        configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
-                                            rotulo_tela,
-                                            options=opcoes_status_compras if dep == "compras" else opcoes_status_almoxarifado,
-                                            required=True, width=largura_px,
-                                        )
+                                        # Só texto: a célula de lista suspensa desenha em branco
+                                        # qualquer valor que não esteja nas opções, e aqui as opções
+                                        # são restritas - a escolha fica na coluna "Alterar Status".
+                                        configuracao_colunas_tela[nome_tela] = st.column_config.Column(rotulo_tela, disabled=True, width=largura_px)
                                     else:
                                         configuracao_colunas_tela[nome_tela] = st.column_config.Column(rotulo_tela, disabled=False, width=largura_px)
                                 else:
@@ -1231,6 +1230,20 @@ if tem_busca_ativa:
                                 configuracao_colunas_tela[nome_tela] = st.column_config.Column(rotulo_tela, disabled=True, width=largura_px)
 
                     configuracao_colunas_tela["_row_idx"] = None
+
+                    status_restrito = (
+                        st.session_state.autenticado
+                        and st.session_state.departamento_ativo in ("compras", "almoxarifado")
+                        and "Status" in df_painel.columns
+                    )
+                    if status_restrito:
+                        opcoes_alterar_status = opcoes_status_compras if st.session_state.departamento_ativo == "compras" else opcoes_status_almoxarifado
+                        df_painel.insert(df_painel.columns.get_loc("Status") + 1, "Alterar Status", "")
+                        configuracao_colunas_tela["Alterar Status"] = st.column_config.SelectboxColumn(
+                            "Alterar Status", options=opcoes_alterar_status, required=False,
+                            width=int(max(len(o) for o in opcoes_alterar_status) * 7.5 + 40) if opcoes_alterar_status else 160,
+                            help="Escolha o novo status e clique em Salvar Alterações. Em branco = não muda.",
+                        )
 
                     if mostrar_sla:
                         for nome_sla in ("Sla Pagamento", "Sla Entrega"):
@@ -1343,6 +1356,11 @@ if tem_busca_ativa:
                                                 continue
                                             pedido_num = str(linha_df.get("Pedido", "")).strip()
                                             for col, valor_novo in mudancas.items():
+                                                if col == "Alterar Status":
+                                                    # coluna só da tela: grava no Status; em branco não muda
+                                                    if not str(valor_novo or "").strip():
+                                                        continue
+                                                    col = "Status"
                                                 if col == "Status" and str(valor_novo).strip().upper() == STATUS_SO_GESTOR and not pode_marcar_atendido_manual():
                                                     divergencias.append(f"Pedido {pedido_num} — Status: **{STATUS_SO_GESTOR}** só vem do relatório do Totvs (ou pelo perfil gestor). Não gravado.")
                                                     continue
