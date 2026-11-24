@@ -522,6 +522,7 @@ def adicionar_criticidade_da_solicitacao(df, df_sc):
 
 
 STATUS_SO_GESTOR = "ATENDIDO"
+STATUS_ETAPAS_ENVIO_COMPRAS = ("ENVIADO AO FORNECEDOR", "ENVIADO AO FINANCEIRO")
 
 
 def pode_marcar_atendido_manual():
@@ -1145,6 +1146,12 @@ if tem_busca_ativa:
                     if not pode_marcar_atendido_manual():
                         lista_historico_status = [s for s in lista_historico_status if s.strip().upper() != STATUS_SO_GESTOR]
 
+                    # Divisão de funções na lista suspensa de Status (usuário,
+                    # 2026-11-24): Compras só escolhe as duas etapas de envio;
+                    # Almoxarifado escolhe o resto (sem essas duas). Gestor vê tudo.
+                    opcoes_status_compras = list(STATUS_ETAPAS_ENVIO_COMPRAS)
+                    opcoes_status_almoxarifado = [s for s in lista_historico_status if s.strip().upper() not in STATUS_ETAPAS_ENVIO_COMPRAS]
+
                     opcoes_logistica = [
                         "RETIRADO DO ALMOXARIFADO SEDE",
                         "ENTREGUE NO PEA",
@@ -1209,7 +1216,9 @@ if tem_busca_ativa:
                                 if nome_tela in campos_permitidos_compras:
                                     if nome_tela == "Status":
                                         configuracao_colunas_tela[nome_tela] = st.column_config.SelectboxColumn(
-                                            rotulo_tela, options=lista_historico_status, required=True, width=largura_px
+                                            rotulo_tela,
+                                            options=opcoes_status_compras if dep == "compras" else opcoes_status_almoxarifado,
+                                            required=True, width=largura_px,
                                         )
                                     else:
                                         configuracao_colunas_tela[nome_tela] = st.column_config.Column(rotulo_tela, disabled=False, width=largura_px)
