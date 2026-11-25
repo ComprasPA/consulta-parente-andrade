@@ -657,6 +657,9 @@ renderizar_cabecalho("Portal Gestão de Compras")
 # 6. JANELA POPUP DISCRETA DE LOGIN
 renderizar_popup_login()
 
+# Atalho para o quadro Kanban de Follow Up (pages/2_Funil_Follow_Up.py)
+st.page_link("pages/2_Funil_Follow_Up.py", label="📋 Funil de Follow Up")
+
 # 8. DICIONÁRIO MAPEADO RIGOROSAMENTE COM AS SUAS COLUNAS EXATAS
 DICIONARIO_COLUNAS_EXATAS = [
     {"planilha": ["STATUS"], "tela": "Status", "tipo": "texto"},
