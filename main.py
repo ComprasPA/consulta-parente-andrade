@@ -523,6 +523,8 @@ def adicionar_criticidade_da_solicitacao(df, df_sc):
 
 STATUS_SO_GESTOR = "ATENDIDO"
 STATUS_ETAPAS_ENVIO_COMPRAS = ("ENVIADO AO FORNECEDOR", "ENVIADO AO FINANCEIRO")
+# Único dos dois que o Almoxarifado NÃO pode escolher (ENVIADO AO FORNECEDOR voltou, 2026-11-25)
+STATUS_SO_COMPRAS = "ENVIADO AO FINANCEIRO"
 
 
 def pode_marcar_atendido_manual():
@@ -1148,9 +1150,9 @@ if tem_busca_ativa:
 
                     # Divisão de funções na lista suspensa de Status (usuário,
                     # 2026-11-24): Compras só escolhe as duas etapas de envio;
-                    # Almoxarifado escolhe o resto (sem essas duas). Gestor vê tudo.
+                    # Almoxarifado escolhe o resto (sem ENVIADO AO FINANCEIRO). Gestor vê tudo.
                     opcoes_status_compras = list(STATUS_ETAPAS_ENVIO_COMPRAS)
-                    opcoes_status_almoxarifado = [s for s in lista_historico_status if s.strip().upper() not in STATUS_ETAPAS_ENVIO_COMPRAS]
+                    opcoes_status_almoxarifado = [s for s in lista_historico_status if s.strip().upper() != STATUS_SO_COMPRAS]
                     dep_atual = st.session_state.departamento_ativo if st.session_state.autenticado else ""
                     status_permitidos_perfil = {"compras": opcoes_status_compras, "almoxarifado": opcoes_status_almoxarifado}.get(dep_atual)
                     if status_permitidos_perfil is not None:
