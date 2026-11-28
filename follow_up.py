@@ -152,12 +152,16 @@ def prazo_compras(inicio, criticidade, hoje):
     return "ok", "No prazo", folga, False
 
 
-def texto_pendente_aprovacao(inicio, hoje):
-    """"Pendente há N dias úteis": tempo que o pedido está esperando aprovação (seg-sex, sem feriados)."""
-    n = dias_uteis_entre(inicio, hoje) if hoje > inicio else 0
-    if n == 0:
-        return "Pendente desde hoje"
-    return f"Pendente há {n} dia útil" if n == 1 else f"Pendente há {n} dias úteis"
+def texto_pendente_aprovacao(inicio, hoje, emergencial=False):
+    """"Pendente há N dias": tempo que o pedido está esperando aprovação. Dias CORRIDOS, exceto
+    solicitação EMERGENCIAL, que conta em dias úteis (seg-sex, sem feriados)."""
+    if emergencial:
+        n = dias_uteis_entre(inicio, hoje) if hoje > inicio else 0
+        unidade = "dia útil" if n == 1 else "dias úteis"
+    else:
+        n = (hoje - inicio).days if hoje > inicio else 0
+        unidade = "dia" if n == 1 else "dias"
+    return "Pendente desde hoje" if n == 0 else f"Pendente há {n} {unidade}"
 
 
 def prazo_entrega(previsao, hoje):
@@ -296,9 +300,9 @@ def _finalizar(g, hoje):
             inicio = min(g["datas_sc"]) if g["datas_sc"] else None
         classe, texto, folga, atrasado = prazo_compras(inicio, g["crit"], hoje)
         if col_id == "PEDIDO GERADO" and g.get("sub") == "Sem aprovação" and inicio is not None:
-            # pedido pendente de aprovação: o cartão mostra há quantos dias úteis ele espera a aprovação
-            # (a cor e o filtro "Só atrasados" continuam pela regra de prazo da criticidade)
-            texto = texto_pendente_aprovacao(inicio, hoje)
+            # pedido pendente de aprovação: o cartão mostra há quantos dias ele espera a aprovação (corridos;
+            # úteis só se emergencial). A cor e o filtro "Só atrasados" continuam pela regra de prazo da criticidade
+            texto = texto_pendente_aprovacao(inicio, hoje, _chave(g["crit"]) == "EMERGENCIAL")
         emissao = inicio
     elif bloco == BLOCO_ALMOX:
         emissao = min(g["datas_pedido"]) if g["datas_pedido"] else None
