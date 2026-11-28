@@ -76,7 +76,7 @@ fieldset.mostrar { border: 0; padding: 0; margin: 0; display: flex; align-items:
 .av { grid-row: 1 / span 3; width: 2.7em; height: 2.7em; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-display); font-weight: 800; font-size: .85em; color: #fff; align-self: start; }
 .top { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: .86em; font-variant-numeric: tabular-nums; }
 .top b { color: var(--ink); font-size: 1.08em; font-weight: 600; }
-.forn { color: var(--link); font-size: 1.1em; line-height: 1.25; font-weight: 600; overflow-wrap: anywhere; }
+.forn { color: var(--link); font-size: 1.1em; line-height: 1.25; font-weight: 600; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; font-size: .86em; color: var(--muted); font-variant-numeric: tabular-nums; }
 .tag { border: 1px solid var(--line); border-radius: 3px; padding: 0 6px; }
 .tag.st { color: var(--ink); }
@@ -154,7 +154,7 @@ fieldset.mostrar { border: 0; padding: 0; margin: 0; display: flex; align-items:
     el.innerHTML =
       '<div class="av" style="background:' + cor(c.titulo) + '" aria-hidden="true">' + esc(iniciais(c.titulo)) + "</div>" +
       '<div class="top"><b>' + esc(cab) + "</b><span>" + esc(c.data) + "</span></div>" +
-      '<div class="forn">' + esc(c.titulo) + "</div>" +
+      '<div class="forn" title="' + esc(c.titulo) + '">' + esc(c.titulo) + "</div>" +
       '<div class="meta">' + (c.valor ? "<span>" + fmoeda(c.valor) + "</span>" : "") + tags + "</div>" +
       '<div class="prazo ' + esc(c.pz_cls) + '">' + esc(c.pz_txt) + "</div>";
     return el;
@@ -247,7 +247,14 @@ fieldset.mostrar { border: 0; padding: 0; margin: 0; display: flex; align-items:
   var sincH = criarBarra(document.getElementById("hbar"), document.getElementById("thumb"), false);
   var sincV = criarBarra(document.getElementById("vbar"), document.getElementById("vthumb"), true);
 
-  // limite vertical: o quadro tem a altura dos 10 primeiros cartões da coluna mais alta; acima disso rola (uma barra só)
+  // altura que cabe na janela do portal (o cartão do funil real tem texto longo: 10 cartões podem passar da tela)
+  function alturaDisponivel() {
+    var h = window.innerHeight;
+    try { h = window.parent.innerHeight || h; } catch (e) {}
+    return Math.max(420, h - 260);
+  }
+  // limite vertical: o quadro tem a altura dos 10 primeiros cartões da coluna mais alta, no máximo o que cabe na janela;
+  // acima disso rola (uma barra só) e, no fim dela, a rolagem passa para a página
   function limitarQuadro() {
     board.style.maxHeight = "";
     var topo = board.getBoundingClientRect().top - board.scrollTop, maxH = 0;
@@ -256,7 +263,8 @@ fieldset.mostrar { border: 0; padding: 0; margin: 0; display: flex; align-items:
       if (!cs.length) return;
       maxH = Math.max(maxH, cs[Math.min(cs.length, MAX_CARTOES) - 1].getBoundingClientRect().bottom - topo);
     });
-    if (maxH && board.scrollHeight > maxH + 2) board.style.maxHeight = Math.ceil(maxH + 10) + "px";
+    var limite = Math.min(maxH + 10, alturaDisponivel());
+    if (maxH && board.scrollHeight > limite + 2) board.style.maxHeight = Math.ceil(limite) + "px";
   }
   // o iframe do Streamlit tem altura fixa: ajusta ao conteúdo (mesma origem); se não puder, fica a altura inicial
   function ajustarIframe() {
