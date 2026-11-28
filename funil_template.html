@@ -267,8 +267,14 @@ fieldset.mostrar { border: 0; padding: 0; margin: 0; display: flex; align-items:
     if (maxH && board.scrollHeight > limite + 2) board.style.maxHeight = Math.ceil(limite) + "px";
   }
   // o iframe do Streamlit tem altura fixa: ajusta ao conteúdo (mesma origem); se não puder, fica a altura inicial
+  // (mede o .app, não o documento: scrollHeight do documento nunca é menor que a altura do iframe e o iframe crescia sem parar)
+  var ultimaAltura = 0;
   function ajustarIframe() {
-    try { if (window.frameElement) window.frameElement.style.height = (document.documentElement.scrollHeight + 4) + "px"; } catch (e) {}
+    try {
+      if (!window.frameElement) return;
+      var h = Math.ceil(document.querySelector(".app").getBoundingClientRect().height) + 12;
+      if (Math.abs(h - ultimaAltura) > 1) { ultimaAltura = h; window.frameElement.style.height = h + "px"; }
+    } catch (e) {}
   }
   function apos() { limitarQuadro(); sincH(); sincV(); ajustarIframe(); }
   var desenharBase = desenhar;
