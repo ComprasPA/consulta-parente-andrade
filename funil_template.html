@@ -111,7 +111,7 @@ fieldset.mostrar { border: 0; padding: 0; margin: 0; display: flex; align-items:
   <div class="aviso" id="aviso"></div>
   <p class="legend">
     <span style="color:var(--late)">● Atrasado (Almoxarifado e Logística): previsão de entrega anterior a hoje e pedido ainda não recebido</span>
-    <span style="color:var(--late)">● Atrasado (Compras): solicitação emergencial além de 3 dias úteis ou rotineira além de 15 dias corridos</span>
+    <span style="color:var(--late)">● Atrasado (Compras): solicitação emergencial além de 3 dias úteis; demais solicitações além de 15 dias corridos; pedido gerado em dias corridos (emergencial 3, rotineira 15)</span>
     <span style="color:var(--soon)">● Vence em até 3 dias</span>
     <span style="color:var(--ok)">● No prazo</span>
     <span style="color:var(--done)">● Concluído / sem previsão</span>
@@ -146,7 +146,7 @@ fieldset.mostrar { border: 0; padding: 0; margin: 0; display: flex; align-items:
     var cab = ehSolic ? "SC " + (c.scs[0] || "") + (c.scs.length > 1 ? " +" + (c.scs.length - 1) : "") : "Pedido " + c.pedido;
     var tags = "";
     if (!ehSolic && c.scs.length) tags += '<span class="tag">SC ' + esc(c.scs.slice(0, 2).join(", ")) + (c.scs.length > 2 ? "…" : "") + "</span>";
-    if (c.crit) tags += '<span class="tag st">' + (c.crit === "EMERGENCIAL" ? "Emergencial · 3 dias úteis" : "Rotineira · 15 dias") + "</span>";
+    if (c.crit) tags += '<span class="tag st">' + (c.crit === "EMERGENCIAL" ? "Emergencial · 3 dias" + (c.col === "PEDIDO GERADO" ? "" : " úteis") : "Rotineira · 15 dias") + "</span>";
     if (c.sub) tags += '<span class="tag st">' + esc(c.sub) + "</span>";
     if (c.cc) tags += '<span class="tag">CC ' + esc(c.cc) + "</span>";
     if (c.st_orig) tags += '<span class="tag st">Status: ' + esc(c.st_orig) + "</span>";
@@ -169,7 +169,7 @@ fieldset.mostrar { border: 0; padding: 0; margin: 0; display: flex; align-items:
     ativos.forEach(function (nome) {
       var cols = COLUNAS.filter(function (c) { return c.bloco === nome; });
       var qtdAtr = DADOS.filter(function (c) { return c.bloco === nome && c.atrasado; }).length;
-      var dica = nome === "Compras" ? "Solicitação emergencial além de 3 dias úteis ou rotineira além de 15 dias corridos" : "Previsão de entrega anterior a hoje e pedido ainda não recebido";
+      var dica = nome === "Compras" ? "Solicitação emergencial além de 3 dias úteis; demais além de 15 dias corridos. Pedido gerado: dias corridos" : "Previsão de entrega anterior a hoje e pedido ainda não recebido";
       var g = document.createElement("section");
       g.className = "grupo"; g.style.setProperty("--n", cols.length);
       g.innerHTML = '<div class="grupo-tit"><span>' + esc(nome) + '</span><button type="button" class="chip" aria-pressed="' + estado.atraso[nome] + '" title="' + esc(dica) + '">Só atrasados (' + qtdAtr + ')</button></div><div class="cols"></div>';

@@ -130,9 +130,12 @@ class TestCompras:
         assert c["pz_txt"] == "Pendente há 9 dias" and c["sub"] == "Sem aprovação"
         assert (c["pz_cls"], c["atrasado"]) == ("ok", False)
 
-    def test_pendente_de_aprovacao_emergencial_conta_dias_uteis(self):
+    def test_pendente_de_aprovacao_emergencial_tambem_em_dias_corridos(self):
+        # aprovação de pedido é toda em dias corridos: emergencial = 3 dias corridos
         c = cartoes([linha(status="PENDENTE DE APROVAÇÃO", pedido="10", crit="EMERGENCIAL", dped="13/11/2026")])[0]
-        assert c["pz_txt"] == "Pendente há 8 dias úteis" and c["atrasado"] and c["pz_cls"] == "late"
+        assert c["pz_txt"] == "Pendente há 12 dias" and c["atrasado"] and c["pz_cls"] == "late"
+        d = cartoes([linha(status="PENDENTE DE APROVAÇÃO", pedido="11", crit="EMERGENCIAL", dped="23/11/2026")])[0]
+        assert (d["pz_cls"], d["atrasado"]) == ("soon", False)  # limite 26/11 (3 corridos), resta 1d
 
     def test_pendente_outras_criticidades_dias_corridos(self):
         c = cartoes([linha(status="PENDENTE DE APROVAÇÃO", pedido="10", crit="COMPRA DIRETA", dped="13/11/2026")])[0]
@@ -143,11 +146,11 @@ class TestCompras:
         hoje = cartoes([linha(status="PENDENTE DE APROVAÇÃO", pedido="2", crit="ROTINEIRA", dped="25/11/2026")])[0]
         emerg = cartoes([linha(status="PENDENTE DE APROVAÇÃO", pedido="3", crit="EMERGENCIAL", dped="24/11/2026")])[0]
         assert um["pz_txt"] == "Pendente há 1 dia" and hoje["pz_txt"] == "Pendente desde hoje"
-        assert emerg["pz_txt"] == "Pendente há 1 dia útil"
+        assert emerg["pz_txt"] == "Pendente há 1 dia"
 
     def test_aprovado_nao_enviado_mantem_o_texto_de_prazo(self):
         c = cartoes([linha(status="APROVADO", pedido="10", crit="EMERGENCIAL", dped="13/11/2026")])[0]
-        assert c["pz_txt"].startswith("Atrasada")
+        assert c["pz_txt"] == "Atrasada 9d"  # limite 16/11 (3 dias corridos), hoje 25/11
 
 
 class TestLogistica:

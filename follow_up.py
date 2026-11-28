@@ -13,7 +13,9 @@ Três blocos:
   Logística    situação da coluna LOGISTICA do pedido (4 etapas).
 
 Regras de atraso (decisão do usuário):
-  Compras       solicitação EMERGENCIAL: 3 dias úteis; ROTINEIRA: 15 dias corridos.
+  Compras       solicitação EMERGENCIAL: 3 dias úteis; demais solicitações: 15 dias corridos.
+                Aprovação de pedido (Pedido gerado): tudo em dias corridos (emergencial 3, rotineira 15).
+  Todos os demais prazos (Almoxarifado, Logística) são em dias corridos.
   Almoxarifado  Previsão de Entrega anterior a hoje e pedido ainda não recebido.
   Logística     Prev Log (ou, sem ela, a Previsão de Entrega) anterior a hoje e ainda não
                 entregue na obra.
@@ -117,27 +119,28 @@ def dias_uteis_entre(inicio, fim):
     return n
 
 
-def limite_compras(inicio, criticidade):
-    """Data limite de Compras: EMERGENCIAL = 3 dias úteis, ROTINEIRA = 15 dias corridos.
+def limite_compras(inicio, criticidade, uteis=True):
+    """Data limite de Compras. Solicitação (uteis=True): EMERGENCIAL = 3 dias úteis, ROTINEIRA = 15 dias corridos.
+    Aprovação de pedido (uteis=False): tudo em dias corridos (EMERGENCIAL = 3, ROTINEIRA = 15).
     Outras criticidades (COMPRA DIRETA, CORREÇÃO DE PROCESSO, em branco) não têm prazo definido."""
     c = _chave(criticidade)
     if inicio is None:
         return None
     if c == "EMERGENCIAL":
-        return somar_dias_uteis(inicio, DIAS_UTEIS_EMERGENCIAL)
+        return somar_dias_uteis(inicio, DIAS_UTEIS_EMERGENCIAL) if uteis else inicio + timedelta(days=DIAS_UTEIS_EMERGENCIAL)
     if c == "ROTINEIRA":
         return inicio + timedelta(days=DIAS_CORRIDOS_ROTINEIRA)
     return None
 
 
-def prazo_compras(inicio, criticidade, hoje):
-    """(classe, texto, folga em dias, atrasado) para solicitações e pedidos ainda não enviados."""
+def prazo_compras(inicio, criticidade, hoje, uteis=True):
+    """(classe, texto, folga em dias, atrasado) para solicitações (uteis=True) e pedidos ainda não enviados (uteis=False)."""
     if inicio is None:
         return "none", "Sem data da SC", None, False
-    limite = limite_compras(inicio, criticidade)
+    limite = limite_compras(inicio, criticidade, uteis)
     if limite is None:
         return "none", "Sem prazo definido", None, False
-    emerg = _chave(criticidade) == "EMERGENCIAL"
+    emerg = uteis and _chave(criticidade) == "EMERGENCIAL"  # só a solicitação emergencial conta em dias úteis
     folga = (limite - hoje).days
     if hoje > limite:
         n = dias_uteis_entre(limite, hoje) if emerg else (hoje - limite).days
@@ -152,16 +155,10 @@ def prazo_compras(inicio, criticidade, hoje):
     return "ok", "No prazo", folga, False
 
 
-def texto_pendente_aprovacao(inicio, hoje, emergencial=False):
-    """"Pendente há N dias": tempo que o pedido está esperando aprovação. Dias CORRIDOS, exceto
-    solicitação EMERGENCIAL, que conta em dias úteis (seg-sex, sem feriados)."""
-    if emergencial:
-        n = dias_uteis_entre(inicio, hoje) if hoje > inicio else 0
-        unidade = "dia útil" if n == 1 else "dias úteis"
-    else:
-        n = (hoje - inicio).days if hoje > inicio else 0
-        unidade = "dia" if n == 1 else "dias"
-    return "Pendente desde hoje" if n == 0 else f"Pendente há {n} {unidade}"
+def texto_pendente_aprovacao(inicio, hoje):
+    """"Pendente há N dias": tempo que o pedido está esperando aprovação, sempre em dias CORRIDOS."""
+    n = (hoje - inicio).days if hoje > inicio else 0
+    return "Pendente desde hoje" if n == 0 else f"Pendente há {n} {'dia' if n == 1 else 'dias'}"
 
 
 def prazo_entrega(previsao, hoje):
@@ -298,11 +295,12 @@ def _finalizar(g, hoje):
             inicio = min(g["datas_pedido"]) if g["datas_pedido"] else None
         else:
             inicio = min(g["datas_sc"]) if g["datas_sc"] else None
-        classe, texto, folga, atrasado = prazo_compras(inicio, g["crit"], hoje)
+        # aprovação de pedido (Pedido gerado) é toda em dias corridos; só a solicitação emergencial usa dias úteis
+        classe, texto, folga, atrasado = prazo_compras(inicio, g["crit"], hoje, uteis=(col_id != "PEDIDO GERADO"))
         if col_id == "PEDIDO GERADO" and g.get("sub") == "Sem aprovação" and inicio is not None:
-            # pedido pendente de aprovação: o cartão mostra há quantos dias ele espera a aprovação (corridos;
-            # úteis só se emergencial). A cor e o filtro "Só atrasados" continuam pela regra de prazo da criticidade
-            texto = texto_pendente_aprovacao(inicio, hoje, _chave(g["crit"]) == "EMERGENCIAL")
+            # pedido pendente de aprovação: o cartão mostra há quantos dias ele espera a aprovação
+            # (a cor e o filtro "Só atrasados" seguem o prazo da criticidade)
+            texto = texto_pendente_aprovacao(inicio, hoje)
         emissao = inicio
     elif bloco == BLOCO_ALMOX:
         emissao = min(g["datas_pedido"]) if g["datas_pedido"] else None
