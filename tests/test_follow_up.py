@@ -61,6 +61,10 @@ class TestAlmoxarifado:
         c = cartoes([linha(prev=prev)])[0]
         assert (c["pz_cls"], c["pz_txt"], c["atrasado"]) == (classe, texto, atrasado)
 
+    def test_enviado_ao_financeiro_nao_tem_prazo_de_vencimento(self):
+        c = cartoes([linha(status="ENVIADO AO FINANCEIRO", prev="01/07/2026")])[0]  # previsão antiga: não conta
+        assert (c["pz_txt"], c["pz_cls"], c["atrasado"], c["folga"]) == ("", "none", False, None)
+
     def test_atendido_nunca_e_atrasado(self):
         c = cartoes([linha(status="ATENDIDO", prev="01/11/2026", entrega="20/11/2026")])[0]
         assert not c["atrasado"] and c["pz_txt"] == "Entregue 20/11"

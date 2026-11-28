@@ -110,7 +110,7 @@ fieldset.mostrar { border: 0; padding: 0; margin: 0; display: flex; align-items:
   <div class="resumo" id="resumo"></div>
   <div class="aviso" id="aviso"></div>
   <p class="legend">
-    <span style="color:var(--late)">● Atrasado (Almoxarifado e Logística): previsão de entrega anterior a hoje e pedido ainda não recebido</span>
+    <span style="color:var(--late)">● Atrasado (Almoxarifado e Logística): previsão de entrega anterior a hoje e pedido ainda não recebido (Enviado ao financeiro não tem prazo)</span>
     <span style="color:var(--late)">● Atrasado (Compras): solicitação emergencial além de 3 dias úteis; demais solicitações além de 15 dias corridos; pedido gerado em dias corridos (emergencial 3, rotineira 15)</span>
     <span style="color:var(--soon)">● Vence em até 3 dias</span>
     <span style="color:var(--ok)">● No prazo</span>
@@ -156,7 +156,7 @@ fieldset.mostrar { border: 0; padding: 0; margin: 0; display: flex; align-items:
       '<div class="top"><b>' + esc(cab) + "</b><span>" + esc(c.data) + "</span></div>" +
       '<div class="forn" title="' + esc(c.titulo) + '">' + esc(c.titulo) + "</div>" +
       '<div class="meta">' + (c.valor ? "<span>" + fmoeda(c.valor) + "</span>" : "") + tags + "</div>" +
-      '<div class="prazo ' + esc(c.pz_cls) + '">' + esc(c.pz_txt) + "</div>";
+      (c.pz_txt ? '<div class="prazo ' + esc(c.pz_cls) + '">' + esc(c.pz_txt) + "</div>" : "");
     return el;
   }
 

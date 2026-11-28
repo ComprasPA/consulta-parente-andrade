@@ -16,7 +16,8 @@ Regras de atraso (decisão do usuário):
   Compras       solicitação EMERGENCIAL: 3 dias úteis; demais solicitações: 15 dias corridos.
                 Aprovação de pedido (Pedido gerado): tudo em dias corridos (emergencial 3, rotineira 15).
   Todos os demais prazos (Almoxarifado, Logística) são em dias corridos.
-  Almoxarifado  Previsão de Entrega anterior a hoje e pedido ainda não recebido.
+  Almoxarifado  Previsão de Entrega anterior a hoje e pedido ainda não recebido
+                (Enviado ao financeiro não tem prazo de vencimento).
   Logística     Prev Log (ou, sem ela, a Previsão de Entrega) anterior a hoje e ainda não
                 entregue na obra.
 
@@ -306,6 +307,9 @@ def _finalizar(g, hoje):
         emissao = min(g["datas_pedido"]) if g["datas_pedido"] else None
         if col_id == "ATENDIDO":
             classe, texto, folga, atrasado = "done", ("Entregue " + entrega.strftime("%d/%m")) if entrega else "Atendido", None, False
+        elif col_id == "ENVIADO AO FINANCEIRO":
+            # etapa do financeiro: não tem prazo de vencimento (sem indicador e nunca atrasado)
+            classe, texto, folga, atrasado = "none", "", None, False
         else:
             classe, texto, folga, atrasado = prazo_entrega(previsao, hoje)
     else:  # Logística
