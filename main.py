@@ -505,6 +505,7 @@ def adicionar_criticidade_da_solicitacao(df, df_sc):
     "Salvar Alterações" nunca grava nela. Não mexe no index."""
     df = df.copy()
     df["CRITICIDADE"] = ""
+    df["DATA SC"] = ""  # só leitura: aprovação (ou emissão) da SC, usada no prazo de Compras do Funil
     if df_sc is None or df_sc.empty:
         return df
     por_nome = {str(c).upper().strip().replace("Ç", "C").replace("Ã", "A"): c for c in df_sc.columns}
@@ -518,6 +519,20 @@ def adicionar_criticidade_da_solicitacao(df, df_sc):
         if chave and crit and chave not in mapa:
             mapa[chave] = crit
     df["CRITICIDADE"] = df[col_sc_pc].map(lambda v: mapa.get(_chave_solicitacao(v), ""))
+    try:  # DATA SC é extra do Funil: se falhar, o portal segue sem ela
+        col_apr, col_emi = por_nome.get("DATA APROVACAO"), por_nome.get("DATA EMISSAO")
+        if col_apr or col_emi:
+            apr = df_sc[col_apr].tolist() if col_apr else [""] * len(df_sc)
+            emi = df_sc[col_emi].tolist() if col_emi else [""] * len(df_sc)
+            mapa_data = {}
+            for sc, a_, e_ in zip(df_sc[col_sc], apr, emi):
+                chave = _chave_solicitacao(sc)
+                d = parse_data_br(formatar_para_dd_mm_aaaa(a_)) or parse_data_br(formatar_para_dd_mm_aaaa(e_))
+                if chave and d and (chave not in mapa_data or d < mapa_data[chave]):
+                    mapa_data[chave] = d
+            df["DATA SC"] = df[col_sc_pc].map(lambda v: mapa_data[_chave_solicitacao(v)].strftime("%d/%m/%Y") if _chave_solicitacao(v) in mapa_data else "")
+    except Exception:
+        pass
     return df
 
 
@@ -1438,6 +1453,22 @@ if tem_busca_ativa:
             st.markdown(f'<div class="custom-error-red">⚠️ Erro ao processar os dados da busca: {e}</div>', unsafe_allow_html=True)
 else:
     st.markdown('<div class="custom-welcome-salutation">👋 Olá! Seja bem-vindo ao Portal de Gestão de Compras. Utilize os Filtros Avançados acima para pesquisar.</div>', unsafe_allow_html=True)
+
+# 9.5 FUNIL DE FOLLOW UP - abaixo da tabela, com os MESMOS filtros dela (pedido, SC, centro de custo,
+# status, data, CNPJ): com busca ativa usa o df_final filtrado; sem busca, a base inteira. Só espelha o
+# portal (não grava nada) e qualquer erro vira aviso: o funil nunca derruba o portal.
+try:
+    import follow_up as _follow_up
+    import funil_tela as _funil_tela
+    for _m in (_follow_up, _funil_tela):
+        if getattr(_m, "_MTIME_AO_IMPORTAR", None) != os.path.getmtime(_m.__file__):
+            importlib.reload(_m)
+    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+    if not df_pc.empty:
+        _df_funil = aplicar_filtros(df_pc)[0] if tem_busca_ativa else df_pc
+        _funil_tela.renderizar_funil(_df_funil)
+except Exception as _e_funil:
+    st.warning(f"⚠️ Funil de Follow Up indisponível no momento: {_e_funil}")
 
 # 10. RODAPÉ INSTITUCIONAL
 renderizar_rodape()
