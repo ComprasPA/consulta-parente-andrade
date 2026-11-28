@@ -152,6 +152,14 @@ def prazo_compras(inicio, criticidade, hoje):
     return "ok", "No prazo", folga, False
 
 
+def texto_pendente_aprovacao(inicio, hoje):
+    """"Pendente há N dias úteis": tempo que o pedido está esperando aprovação (seg-sex, sem feriados)."""
+    n = dias_uteis_entre(inicio, hoje) if hoje > inicio else 0
+    if n == 0:
+        return "Pendente desde hoje"
+    return f"Pendente há {n} dia útil" if n == 1 else f"Pendente há {n} dias úteis"
+
+
 def prazo_entrega(previsao, hoje):
     """(classe, texto, folga, atrasado) pela data de previsão (Almoxarifado e Logística)."""
     if previsao is None:
@@ -287,6 +295,10 @@ def _finalizar(g, hoje):
         else:
             inicio = min(g["datas_sc"]) if g["datas_sc"] else None
         classe, texto, folga, atrasado = prazo_compras(inicio, g["crit"], hoje)
+        if col_id == "PEDIDO GERADO" and g.get("sub") == "Sem aprovação" and inicio is not None:
+            # pedido pendente de aprovação: o cartão mostra há quantos dias úteis ele espera a aprovação
+            # (a cor e o filtro "Só atrasados" continuam pela regra de prazo da criticidade)
+            texto = texto_pendente_aprovacao(inicio, hoje)
         emissao = inicio
     elif bloco == BLOCO_ALMOX:
         emissao = min(g["datas_pedido"]) if g["datas_pedido"] else None
