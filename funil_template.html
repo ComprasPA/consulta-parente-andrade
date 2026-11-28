@@ -146,7 +146,8 @@ fieldset.mostrar { border: 0; padding: 0; margin: 0; display: flex; align-items:
     var cab = ehSolic ? "SC " + (c.scs[0] || "") + (c.scs.length > 1 ? " +" + (c.scs.length - 1) : "") : "Pedido " + c.pedido;
     var tags = "";
     if (!ehSolic && c.scs.length) tags += '<span class="tag">SC ' + esc(c.scs.slice(0, 2).join(", ")) + (c.scs.length > 2 ? "…" : "") + "</span>";
-    if (c.crit) tags += '<span class="tag st">' + (c.crit === "EMERGENCIAL" ? "Emergencial · 3 dias" + (c.col === "PEDIDO GERADO" ? "" : " úteis") : "Rotineira · 15 dias") + "</span>";
+    // cartão de pedido: só a criticidade; cartão de solicitação: criticidade com o prazo
+    if (c.crit) tags += '<span class="tag st">' + (c.crit === "EMERGENCIAL" ? "Emergencial" : "Rotineira") + (ehSolic ? (c.crit === "EMERGENCIAL" ? " · 3 dias úteis" : " · 15 dias") : "") + "</span>";
     if (c.sub) tags += '<span class="tag st">' + esc(c.sub) + "</span>";
     if (c.cc) tags += '<span class="tag">CC ' + esc(c.cc) + "</span>";
     if (c.st_orig) tags += '<span class="tag st">Status: ' + esc(c.st_orig) + "</span>";
